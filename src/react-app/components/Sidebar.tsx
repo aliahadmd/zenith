@@ -3,6 +3,7 @@ import { useAuth } from '../context/AuthContext'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
+import { ThemeSwitcher } from './ThemeSwitcher'
 
 export function Sidebar() {
   const { currentUser, logout } = useAuth()
@@ -34,13 +35,15 @@ export function Sidebar() {
         <NavLink to="/feed" className={navLinkClass}>
           Feed
         </NavLink>
-        <NavLink to={`/profile/${currentUser?.username}`} className={navLinkClass}>
+        <NavLink to={`/u/${currentUser?.username}`} className={navLinkClass}>
           Profile
         </NavLink>
         <NavLink to="/settings" className={navLinkClass}>
           Settings
         </NavLink>
       </nav>
+
+      <ThemeSwitcher />
 
       <Separator className="my-4" />
 

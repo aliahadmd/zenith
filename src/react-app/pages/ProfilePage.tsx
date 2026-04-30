@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useParams } from 'react-router'
+import { Link, useParams } from 'react-router'
 import { useAuth } from '../context/AuthContext'
 import { apiGet } from '../lib/api'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
@@ -103,7 +103,7 @@ export function ProfilePage() {
       <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="about">About</TabsTrigger>
-          <TabsTrigger value="subscribed">Subscribed</TabsTrigger>
+          <TabsTrigger value="subscribed">Subscribed to</TabsTrigger>
         </TabsList>
         <TabsContent value="about" className="mt-4">
           <Card>
@@ -116,10 +116,10 @@ export function ProfilePage() {
         </TabsContent>
         <TabsContent value="subscribed" className="mt-4 space-y-3">
           {subscriptions.length === 0 ? (
-            <p className="text-sm text-muted-foreground">Not following any creators yet.</p>
+            <p className="text-sm text-muted-foreground">Not subscribed to any creators yet.</p>
           ) : (
             subscriptions.map((sub) => (
-              <div key={sub.username} className="flex items-center gap-3">
+              <Link to={`/u/${sub.username}`} key={sub.username} className="flex items-center gap-3">
                 <Avatar>
                   <AvatarImage src={sub.avatarUrl ?? undefined} alt={sub.displayName} />
                   <AvatarFallback>{sub.displayName.slice(0, 2).toUpperCase()}</AvatarFallback>
@@ -128,7 +128,7 @@ export function ProfilePage() {
                   <p className="font-medium">{sub.displayName}</p>
                   <p className="text-sm text-muted-foreground">@{sub.username}</p>
                 </div>
-              </div>
+              </Link>
             ))
           )}
         </TabsContent>

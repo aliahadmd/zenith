@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
-import { isValidEmail, isValidPassword } from './validators'
+import { isValidEmail, isValidPassword, isValidUsername, isValidUrl, generateUsername } from './validators'
 
 describe('validator property tests', () => {
   // Feature: auth-and-social-feed, Property 5: Email validator rejects all malformed addresses
@@ -89,5 +89,102 @@ describe('validator property tests', () => {
         { numRuns: 100 }
       )
     })
+  })
+})
+
+describe('profile-and-settings-improvements property tests', () => {
+  // Feature: profile-and-settings-improvements, Property 9
+  // Validates: Requirements 1.1, 1.2
+  it('Property 9 — isValidUsername accepts all valid usernames', () => {
+    fc.assert(
+      fc.property(
+        fc.stringMatching(/^[a-z0-9][a-z0-9_-]{1,8}[a-z0-9]$/),
+        (username) => {
+          expect(isValidUsername(username)).toBe(true)
+        }
+      ),
+      { numRuns: 100 }
+    )
+    fc.assert(
+      fc.property(
+        fc.stringMatching(/^[a-z0-9]{3}$/),
+        (username) => {
+          expect(isValidUsername(username)).toBe(true)
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+
+  // Feature: profile-and-settings-improvements, Property 10
+  // Validates: Requirements 1.3, 1.4
+  it('Property 10 — isValidUsername rejects all invalid usernames', () => {
+    fc.assert(
+      fc.property(
+        fc.string({ minLength: 3, maxLength: 10 }).filter(s => /[A-Z]/.test(s)),
+        (username) => {
+          expect(isValidUsername(username)).toBe(false)
+        }
+      ),
+      { numRuns: 100 }
+    )
+    fc.assert(
+      fc.property(
+        fc.oneof(fc.string({ maxLength: 2 }), fc.string({ minLength: 11 })),
+        (username) => {
+          expect(isValidUsername(username)).toBe(false)
+        }
+      ),
+      { numRuns: 100 }
+    )
+    fc.assert(
+      fc.property(
+        fc.oneof(
+          fc.stringMatching(/^[-_][a-z0-9_-]{1,8}[a-z0-9]$/),
+          fc.stringMatching(/^[a-z0-9][a-z0-9_-]{1,8}[-_]$/)
+        ),
+        (username) => {
+          expect(isValidUsername(username)).toBe(false)
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+
+  // Feature: profile-and-settings-improvements, Property 11
+  // Validates: Requirements 1.8, 1.9
+  it('Property 11 — generateUsername always produces valid usernames', () => {
+    fc.assert(
+      fc.property(
+        fc.emailAddress().map(e => e.split('@')[0]),
+        (localPart) => {
+          expect(isValidUsername(generateUsername(localPart))).toBe(true)
+        }
+      ),
+      { numRuns: 100 }
+    )
+  })
+
+  // Feature: profile-and-settings-improvements, Property 12
+  // Validates: Requirements 3.4
+  it('Property 12 — isValidUrl accepts valid http/https URLs and rejects non-URLs', () => {
+    fc.assert(
+      fc.property(
+        fc.webUrl({ validSchemes: ['http', 'https'] }),
+        (url) => {
+          expect(isValidUrl(url)).toBe(true)
+        }
+      ),
+      { numRuns: 100 }
+    )
+    fc.assert(
+      fc.property(
+        fc.string().filter(s => { try { new URL(s); return false } catch { return true } }),
+        (s) => {
+          expect(isValidUrl(s)).toBe(false)
+        }
+      ),
+      { numRuns: 100 }
+    )
   })
 })

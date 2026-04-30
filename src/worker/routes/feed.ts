@@ -27,7 +27,7 @@ feedRoutes.get('/', authMiddleware, requireRole('subscriber'), async (c) => {
     .all()
 
   if (rows.length === 0) {
-    return c.json({ posts: [], message: 'You have not followed yet' })
+    return c.json({ posts: [], message: "You haven't subscribed to any creators yet" })
   }
 
   const mappedPosts = rows.map((row) => ({
@@ -43,9 +43,9 @@ feedRoutes.get('/', authMiddleware, requireRole('subscriber'), async (c) => {
   return c.json({ posts: mappedPosts })
 })
 
-// ── POST /follow ───────────────────────────────────────────────────────────
+// ── POST /subscribe ────────────────────────────────────────────────────────
 
-feedRoutes.post('/follow', authMiddleware, requireRole('subscriber'), async (c) => {
+feedRoutes.post('/subscribe', authMiddleware, requireRole('subscriber'), async (c) => {
   let body: { creatorId?: unknown }
   try {
     body = await c.req.json()
@@ -72,17 +72,16 @@ feedRoutes.post('/follow', authMiddleware, requireRole('subscriber'), async (c) 
     return c.json({ error: 'Creator not found' }, 404)
   }
 
-  const followerId = c.var.user.id
-  const followeeId = creatorId
+  const subscriberId = c.var.user.id
 
   try {
-    await db.insert(follows).values({ followerId, followeeId }).run()
+    await db.insert(follows).values({ followerId: subscriberId, followeeId: creatorId }).run()
   } catch (err) {
     if (err instanceof Error && err.message.toLowerCase().includes('unique')) {
-      return c.json({ error: 'Already following this creator' }, 409)
+      return c.json({ error: 'Already subscribed to this creator' }, 409)
     }
     throw err
   }
 
-  return c.json({ followerId, followeeId }, 201)
+  return c.json({ subscriberId, creatorId }, 201)
 })

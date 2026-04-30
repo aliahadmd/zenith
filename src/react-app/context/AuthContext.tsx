@@ -17,6 +17,7 @@ type AuthContextValue = {
   isLoading: boolean
   login: (email: string, password: string) => Promise<{ error: string | null }>
   logout: () => Promise<void>
+  refreshCurrentUser: () => Promise<void>
 }
 
 const AuthContext = createContext<AuthContextValue | null>(null)
@@ -49,8 +50,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     setCurrentUser(null)
   }
 
+  async function refreshCurrentUser() {
+    const { data } = await apiGet<User>('/api/auth/me')
+    if (data) setCurrentUser(data)
+  }
+
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading, login, logout }}>
+    <AuthContext.Provider value={{ currentUser, isLoading, login, logout, refreshCurrentUser }}>
       {children}
     </AuthContext.Provider>
   )

@@ -43,8 +43,8 @@ export function FeedPage() {
   if (posts.length === 0) {
     return (
       <div className="flex h-64 flex-col items-center justify-center gap-2 text-muted-foreground">
-        <p className="text-lg font-medium">{message ?? 'You have not followed yet'}</p>
-        <p className="text-sm">Follow some creators to see their posts here.</p>
+        <p className="text-lg font-medium">{message ?? "You haven't subscribed to any creators yet"}</p>
+        <p className="text-sm">Subscribe to creators to see their posts here.</p>
       </div>
     )
   }

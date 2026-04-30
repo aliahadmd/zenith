@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
-import { eq } from 'drizzle-orm'
+import { eq, and, not } from 'drizzle-orm'
 import { createDb } from '../db/client'
 import { users } from '../db/schema'
 import { hashPassword, verifyPassword } from '../lib/crypto'
-import { isValidEmail } from '../lib/validators'
+import { isValidEmail, isValidUsername, isValidUrl } from '../lib/validators'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
 
 export const settingsRoutes = new Hono<HonoEnv>()
@@ -152,14 +152,31 @@ settingsRoutes.put('/email', authMiddleware, async (c) => {
     return c.json({ error: 'newEmail and currentPassword are required' }, 422)
   }
 
-  // Validate email format
   if (!isValidEmail(newEmail)) {
     return c.json({ error: 'Invalid email address' }, 422)
   }
 
   const db = createDb(c.env.DB)
 
-  // Check if new email is already taken
+  // Fetch current user's email and password hash in a single query
+  const currentUser = await db
+    .select({ email: users.email, passwordHash: users.passwordHash })
+    .from(users)
+    .where(eq(users.id, userId))
+    .get()
+
+  if (!currentUser) {
+    return c.json({ error: 'User not found' }, 404)
+  }
+
+  // Idempotency: same email → verify password, return 200 without DB write
+  if (newEmail === currentUser.email) {
+    const passwordOk = await verifyPassword(currentPassword, currentUser.passwordHash)
+    if (!passwordOk) return c.json({ error: 'Current password is incorrect' }, 401)
+    return c.json({ message: 'Email unchanged' })
+  }
+
+  // Only check uniqueness when the email is actually changing
   const emailTaken = await db
     .select({ id: users.id })
     .from(users)
@@ -170,24 +187,11 @@ settingsRoutes.put('/email', authMiddleware, async (c) => {
     return c.json({ error: 'Email already in use' }, 409)
   }
 
-  // Fetch user to verify password
-  const user = await db
-    .select({ passwordHash: users.passwordHash })
-    .from(users)
-    .where(eq(users.id, userId))
-    .get()
-
-  if (!user) {
-    return c.json({ error: 'User not found' }, 404)
-  }
-
-  // Verify current password
-  const passwordOk = await verifyPassword(currentPassword, user.passwordHash)
+  const passwordOk = await verifyPassword(currentPassword, currentUser.passwordHash)
   if (!passwordOk) {
     return c.json({ error: 'Current password is incorrect' }, 401)
   }
 
-  // Update email
   await db
     .update(users)
     .set({ email: newEmail })
@@ -195,4 +199,110 @@ settingsRoutes.put('/email', authMiddleware, async (c) => {
     .run()
 
   return c.json({ message: 'Email updated' })
+})
+
+// ── PUT /username ──────────────────────────────────────────────────────────
+
+settingsRoutes.put('/username', authMiddleware, async (c) => {
+  const userId = c.var.user.id
+
+  let body: { newUsername?: unknown }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 422)
+  }
+
+  const { newUsername } = body as { newUsername: string }
+
+  if (!newUsername || typeof newUsername !== 'string') {
+    return c.json({ error: 'newUsername is required and must be a string' }, 422)
+  }
+
+  if (!isValidUsername(newUsername)) {
+    return c.json({
+      error: 'Username must be 3–10 characters, lowercase letters, digits, underscores, or hyphens, and must not start or end with _ or -'
+    }, 422)
+  }
+
+  const db = createDb(c.env.DB)
+
+  const currentUser = await db
+    .select({ username: users.username })
+    .from(users)
+    .where(eq(users.id, userId))
+    .get()
+
+  if (!currentUser) return c.json({ error: 'User not found' }, 404)
+
+  if (newUsername === currentUser.username) {
+    return c.json({ message: 'Username unchanged' })
+  }
+
+  const taken = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(and(eq(users.username, newUsername), not(eq(users.id, userId))))
+    .get()
+
+  if (taken) {
+    return c.json({ error: 'Username is already taken' }, 409)
+  }
+
+  await db
+    .update(users)
+    .set({ username: newUsername })
+    .where(eq(users.id, userId))
+    .run()
+
+  return c.json({ username: newUsername })
+})
+
+// ── PUT /profile ───────────────────────────────────────────────────────────
+
+settingsRoutes.put('/profile', authMiddleware, async (c) => {
+  const userId = c.var.user.id
+
+  let body: {
+    displayName?: unknown
+    tagline?: unknown
+    socialLinks?: { twitter?: unknown; github?: unknown; website?: unknown }
+  }
+  try {
+    body = await c.req.json()
+  } catch {
+    return c.json({ error: 'Invalid JSON body' }, 422)
+  }
+
+  const { displayName, tagline, socialLinks } = body as {
+    displayName: string
+    tagline?: string
+    socialLinks?: { twitter?: string; github?: string; website?: string }
+  }
+
+  if (!displayName || typeof displayName !== 'string' || displayName.trim() === '') {
+    return c.json({ error: 'displayName is required and must be a non-empty string' }, 422)
+  }
+
+  if (socialLinks) {
+    for (const [field, url] of Object.entries(socialLinks)) {
+      if (url && !isValidUrl(url)) {
+        return c.json({ error: `Invalid URL for ${field}` }, 422)
+      }
+    }
+  }
+
+  const db = createDb(c.env.DB)
+
+  await db
+    .update(users)
+    .set({
+      displayName: displayName.trim(),
+      tagline: tagline ?? null,
+      socialLinks: socialLinks ? JSON.stringify(socialLinks) : null,
+    })
+    .where(eq(users.id, userId))
+    .run()
+
+  return c.json({ displayName: displayName.trim(), tagline, socialLinks })
 })

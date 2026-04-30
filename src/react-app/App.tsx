@@ -23,7 +23,7 @@ export default function App() {
           <Route element={<AppShell />}>
             <Route index element={<Navigate to="/feed" replace />} />
             <Route path="/feed" element={<FeedPage />} />
-            <Route path="/profile/:username" element={<ProfilePage />} />
+            <Route path="/u/:username" element={<ProfilePage />} />
             <Route path="/settings" element={<SettingsPage />} />
           </Route>
         </Route>

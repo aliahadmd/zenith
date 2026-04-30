@@ -4,26 +4,12 @@ import { eq } from 'drizzle-orm'
 import { createDb } from '../db/client'
 import { users } from '../db/schema'
 import { hashPassword, verifyPassword, signJwt } from '../lib/crypto'
-import { isValidEmail, isValidPassword } from '../lib/validators'
+import { isValidEmail, isValidPassword, generateUsername } from '../lib/validators'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
 
 export const authRoutes = new Hono<HonoEnv>()
 
 // ── Helpers ────────────────────────────────────────────────────────────────
-
-/**
- * Generate a URL-safe username slug from an email local-part.
- * Lowercases, replaces non-alphanumeric chars with `-`, and appends a
- * 4-character random hex suffix to ensure uniqueness.
- */
-function generateUsername(emailLocalPart: string): string {
-  const base = emailLocalPart
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') // trim leading/trailing dashes
-  const suffix = Math.random().toString(36).slice(2, 6) // 4 random alphanumeric chars
-  return `${base}-${suffix}`
-}
 
 function cookieOptions() {
   return {
