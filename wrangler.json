@@ -17,7 +17,24 @@
 	"assets": {
 		"directory": "./dist/client",
 		"not_found_handling": "single-page-application"
-	}
+	},
+	"vars": {
+		"JWT_SECRET": "change-me-in-production"
+	},
+	"d1_databases": [
+		{
+			"binding": "DB",
+			"database_name": "social-feed-db",
+			"database_id": "local",
+			"migrations_dir": "drizzle"
+		}
+	],
+	"r2_buckets": [
+		{
+			"binding": "AVATARS",
+			"bucket_name": "social-feed-avatars"
+		}
+	]
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
