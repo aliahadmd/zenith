@@ -1,10 +1,25 @@
 import { Hono } from 'hono'
+import { zValidator } from '@hono/zod-validator'
 import { eq, and, not } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { users } from '../db/schema'
+import { account, users } from '../db/schema'
 import { hashPassword, verifyPassword } from '../lib/crypto'
-import { isValidEmail, isValidUsername, isValidUrl } from '../lib/validators'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
+import {
+  emailSettingsSchema,
+  passwordSettingsSchema,
+  profileSettingsSchema,
+  usernameSettingsSchema,
+} from '../lib/schemas'
+import {
+  conflict,
+  errorResponse,
+  notFound,
+  payloadTooLarge,
+  unauthorized,
+  unsupportedMediaType,
+  zodHook,
+} from '../lib/http'
 
 export const settingsRoutes = new Hono<HonoEnv>()
 
@@ -17,25 +32,25 @@ settingsRoutes.put('/avatar', authMiddleware, async (c) => {
   try {
     formData = await c.req.formData()
   } catch {
-    return c.json({ error: 'Invalid multipart/form-data body' }, 422)
+    return errorResponse(c, 422, 'validation_failed', 'Invalid multipart/form-data body')
   }
 
   const file = formData.get('avatar') as File | null
 
   if (!file) {
-    return c.json({ error: 'Missing avatar file' }, 422)
+    return errorResponse(c, 422, 'validation_failed', 'Missing avatar file')
   }
 
   // Validate Content-Type
   const allowedTypes = ['image/jpeg', 'image/png', 'image/webp']
   if (!allowedTypes.includes(file.type)) {
-    return c.json({ error: 'Unsupported media type. Must be image/jpeg, image/png, or image/webp' }, 415)
+    return unsupportedMediaType(c, 'Unsupported media type. Must be image/jpeg, image/png, or image/webp')
   }
 
   // Validate file size (≤ 5 MB)
   const maxSize = 5_242_880
   if (file.size > maxSize) {
-    return c.json({ error: 'File too large. Maximum size is 5 MB' }, 413)
+    return payloadTooLarge(c, 'File too large. Maximum size is 5 MB')
   }
 
   const db = createDb(c.env.DB)
@@ -79,100 +94,76 @@ settingsRoutes.put('/avatar', authMiddleware, async (c) => {
 
 // ── PUT /password ──────────────────────────────────────────────────────────
 
-settingsRoutes.put('/password', authMiddleware, async (c) => {
+settingsRoutes.put('/password', authMiddleware, zValidator('json', passwordSettingsSchema, zodHook), async (c) => {
   const userId = c.var.user.id
-
-  let body: { currentPassword?: unknown; newPassword?: unknown }
-  try {
-    body = await c.req.json()
-  } catch {
-    return c.json({ error: 'Invalid JSON body' }, 422)
-  }
-
-  const { currentPassword, newPassword } = body as { currentPassword: string; newPassword: string }
-
-  if (!currentPassword || !newPassword) {
-    return c.json({ error: 'currentPassword and newPassword are required' }, 422)
-  }
+  const { currentPassword, newPassword } = c.req.valid('json')
 
   const db = createDb(c.env.DB)
 
-  const user = await db
-    .select({ passwordHash: users.passwordHash })
-    .from(users)
-    .where(eq(users.id, userId))
+  const credentialAccount = await db
+    .select({ id: account.id, password: account.password })
+    .from(account)
+    .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
     .get()
 
-  if (!user) {
-    return c.json({ error: 'User not found' }, 404)
+  if (!credentialAccount?.password) {
+    return notFound(c, 'Credential account not found')
   }
 
   // Verify current password
-  const currentOk = await verifyPassword(currentPassword, user.passwordHash)
+  const currentOk = await verifyPassword(currentPassword, credentialAccount.password)
   if (!currentOk) {
-    return c.json({ error: 'Current password is incorrect' }, 401)
-  }
-
-  // Validate new password length
-  if (newPassword.length < 8) {
-    return c.json({ error: 'New password must be at least 8 characters' }, 422)
+    return unauthorized(c, 'Current password is incorrect')
   }
 
   // Validate new password is different from current
   if (newPassword === currentPassword) {
-    return c.json({ error: 'New password must be different from current password' }, 422)
+    return errorResponse(c, 422, 'validation_failed', 'New password must be different from current password')
   }
 
   const newHash = await hashPassword(newPassword)
 
-  await db
-    .update(users)
-    .set({ passwordHash: newHash })
-    .where(eq(users.id, userId))
-    .run()
+  await db.batch([
+    db.update(account).set({ password: newHash }).where(eq(account.id, credentialAccount.id)),
+    db.update(users).set({ passwordHash: newHash }).where(eq(users.id, userId)),
+  ])
 
   return c.json({ message: 'Password updated' })
 })
 
 // ── PUT /email ─────────────────────────────────────────────────────────────
 
-settingsRoutes.put('/email', authMiddleware, async (c) => {
+settingsRoutes.put('/email', authMiddleware, zValidator('json', emailSettingsSchema, zodHook), async (c) => {
   const userId = c.var.user.id
-
-  let body: { newEmail?: unknown; currentPassword?: unknown }
-  try {
-    body = await c.req.json()
-  } catch {
-    return c.json({ error: 'Invalid JSON body' }, 422)
-  }
-
-  const { newEmail, currentPassword } = body as { newEmail: string; currentPassword: string }
-
-  if (!newEmail || !currentPassword) {
-    return c.json({ error: 'newEmail and currentPassword are required' }, 422)
-  }
-
-  if (!isValidEmail(newEmail)) {
-    return c.json({ error: 'Invalid email address' }, 422)
-  }
+  const { newEmail, currentPassword } = c.req.valid('json')
 
   const db = createDb(c.env.DB)
 
-  // Fetch current user's email and password hash in a single query
+  // Fetch current user's email and credential password hash
   const currentUser = await db
-    .select({ email: users.email, passwordHash: users.passwordHash })
+    .select({ email: users.email })
     .from(users)
     .where(eq(users.id, userId))
     .get()
 
   if (!currentUser) {
-    return c.json({ error: 'User not found' }, 404)
+    return notFound(c, 'User not found')
   }
 
-  // Idempotency: same email → verify password, return 200 without DB write
+  const credentialAccount = await db
+    .select({ password: account.password })
+    .from(account)
+    .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
+    .get()
+
+  if (!credentialAccount?.password) {
+    return notFound(c, 'Credential account not found')
+  }
+
+  // Idempotency: same email -> verify password, return 200 without DB write
   if (newEmail === currentUser.email) {
-    const passwordOk = await verifyPassword(currentPassword, currentUser.passwordHash)
-    if (!passwordOk) return c.json({ error: 'Current password is incorrect' }, 401)
+    const passwordOk = await verifyPassword(currentPassword, credentialAccount.password)
+    if (!passwordOk) return unauthorized(c, 'Current password is incorrect')
     return c.json({ message: 'Email unchanged' })
   }
 
@@ -184,12 +175,12 @@ settingsRoutes.put('/email', authMiddleware, async (c) => {
     .get()
 
   if (emailTaken) {
-    return c.json({ error: 'Email already in use' }, 409)
+    return conflict(c, 'Email already in use')
   }
 
-  const passwordOk = await verifyPassword(currentPassword, currentUser.passwordHash)
+  const passwordOk = await verifyPassword(currentPassword, credentialAccount.password)
   if (!passwordOk) {
-    return c.json({ error: 'Current password is incorrect' }, 401)
+    return unauthorized(c, 'Current password is incorrect')
   }
 
   await db
@@ -203,27 +194,9 @@ settingsRoutes.put('/email', authMiddleware, async (c) => {
 
 // ── PUT /username ──────────────────────────────────────────────────────────
 
-settingsRoutes.put('/username', authMiddleware, async (c) => {
+settingsRoutes.put('/username', authMiddleware, zValidator('json', usernameSettingsSchema, zodHook), async (c) => {
   const userId = c.var.user.id
-
-  let body: { newUsername?: unknown }
-  try {
-    body = await c.req.json()
-  } catch {
-    return c.json({ error: 'Invalid JSON body' }, 422)
-  }
-
-  const { newUsername } = body as { newUsername: string }
-
-  if (!newUsername || typeof newUsername !== 'string') {
-    return c.json({ error: 'newUsername is required and must be a string' }, 422)
-  }
-
-  if (!isValidUsername(newUsername)) {
-    return c.json({
-      error: 'Username must be 3–10 characters, lowercase letters, digits, underscores, or hyphens, and must not start or end with _ or -'
-    }, 422)
-  }
+  const { newUsername } = c.req.valid('json')
 
   const db = createDb(c.env.DB)
 
@@ -233,7 +206,7 @@ settingsRoutes.put('/username', authMiddleware, async (c) => {
     .where(eq(users.id, userId))
     .get()
 
-  if (!currentUser) return c.json({ error: 'User not found' }, 404)
+  if (!currentUser) return notFound(c, 'User not found')
 
   if (newUsername === currentUser.username) {
     return c.json({ message: 'Username unchanged' })
@@ -246,7 +219,7 @@ settingsRoutes.put('/username', authMiddleware, async (c) => {
     .get()
 
   if (taken) {
-    return c.json({ error: 'Username is already taken' }, 409)
+    return conflict(c, 'Username is already taken')
   }
 
   await db
@@ -260,37 +233,9 @@ settingsRoutes.put('/username', authMiddleware, async (c) => {
 
 // ── PUT /profile ───────────────────────────────────────────────────────────
 
-settingsRoutes.put('/profile', authMiddleware, async (c) => {
+settingsRoutes.put('/profile', authMiddleware, zValidator('json', profileSettingsSchema, zodHook), async (c) => {
   const userId = c.var.user.id
-
-  let body: {
-    displayName?: unknown
-    tagline?: unknown
-    socialLinks?: { twitter?: unknown; github?: unknown; website?: unknown }
-  }
-  try {
-    body = await c.req.json()
-  } catch {
-    return c.json({ error: 'Invalid JSON body' }, 422)
-  }
-
-  const { displayName, tagline, socialLinks } = body as {
-    displayName: string
-    tagline?: string
-    socialLinks?: { twitter?: string; github?: string; website?: string }
-  }
-
-  if (!displayName || typeof displayName !== 'string' || displayName.trim() === '') {
-    return c.json({ error: 'displayName is required and must be a non-empty string' }, 422)
-  }
-
-  if (socialLinks) {
-    for (const [field, url] of Object.entries(socialLinks)) {
-      if (url && !isValidUrl(url)) {
-        return c.json({ error: `Invalid URL for ${field}` }, 422)
-      }
-    }
-  }
+  const { displayName, tagline, socialLinks } = c.req.valid('json')
 
   const db = createDb(c.env.DB)
 

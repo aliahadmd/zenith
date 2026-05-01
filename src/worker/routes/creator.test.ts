@@ -152,7 +152,7 @@ describe('creator route property tests', () => {
     await fc.assert(
       fc.asyncProperty(
         // Pick a random non-empty subset of required fields to omit
-        fc.shuffledSubarray(allRequiredFields, { minLength: 1 }),
+        fc.shuffledSubarray([...allRequiredFields], { minLength: 1 }),
         async (fieldsToOmit) => {
           const app = buildFieldValidationApp()
           const formData = new FormData()
@@ -195,7 +195,7 @@ describe('creator route property tests', () => {
 // ── Unit test helpers ──────────────────────────────────────────────────────
 //
 // The real creatorRoutes has authMiddleware baked in as a route-level handler,
-// which requires a live JWT cookie and JWT_SECRET. To unit-test the handler
+// which requires a live auth session. To unit-test the handler
 // logic in isolation, we build a self-contained Hono app here that mirrors the
 // full POST /apply logic from creator.ts with injectable dependencies — the
 // same pattern used by the property test helpers above.

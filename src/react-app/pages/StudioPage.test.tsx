@@ -1,11 +1,12 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { StudioPage } from './StudioPage'
 
-// Mock the api module (ShortPostComposer uses apiPost)
+// Mock the api module (ShortPostComposer uses apiPostRequired)
 vi.mock('../lib/api', () => ({
-  apiPost: vi.fn(),
+  apiPostRequired: vi.fn(),
   apiGet: vi.fn(),
   apiPut: vi.fn(),
 }))
@@ -25,7 +26,7 @@ describe('StudioPage', () => {
 
   // Validates: Requirements 6.1, 6.4
   it('renders all three content-type cards', () => {
-    render(<StudioPage />)
+    renderStudioPage()
 
     expect(screen.getByText('Short Post')).toBeInTheDocument()
     expect(screen.getByText('Long Post')).toBeInTheDocument()
@@ -34,7 +35,7 @@ describe('StudioPage', () => {
 
   // Validates: Requirements 6.4
   it('renders each card with a description', () => {
-    render(<StudioPage />)
+    renderStudioPage()
 
     expect(screen.getByText(/share a quick thought/i)).toBeInTheDocument()
     expect(screen.getByText(/in-depth article/i)).toBeInTheDocument()
@@ -43,7 +44,7 @@ describe('StudioPage', () => {
 
   // Validates: Requirements 6.2
   it('"Long Post" card is in disabled/coming-soon state', () => {
-    render(<StudioPage />)
+    renderStudioPage()
 
     // The "Coming Soon" badge should appear for Long Post
     const comingSoonBadges = screen.getAllByText('Coming Soon')
@@ -56,7 +57,7 @@ describe('StudioPage', () => {
 
   // Validates: Requirements 6.2
   it('"Course" card is in disabled/coming-soon state', () => {
-    render(<StudioPage />)
+    renderStudioPage()
 
     const courseCard = screen.getByText('Course').closest('[aria-disabled]')
     expect(courseCard).toHaveAttribute('aria-disabled', 'true')
@@ -69,7 +70,7 @@ describe('StudioPage', () => {
   // Validates: Requirements 6.3
   it('clicking "Short Post" card opens the ShortPostComposer modal', async () => {
     const user = userEvent.setup()
-    render(<StudioPage />)
+    renderStudioPage()
 
     // Composer should not be visible initially
     expect(screen.queryByRole('dialog', { name: /short post composer/i })).not.toBeInTheDocument()
@@ -85,7 +86,7 @@ describe('StudioPage', () => {
   // Validates: Requirements 6.3
   it('closing the composer hides it again', async () => {
     const user = userEvent.setup()
-    render(<StudioPage />)
+    renderStudioPage()
 
     // Open the composer
     await user.click(screen.getByRole('button', { name: /short post/i }))
@@ -99,7 +100,7 @@ describe('StudioPage', () => {
   // Validates: Requirements 6.2 — disabled cards do not open the composer
   it('clicking "Long Post" card does not open the composer', async () => {
     const user = userEvent.setup()
-    render(<StudioPage />)
+    renderStudioPage()
 
     // Long Post card is disabled — it has no role="button"
     const longPostCard = screen.getByText('Long Post').closest('.relative')
@@ -114,3 +115,17 @@ describe('StudioPage', () => {
     expect(screen.queryByRole('dialog', { name: /short post composer/i })).not.toBeInTheDocument()
   })
 })
+
+function renderStudioPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <StudioPage />
+    </QueryClientProvider>,
+  )
+}

@@ -1,0 +1,4 @@
+interface:
+  display_name: "CHA Project"
+  short_description: "Work on this Hono and shadcn Cloudflare app"
+  default_prompt: "Use $cha to modify the CHA Cloudflare Workers, Hono, and shadcn app."

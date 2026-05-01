@@ -2,12 +2,14 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import fc from 'fast-check'
+import type { ReactElement } from 'react'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ShortPostComposer } from './ShortPostComposer'
 import * as api from '../lib/api'
 
 // Mock the api module
 vi.mock('../lib/api', () => ({
-  apiPost: vi.fn(),
+  apiPostRequired: vi.fn(),
   apiGet: vi.fn(),
   apiPut: vi.fn(),
 }))
@@ -20,10 +22,20 @@ vi.mock('sonner', () => ({
   },
 }))
 
-const mockApiPost = vi.mocked(api.apiPost)
+const mockApiPostRequired = vi.mocked(api.apiPostRequired)
 
 function renderComposer(open = true, onClose = vi.fn()) {
-  return render(<ShortPostComposer open={open} onClose={onClose} />)
+  return renderWithQueryClient(<ShortPostComposer open={open} onClose={onClose} />)
+}
+
+function renderWithQueryClient(ui: ReactElement) {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
+  return render(<QueryClientProvider client={queryClient}>{ui}</QueryClientProvider>)
 }
 
 // ── Unit Tests ────────────────────────────────────────────────────────────────
@@ -80,9 +92,9 @@ describe('ShortPostComposer', () => {
     const { toast } = await import('sonner')
     const onClose = vi.fn()
 
-    mockApiPost.mockResolvedValue({ data: { id: 'post-1', body: 'Hello', createdAt: 1 }, error: null, status: 201 })
+    mockApiPostRequired.mockResolvedValue({ id: 'post-1', body: 'Hello', createdAt: 1 })
 
-    render(<ShortPostComposer open={true} onClose={onClose} />)
+    renderComposer(true, onClose)
 
     const textarea = screen.getByRole('textbox', { name: /post body/i })
     await user.type(textarea, 'Hello world')
@@ -100,7 +112,7 @@ describe('ShortPostComposer', () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
 
-    render(<ShortPostComposer open={true} onClose={onClose} />)
+    renderComposer(true, onClose)
 
     const textarea = screen.getByRole('textbox', { name: /post body/i })
     await user.type(textarea, 'Draft text')
@@ -108,7 +120,7 @@ describe('ShortPostComposer', () => {
     await user.click(screen.getByRole('button', { name: /cancel/i }))
 
     expect(onClose).toHaveBeenCalledOnce()
-    expect(mockApiPost).not.toHaveBeenCalled()
+    expect(mockApiPostRequired).not.toHaveBeenCalled()
   })
 
   // Validates: Requirements 7.7
@@ -116,14 +128,14 @@ describe('ShortPostComposer', () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
 
-    const { container } = render(<ShortPostComposer open={true} onClose={onClose} />)
+    const { container } = renderComposer(true, onClose)
 
     // The backdrop is the outermost div with role="dialog"
     const backdrop = container.querySelector('[role="dialog"]') as HTMLElement
     await user.click(backdrop)
 
     expect(onClose).toHaveBeenCalledOnce()
-    expect(mockApiPost).not.toHaveBeenCalled()
+    expect(mockApiPostRequired).not.toHaveBeenCalled()
   })
 
   // Validates: Requirements 7.7
@@ -131,18 +143,18 @@ describe('ShortPostComposer', () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
 
-    render(<ShortPostComposer open={true} onClose={onClose} />)
+    renderComposer(true, onClose)
 
     await user.click(screen.getByRole('button', { name: /close composer/i }))
 
     expect(onClose).toHaveBeenCalledOnce()
-    expect(mockApiPost).not.toHaveBeenCalled()
+    expect(mockApiPostRequired).not.toHaveBeenCalled()
   })
 
   // Validates: Requirements 7.4
   it('calls POST /api/posts with the post body on publish', async () => {
     const user = userEvent.setup()
-    mockApiPost.mockResolvedValue({ data: { id: 'post-1', body: 'Test', createdAt: 1 }, error: null, status: 201 })
+    mockApiPostRequired.mockResolvedValue({ id: 'post-1', body: 'Test', createdAt: 1 })
 
     renderComposer()
 
@@ -152,7 +164,7 @@ describe('ShortPostComposer', () => {
     await user.click(screen.getByRole('button', { name: /publish/i }))
 
     await waitFor(() => {
-      expect(mockApiPost).toHaveBeenCalledWith('/api/posts', { body: 'Test post content' })
+      expect(mockApiPostRequired).toHaveBeenCalledWith('/api/posts', { body: 'Test post content' })
     })
   })
 
@@ -192,7 +204,7 @@ describe('ShortPostComposer — property tests', () => {
         fc.string({ minLength: 0, maxLength: 500, unit: 'binary' }),
         async (bodyText) => {
           const user = userEvent.setup()
-          const { unmount } = render(<ShortPostComposer open={true} onClose={vi.fn()} />)
+          const { unmount } = renderComposer(true)
 
           const textarea = screen.getByRole('textbox', { name: /post body/i })
 
@@ -218,8 +230,8 @@ describe('ShortPostComposer — property tests', () => {
     await fc.assert(
       fc.asyncProperty(
         fc.constant(''),
-        async (emptyBody) => {
-          const { unmount } = render(<ShortPostComposer open={true} onClose={vi.fn()} />)
+        async () => {
+          const { unmount } = renderComposer(true)
 
           const publishBtn = screen.getByRole('button', { name: /publish/i })
           expect(publishBtn).toBeDisabled()
@@ -241,7 +253,7 @@ describe('ShortPostComposer — property tests', () => {
         fc.string({ minLength: 1, maxLength: 500, unit: 'binary' }),
         async (validBody) => {
           const user = userEvent.setup()
-          const { unmount } = render(<ShortPostComposer open={true} onClose={vi.fn()} />)
+          const { unmount } = renderComposer(true)
 
           const textarea = screen.getByRole('textbox', { name: /post body/i })
           await user.type(textarea, validBody)

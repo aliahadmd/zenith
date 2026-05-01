@@ -1,8 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
-import { hashPassword, verifyPassword, signJwt, verifyJwt, type JwtPayload } from './crypto'
-
-const TEST_SECRET = 'test-secret-for-property-tests'
+import { hashPassword, verifyPassword } from './crypto'
 
 describe('crypto property tests', () => {
   // Feature: auth-and-social-feed, Property 1: Password hash round-trip
@@ -36,69 +34,13 @@ describe('crypto property tests', () => {
       { numRuns: 100 }
     )
   })
-
-  // Feature: auth-and-social-feed, Property 3: JWT sign/verify round-trip preserves payload
-  // Validates: Requirements 1.7, 2.2, 4.2
-  it('Property 3: JWT sign/verify round-trip preserves payload', async () => {
+  // Feature: auth migration, Property 3: Malformed hashes are always rejected
+  it('Property 3: Malformed hashes are always rejected', async () => {
     await fc.assert(
       fc.asyncProperty(
-        fc.record({
-          sub: fc.uuid(),
-          email: fc.emailAddress(),
-          role: fc.constantFrom('subscriber', 'creator') as fc.Arbitrary<'subscriber' | 'creator'>,
-        }),
-        async ({ sub, email, role }) => {
-          const iat = Math.floor(Date.now() / 1000)
-          const exp = iat + 3600
-          const payload: JwtPayload = { sub, email, role, iat, exp }
-
-          const token = await signJwt(payload, TEST_SECRET)
-          const result = await verifyJwt(token, TEST_SECRET)
-
-          expect(result).not.toBeNull()
-          expect(result!.sub).toBe(sub)
-          expect(result!.email).toBe(email)
-          expect(result!.role).toBe(role)
-        }
-      ),
-      { numRuns: 100 }
-    )
-  })
-
-  // Feature: auth-and-social-feed, Property 4: Tampered JWT is always rejected
-  // Validates: Requirements 4.3
-  it('Property 4: Tampered JWT is always rejected', async () => {
-    await fc.assert(
-      fc.asyncProperty(
-        fc.record({
-          sub: fc.uuid(),
-          email: fc.emailAddress(),
-          role: fc.constantFrom('subscriber', 'creator') as fc.Arbitrary<'subscriber' | 'creator'>,
-        }),
-        async ({ sub, email, role }) => {
-          const iat = Math.floor(Date.now() / 1000)
-          const exp = iat + 3600
-          const payload: JwtPayload = { sub, email, role, iat, exp }
-
-          const token = await signJwt(payload, TEST_SECRET)
-
-          // A JWT is header.payload.signature — tamper only the signature part
-          // to ensure the structural integrity is preserved while the HMAC is broken.
-          const dotIndex = token.lastIndexOf('.')
-          const sigPart = token.slice(dotIndex + 1)
-
-          // Flip the first character of the signature to a different base64url char
-          const original = sigPart[0]
-          // Rotate through base64url alphabet: pick a char that is definitely different
-          const replacement = original === 'A' ? 'B' : 'A'
-          const tamperedSig = replacement + sigPart.slice(1)
-          const tampered = token.slice(0, dotIndex + 1) + tamperedSig
-
-          // The tampered token must be structurally different from the original
-          if (tampered !== token) {
-            const result = await verifyJwt(tampered, TEST_SECRET)
-            expect(result).toBeNull()
-          }
+        fc.string().filter((value) => !value.startsWith('pbkdf2:sha256:')),
+        async (malformedHash) => {
+          expect(await verifyPassword('password123', malformedHash)).toBe(false)
         }
       ),
       { numRuns: 100 }

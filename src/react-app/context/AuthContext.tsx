@@ -1,21 +1,19 @@
-import { createContext, useContext, useEffect, useState, type ReactNode } from 'react'
-import { apiGet, apiPost } from '../lib/api'
+import { createContext, useContext, useEffect, type ReactNode } from 'react'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import {
+  authKeys,
+  authMeQueryOptions,
+  loginRequest,
+  logoutRequest,
+  type User,
+} from '../lib/auth'
 
-export type User = {
-  id: string
-  email: string
-  role: 'subscriber' | 'creator'
-  displayName: string
-  username: string
-  tagline?: string | null
-  avatarUrl?: string | null
-  socialLinks?: string | null
-}
+export type { User } from '../lib/auth'
 
 type AuthContextValue = {
   currentUser: User | null
   isLoading: boolean
-  login: (email: string, password: string) => Promise<{ error: string | null }>
+  login: (email: string, password: string) => Promise<{ error: string | null; user: User | null }>
   logout: () => Promise<void>
   refreshCurrentUser: () => Promise<void>
 }
@@ -23,37 +21,55 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null)
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [currentUser, setCurrentUser] = useState<User | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const queryClient = useQueryClient()
+  const currentUserQuery = useQuery(authMeQueryOptions)
+  const loginMutation = useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) => loginRequest({ email, password }),
+    onSuccess: (user) => {
+      queryClient.setQueryData(authKeys.me, user)
+    },
+  })
+  const logoutMutation = useMutation({
+    mutationFn: logoutRequest,
+    onSuccess: () => {
+      queryClient.setQueryData(authKeys.me, null)
+      queryClient.removeQueries({ queryKey: ['feed'] })
+      queryClient.removeQueries({ queryKey: ['profile'] })
+    },
+  })
 
   useEffect(() => {
-    // On mount, check if user is already logged in
-    apiGet<User>('/api/auth/me').then(({ data }) => {
-      setCurrentUser(data)
-      setIsLoading(false)
-    })
-
-    // Listen for unauthorized events from the API client
-    const handleUnauthorized = () => setCurrentUser(null)
+    const handleUnauthorized = () => queryClient.setQueryData(authKeys.me, null)
     window.addEventListener('unauthorized', handleUnauthorized)
     return () => window.removeEventListener('unauthorized', handleUnauthorized)
-  }, [])
+  }, [queryClient])
 
   async function login(email: string, password: string) {
-    const { data, error } = await apiPost<User>('/api/auth/login', { email, password })
-    if (data) setCurrentUser(data)
-    return { error }
+    try {
+      const user = await loginMutation.mutateAsync({ email, password })
+      return { error: null, user }
+    } catch (error) {
+      return {
+        error: error instanceof Error ? error.message : 'Invalid email or password',
+        user: null,
+      }
+    }
   }
 
   async function logout() {
-    await apiPost('/api/auth/logout')
-    setCurrentUser(null)
+    try {
+      await logoutMutation.mutateAsync()
+    } finally {
+      queryClient.setQueryData(authKeys.me, null)
+    }
   }
 
   async function refreshCurrentUser() {
-    const { data } = await apiGet<User>('/api/auth/me')
-    if (data) setCurrentUser(data)
+    await queryClient.invalidateQueries({ queryKey: authKeys.me })
   }
+
+  const currentUser = currentUserQuery.data ?? null
+  const isLoading = currentUserQuery.isPending
 
   return (
     <AuthContext.Provider value={{ currentUser, isLoading, login, logout, refreshCurrentUser }}>

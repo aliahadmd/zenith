@@ -1,6 +1,9 @@
 import { createMiddleware } from 'hono/factory'
-import { getCookie } from 'hono/cookie'
-import { verifyJwt } from '../lib/crypto'
+import { eq } from 'drizzle-orm'
+import { createDb } from '../db/client'
+import { users } from '../db/schema'
+import { createAuth } from '../lib/auth'
+import { forbidden, unauthorized } from '../lib/http'
 
 export type HonoEnv = {
   Bindings: Env
@@ -10,18 +13,30 @@ export type HonoEnv = {
 }
 
 export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
-  const token = getCookie(c, 'session')
-  if (!token) return c.json({ error: 'Unauthorized' }, 401)
+  const auth = createAuth(c.env, new URL(c.req.url).origin)
+  const session = await auth.api.getSession({ headers: c.req.raw.headers })
 
-  const payload = await verifyJwt(token, c.env.JWT_SECRET)
-  if (!payload) return c.json({ error: 'Unauthorized' }, 401)
+  if (!session) return unauthorized(c)
 
-  c.set('user', { id: payload.sub, email: payload.email, role: payload.role })
+  const db = createDb(c.env.DB)
+  const user = await db
+    .select({
+      id: users.id,
+      email: users.email,
+      role: users.role,
+    })
+    .from(users)
+    .where(eq(users.id, session.user.id))
+    .get()
+
+  if (!user) return unauthorized(c)
+
+  c.set('user', user)
   await next()
 })
 
 export const requireRole = (role: 'subscriber' | 'creator') =>
   createMiddleware<HonoEnv>(async (c, next) => {
-    if (c.var.user.role !== role) return c.json({ error: 'Forbidden' }, 403)
+    if (c.var.user.role !== role) return forbidden(c)
     await next()
   })

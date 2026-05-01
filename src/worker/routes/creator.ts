@@ -3,6 +3,15 @@ import { eq } from 'drizzle-orm'
 import { createDb } from '../db/client'
 import { users, creatorApplications } from '../db/schema'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
+import { creatorApplicationFieldsSchema } from '../lib/schemas'
+import {
+  conflict,
+  errorResponse,
+  payloadTooLarge,
+  serverError,
+  unsupportedMediaType,
+  validationError,
+} from '../lib/http'
 
 export const creatorRoutes = new Hono<HonoEnv>()
 
@@ -13,7 +22,7 @@ creatorRoutes.post('/apply', authMiddleware, async (c) => {
 
   // Check if user is already a creator (fast path before parsing body)
   if (c.var.user.role === 'creator') {
-    return c.json({ error: 'User is already a creator' }, 409)
+    return conflict(c, 'User is already a creator')
   }
 
   // Parse multipart/form-data
@@ -21,66 +30,39 @@ creatorRoutes.post('/apply', authMiddleware, async (c) => {
   try {
     formData = await c.req.formData()
   } catch {
-    return c.json({ error: 'Invalid multipart/form-data body' }, 422)
-  }
-
-  // Validate required string fields in order
-  const requiredStringFields = [
-    'fullName',
-    'address',
-    'city',
-    'country',
-    'nidNumber',
-    'socialLinks',
-    'contentLinks',
-  ] as const
-
-  for (const field of requiredStringFields) {
-    const value = formData.get(field)
-    if (!value || (typeof value === 'string' && value.trim() === '')) {
-      return c.json({ error: `Missing required field: ${field}` }, 422)
-    }
+    return errorResponse(c, 422, 'validation_failed', 'Invalid multipart/form-data body')
   }
 
   // Validate nidDocument file presence
   const nidDocumentFile = formData.get('nidDocument') as File | null
   if (!nidDocumentFile || !(nidDocumentFile instanceof File)) {
-    return c.json({ error: 'Missing required field: nidDocument' }, 422)
+    return errorResponse(c, 422, 'validation_failed', 'Missing required field: nidDocument')
   }
 
-  // Extract string field values
-  const fullName = (formData.get('fullName') as string).trim()
-  const address = (formData.get('address') as string).trim()
-  const city = (formData.get('city') as string).trim()
-  const country = (formData.get('country') as string).trim()
-  const nidNumber = (formData.get('nidNumber') as string).trim()
-  const socialLinksRaw = formData.get('socialLinks') as string
-  const contentLinksRaw = formData.get('contentLinks') as string
+  const parsedFields = creatorApplicationFieldsSchema.safeParse({
+    fullName: readRequiredString(formData, 'fullName'),
+    address: readRequiredString(formData, 'address'),
+    city: readRequiredString(formData, 'city'),
+    country: readRequiredString(formData, 'country'),
+    nidNumber: readRequiredString(formData, 'nidNumber'),
+    socialLinks: parseJsonArray(formData.get('socialLinks')),
+    contentLinks: parseJsonArray(formData.get('contentLinks')),
+  })
 
-  // Validate socialLinks: must be a JSON array of https:// URLs
-  const socialLinksResult = parseHttpsUrlArray(socialLinksRaw)
-  if (!socialLinksResult.ok) {
-    return c.json({ error: 'Invalid URL in socialLinks' }, 422)
-  }
-  const socialLinks = socialLinksResult.value
+  if (!parsedFields.success) return validationError(c, parsedFields.error)
 
-  // Validate contentLinks: must be a JSON array of https:// URLs
-  const contentLinksResult = parseHttpsUrlArray(contentLinksRaw)
-  if (!contentLinksResult.ok) {
-    return c.json({ error: 'Invalid URL in contentLinks' }, 422)
-  }
-  const contentLinks = contentLinksResult.value
+  const { fullName, address, city, country, nidNumber, socialLinks, contentLinks } = parsedFields.data
 
   // Validate NID document MIME type
   const allowedMimeTypes = ['image/jpeg', 'image/png', 'image/webp']
   if (!allowedMimeTypes.includes(nidDocumentFile.type)) {
-    return c.json({ error: 'NID document must be JPEG, PNG, or WebP' }, 415)
+    return unsupportedMediaType(c, 'NID document must be JPEG, PNG, or WebP')
   }
 
   // Validate NID document size (≤ 10 MB)
   const maxSize = 10 * 1024 * 1024
   if (nidDocumentFile.size > maxSize) {
-    return c.json({ error: 'NID document exceeds 10 MB limit' }, 413)
+    return payloadTooLarge(c, 'NID document exceeds 10 MB limit')
   }
 
   const db = createDb(c.env.DB)
@@ -93,7 +75,7 @@ creatorRoutes.post('/apply', authMiddleware, async (c) => {
     .get()
 
   if (existingApplication) {
-    return c.json({ error: 'Application already submitted' }, 409)
+    return conflict(c, 'Application already submitted')
   }
 
   // Upload NID document to R2
@@ -106,7 +88,7 @@ creatorRoutes.post('/apply', authMiddleware, async (c) => {
     })
   } catch (err) {
     console.error('R2 upload failed:', err)
-    return c.json({ error: 'Internal server error' }, 500)
+    return serverError(c)
   }
 
   // Atomically insert application and upgrade user role
@@ -135,37 +117,22 @@ creatorRoutes.post('/apply', authMiddleware, async (c) => {
       // Best-effort cleanup; log but don't surface
       console.error('R2 cleanup after D1 failure also failed for key:', r2Key)
     }
-    return c.json({ error: 'Internal server error' }, 500)
+    return serverError(c)
   }
 
   return c.json({ role: 'creator' }, 201)
 })
 
-// ── Helpers ────────────────────────────────────────────────────────────────
-
-function isHttpsUrl(value: string): boolean {
-  try {
-    const url = new URL(value)
-    return url.protocol === 'https:'
-  } catch {
-    return false
-  }
+function readRequiredString(formData: FormData, field: string): string {
+  const value = formData.get(field)
+  return typeof value === 'string' ? value : ''
 }
 
-type ParseResult =
-  | { ok: true; value: string[] }
-  | { ok: false }
-
-function parseHttpsUrlArray(raw: string): ParseResult {
-  let parsed: unknown
+function parseJsonArray(value: string | File | null): unknown {
+  if (typeof value !== 'string') return []
   try {
-    parsed = JSON.parse(raw)
+    return JSON.parse(value)
   } catch {
-    return { ok: false }
+    return []
   }
-  if (!Array.isArray(parsed)) return { ok: false }
-  for (const item of parsed) {
-    if (typeof item !== 'string' || !isHttpsUrl(item)) return { ok: false }
-  }
-  return { ok: true, value: parsed as string[] }
 }

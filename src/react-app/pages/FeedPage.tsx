@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react'
-import { apiGet } from '../lib/api'
+import { useQuery } from '@tanstack/react-query'
+import { apiGetRequired } from '../lib/api'
 import { PostCard } from '../components/PostCard'
 
 type Post = {
@@ -18,27 +18,30 @@ type FeedResponse = {
 }
 
 export function FeedPage() {
-  const [posts, setPosts] = useState<Post[]>([])
-  const [message, setMessage] = useState<string | null>(null)
-  const [isLoading, setIsLoading] = useState(true)
+  const feedQuery = useQuery({
+    queryKey: ['feed'],
+    queryFn: () => apiGetRequired<FeedResponse>('/api/feed'),
+  })
 
-  useEffect(() => {
-    apiGet<FeedResponse>('/api/feed').then(({ data }) => {
-      if (data) {
-        setPosts(data.posts)
-        setMessage(data.message ?? null)
-      }
-      setIsLoading(false)
-    })
-  }, [])
-
-  if (isLoading) {
+  if (feedQuery.isPending) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       </div>
     )
   }
+
+  if (feedQuery.isError) {
+    return (
+      <div className="flex h-64 flex-col items-center justify-center gap-2 text-muted-foreground">
+        <p className="text-lg font-medium">Unable to load feed</p>
+        <p className="text-sm">{feedQuery.error.message}</p>
+      </div>
+    )
+  }
+
+  const posts = feedQuery.data.posts
+  const message = feedQuery.data.message
 
   if (posts.length === 0) {
     return (

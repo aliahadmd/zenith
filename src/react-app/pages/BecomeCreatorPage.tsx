@@ -2,14 +2,18 @@ import { useState } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useNavigate } from 'react-router'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useNavigate } from '@tanstack/react-router'
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
-import { apiPost } from '../lib/api'
+import { apiPostRequired } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
+import { authKeys } from '../lib/auth'
+import { creatorApplicationSchema } from '../lib/schemas'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Label } from '../components/ui/label'
+import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../components/ui/form'
 import {
   Card,
   CardContent,
@@ -18,57 +22,17 @@ import {
   CardTitle,
 } from '../components/ui/card'
 
-// ── Zod schema ────────────────────────────────────────────────────────────────
-const creatorApplicationSchema = z.object({
-  fullName: z.string().min(1, 'Full legal name is required'),
-  address: z.string().min(1, 'Street address is required'),
-  city: z.string().min(1, 'City is required'),
-  country: z.string().min(1, 'Country is required'),
-  nidNumber: z.string().min(1, 'NID number is required'),
-  socialLinks: z
-    .array(
-      z.object({
-        value: z
-          .string()
-          .url('Must be a valid URL')
-          .refine((v) => v.startsWith('https://'), 'Must start with https://'),
-      })
-    )
-    .min(1, 'At least one social profile URL is required'),
-  contentLinks: z
-    .array(
-      z.object({
-        value: z
-          .string()
-          .url('Must be a valid URL')
-          .refine((v) => v.startsWith('https://'), 'Must start with https://'),
-      })
-    )
-    .min(1, 'At least one content sample URL is required'),
-})
-
 type CreatorApplicationFormValues = z.infer<typeof creatorApplicationSchema>
-
-// ── NID document validation constants ────────────────────────────────────────
-const ACCEPTED_IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp']
-const MAX_FILE_SIZE_BYTES = 10 * 1024 * 1024 // 10 MB
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function BecomeCreatorPage() {
   const { currentUser, refreshCurrentUser } = useAuth()
   const navigate = useNavigate()
+  const queryClient = useQueryClient()
 
   const [alreadyApplied, setAlreadyApplied] = useState(false)
-  const [nidFile, setNidFile] = useState<File | null>(null)
-  const [nidFileError, setNidFileError] = useState<string | null>(null)
-  const [isSubmitting, setIsSubmitting] = useState(false)
 
-  const {
-    register,
-    handleSubmit,
-    control,
-    formState: { errors },
-  } = useForm<CreatorApplicationFormValues>({
+  const form = useForm<CreatorApplicationFormValues>({
     resolver: zodResolver(creatorApplicationSchema),
     defaultValues: {
       fullName: '',
@@ -80,6 +44,7 @@ export function BecomeCreatorPage() {
       contentLinks: [{ value: '' }],
     },
   })
+  const { register, handleSubmit, control, formState: { errors } } = form
 
   const {
     fields: socialFields,
@@ -93,46 +58,25 @@ export function BecomeCreatorPage() {
     remove: removeContent,
   } = useFieldArray({ control, name: 'contentLinks' })
 
-  // ── NID file change handler ───────────────────────────────────────────────
-  function handleNidFileChange(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0] ?? null
-    setNidFile(file)
-    setNidFileError(null)
-
-    if (file) {
-      if (!ACCEPTED_IMAGE_TYPES.includes(file.type)) {
-        setNidFileError('NID document must be a JPEG, PNG, or WebP image.')
-      } else if (file.size > MAX_FILE_SIZE_BYTES) {
-        setNidFileError('NID document must be 10 MB or smaller.')
-      }
-    }
-  }
+  const applyMutation = useMutation({
+    mutationFn: (formData: FormData) => apiPostRequired<{ role: 'creator' }>('/api/creator/apply', formData),
+    onSuccess: async () => {
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: authKeys.me }),
+        refreshCurrentUser(),
+      ])
+    },
+  })
 
   // ── Submit handler ────────────────────────────────────────────────────────
   async function onSubmit(values: CreatorApplicationFormValues) {
-    // Validate NID file presence and constraints
-    if (!nidFile) {
-      setNidFileError('NID document is required.')
-      return
-    }
-    if (!ACCEPTED_IMAGE_TYPES.includes(nidFile.type)) {
-      setNidFileError('NID document must be a JPEG, PNG, or WebP image.')
-      return
-    }
-    if (nidFile.size > MAX_FILE_SIZE_BYTES) {
-      setNidFileError('NID document must be 10 MB or smaller.')
-      return
-    }
-
-    setIsSubmitting(true)
-
     const formData = new FormData()
     formData.append('fullName', values.fullName)
     formData.append('address', values.address)
     formData.append('city', values.city)
     formData.append('country', values.country)
     formData.append('nidNumber', values.nidNumber)
-    formData.append('nidDocument', nidFile)
+    formData.append('nidDocument', values.nidDocument)
     formData.append(
       'socialLinks',
       JSON.stringify(values.socialLinks.map((l) => l.value))
@@ -142,26 +86,22 @@ export function BecomeCreatorPage() {
       JSON.stringify(values.contentLinks.map((l) => l.value))
     )
 
-    const { error, status } = await apiPost('/api/creator/apply', formData)
-
-    setIsSubmitting(false)
-
-    if (status === 409) {
-      setAlreadyApplied(true)
-      return
-    }
-
-    if (error) {
-      toast.error(error)
+    try {
+      await applyMutation.mutateAsync(formData)
+    } catch (error) {
+      if (error instanceof Error && 'status' in error && error.status === 409) {
+        setAlreadyApplied(true)
+        return
+      }
+      toast.error(error instanceof Error ? error.message : 'Application failed.')
       return
     }
 
     // Success path
-    await refreshCurrentUser()
     toast.success(
       `Congratulations, ${currentUser?.displayName ?? 'creator'}! Your creator status is now active. Start creating content in Studio.`
     )
-    navigate('/studio')
+    await navigate({ to: '/studio' })
   }
 
   // ── Already-applied state ─────────────────────────────────────────────────
@@ -195,6 +135,7 @@ export function BecomeCreatorPage() {
         required unless noted.
       </p>
 
+      <Form {...form}>
       <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
         {/* ── Identity ─────────────────────────────────────────────────── */}
         <Card>
@@ -302,19 +243,26 @@ export function BecomeCreatorPage() {
             </div>
 
             {/* NID document upload */}
-            <div className="space-y-2">
-              <Label htmlFor="nidDocument">NID document image</Label>
-              <Input
-                id="nidDocument"
-                type="file"
-                accept="image/jpeg,image/png,image/webp"
-                aria-invalid={!!nidFileError}
-                onChange={handleNidFileChange}
-              />
-              {nidFileError && (
-                <p className="text-sm text-destructive">{nidFileError}</p>
+            <FormField
+              control={control}
+              name="nidDocument"
+              render={({ field: { onChange, ref, name, onBlur } }) => (
+                <FormItem>
+                  <FormLabel>NID document image</FormLabel>
+                  <FormControl>
+                    <Input
+                      ref={ref}
+                      name={name}
+                      type="file"
+                      accept="image/jpeg,image/png,image/webp"
+                      onBlur={onBlur}
+                      onChange={(event) => onChange(event.target.files?.[0])}
+                    />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
               )}
-            </div>
+            />
           </CardContent>
         </Card>
 
@@ -441,8 +389,8 @@ export function BecomeCreatorPage() {
         </Card>
 
         {/* ── Submit ───────────────────────────────────────────────────── */}
-        <Button type="submit" disabled={isSubmitting} className="w-full">
-          {isSubmitting ? (
+        <Button type="submit" disabled={form.formState.isSubmitting} className="w-full">
+          {form.formState.isSubmitting ? (
             <>
               <Loader2 className="animate-spin" />
               Submitting…
@@ -452,6 +400,7 @@ export function BecomeCreatorPage() {
           )}
         </Button>
       </form>
+      </Form>
     </div>
   )
 }

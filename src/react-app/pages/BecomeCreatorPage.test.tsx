@@ -1,11 +1,17 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
-import { MemoryRouter, Routes, Route } from 'react-router'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { BecomeCreatorPage } from './BecomeCreatorPage'
 import * as AuthContext from '../context/AuthContext'
 import type { User } from '../context/AuthContext'
 import * as api from '../lib/api'
+
+const mockNavigate = vi.fn()
+
+vi.mock('@tanstack/react-router', () => ({
+  useNavigate: () => mockNavigate,
+}))
 
 // Mock useAuth
 vi.mock('../context/AuthContext', async (importOriginal) => {
@@ -18,7 +24,7 @@ vi.mock('../context/AuthContext', async (importOriginal) => {
 
 // Mock the api module
 vi.mock('../lib/api', () => ({
-  apiPost: vi.fn(),
+  apiPostRequired: vi.fn(),
   apiGet: vi.fn(),
   apiPut: vi.fn(),
 }))
@@ -32,7 +38,7 @@ vi.mock('sonner', () => ({
 }))
 
 const mockUseAuth = vi.mocked(AuthContext.useAuth)
-const mockApiPost = vi.mocked(api.apiPost)
+const mockApiPostRequired = vi.mocked(api.apiPostRequired)
 
 function makeUser(role: 'subscriber' | 'creator'): User {
   return {
@@ -44,14 +50,17 @@ function makeUser(role: 'subscriber' | 'creator'): User {
   }
 }
 
-function renderPage(initialPath = '/become-creator') {
+function renderPage() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
   return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route path="/become-creator" element={<BecomeCreatorPage />} />
-        <Route path="/studio" element={<div>Studio Page</div>} />
-      </Routes>
-    </MemoryRouter>
+    <QueryClientProvider client={queryClient}>
+      <BecomeCreatorPage />
+    </QueryClientProvider>
   )
 }
 
@@ -95,7 +104,7 @@ describe('BecomeCreatorPage', () => {
   it('shows "Application Under Review" message when apiPost returns 409', async () => {
     const user = userEvent.setup()
 
-    mockApiPost.mockResolvedValue({ data: null, error: 'Application already submitted', status: 409 })
+    mockApiPostRequired.mockRejectedValue(Object.assign(new Error('Application already submitted'), { status: 409 }))
 
     renderPage()
 
@@ -147,7 +156,7 @@ describe('BecomeCreatorPage', () => {
     expect(screen.getByText('NID number is required')).toBeInTheDocument()
 
     // apiPost should NOT have been called
-    expect(mockApiPost).not.toHaveBeenCalled()
+    expect(mockApiPostRequired).not.toHaveBeenCalled()
   })
 
   // ── Test 4: Successful submit triggers refreshCurrentUser and navigation ───
@@ -164,7 +173,7 @@ describe('BecomeCreatorPage', () => {
       refreshCurrentUser: mockRefreshCurrentUser,
     })
 
-    mockApiPost.mockResolvedValue({ data: { role: 'creator' }, error: null, status: 201 })
+    mockApiPostRequired.mockResolvedValue({ role: 'creator' })
 
     renderPage()
 
@@ -190,9 +199,8 @@ describe('BecomeCreatorPage', () => {
       expect(mockRefreshCurrentUser).toHaveBeenCalledOnce()
     })
 
-    // Should navigate to /studio
     await waitFor(() => {
-      expect(screen.getByText('Studio Page')).toBeInTheDocument()
+      expect(mockNavigate).toHaveBeenCalledWith({ to: '/studio' })
     })
   })
 })

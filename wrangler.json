@@ -19,7 +19,7 @@
 		"not_found_handling": "single-page-application"
 	},
 	"vars": {
-		"JWT_SECRET": "change-me-in-production"
+		"BETTER_AUTH_SECRET": "change-me-in-production"
 	},
 	"d1_databases": [
 		{

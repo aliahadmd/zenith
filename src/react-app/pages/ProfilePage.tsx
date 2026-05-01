@@ -1,7 +1,7 @@
-import { useEffect, useState } from 'react'
-import { Link, useParams } from 'react-router'
+import { useQuery } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
 import { useAuth } from '../context/AuthContext'
-import { apiGet } from '../lib/api'
+import { apiGetRequired } from '../lib/api'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
 import { Card, CardContent } from '../components/ui/card'
@@ -25,29 +25,22 @@ type SubscriptionsResponse = {
   subscriptions: Subscription[]
 }
 
-export function ProfilePage() {
-  const { username } = useParams<{ username: string }>()
+export function ProfilePage({ username }: { username: string }) {
   const { currentUser } = useAuth()
-  const [profile, setProfile] = useState<ProfileData | null>(null)
-  const [subscriptions, setSubscriptions] = useState<Subscription[]>([])
-  const [isLoading, setIsLoading] = useState(true)
 
   const isOwnProfile = currentUser?.username === username
   const defaultTab = isOwnProfile ? 'subscribed' : 'about'
 
-  useEffect(() => {
-    if (!username) return
-    Promise.all([
-      apiGet<ProfileData>(`/api/profile/${username}`),
-      apiGet<SubscriptionsResponse>(`/api/profile/${username}/subscriptions`),
-    ]).then(([profileRes, subsRes]) => {
-      if (profileRes.data) setProfile(profileRes.data)
-      if (subsRes.data) setSubscriptions(subsRes.data.subscriptions)
-      setIsLoading(false)
-    })
-  }, [username])
+  const profileQuery = useQuery({
+    queryKey: ['profile', username],
+    queryFn: () => apiGetRequired<ProfileData>(`/api/profile/${username}`),
+  })
+  const subscriptionsQuery = useQuery({
+    queryKey: ['subscriptions', username],
+    queryFn: () => apiGetRequired<SubscriptionsResponse>(`/api/profile/${username}/subscriptions`),
+  })
 
-  if (isLoading) {
+  if (profileQuery.isPending || subscriptionsQuery.isPending) {
     return (
       <div className="flex h-64 items-center justify-center">
         <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
@@ -55,15 +48,17 @@ export function ProfilePage() {
     )
   }
 
-  if (!profile) {
+  if (profileQuery.isError) {
     return (
       <div className="flex h-64 items-center justify-center text-muted-foreground">
-        <p>User not found.</p>
+        <p>{profileQuery.error.message}</p>
       </div>
     )
   }
 
-  const socialLinks = profile.socialLinks ? JSON.parse(profile.socialLinks) as Record<string, string> : {}
+  const profile = profileQuery.data
+  const subscriptions = subscriptionsQuery.data?.subscriptions ?? []
+  const socialLinks = parseSocialLinks(profile.socialLinks)
 
   return (
     <div className="mx-auto max-w-2xl space-y-6">
@@ -119,7 +114,12 @@ export function ProfilePage() {
             <p className="text-sm text-muted-foreground">Not subscribed to any creators yet.</p>
           ) : (
             subscriptions.map((sub) => (
-              <Link to={`/u/${sub.username}`} key={sub.username} className="flex items-center gap-3">
+              <Link
+                to="/u/$username"
+                params={{ username: sub.username }}
+                key={sub.username}
+                className="flex items-center gap-3"
+              >
                 <Avatar>
                   <AvatarImage src={sub.avatarUrl ?? undefined} alt={sub.displayName} />
                   <AvatarFallback>{sub.displayName.slice(0, 2).toUpperCase()}</AvatarFallback>
@@ -135,4 +135,13 @@ export function ProfilePage() {
       </Tabs>
     </div>
   )
+}
+
+function parseSocialLinks(raw: string | null): Record<string, string> {
+  if (!raw) return {}
+  try {
+    return JSON.parse(raw) as Record<string, string>
+  } catch {
+    return {}
+  }
 }

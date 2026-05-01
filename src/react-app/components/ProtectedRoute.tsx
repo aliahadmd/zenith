@@ -1,7 +1,8 @@
-import { Navigate, Outlet } from 'react-router'
+import type { ReactNode } from 'react'
+import { Navigate } from '@tanstack/react-router'
 import { useAuth } from '../context/AuthContext'
 
-export function ProtectedRoute() {
+export function ProtectedRoute({ children }: { children?: ReactNode }) {
   const { currentUser, isLoading } = useAuth()
 
   if (isLoading) {
@@ -16,5 +17,5 @@ export function ProtectedRoute() {
     return <Navigate to="/login" replace />
   }
 
-  return <Outlet />
+  return <>{children}</>
 }

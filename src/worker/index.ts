@@ -6,6 +6,7 @@ import { profileRoutes } from './routes/profile'
 import { settingsRoutes } from './routes/settings'
 import { creatorRoutes } from './routes/creator'
 import { postsRoutes } from './routes/posts'
+import { notFound, serverError } from './lib/http'
 
 const app = new Hono<HonoEnv>()
 
@@ -18,9 +19,9 @@ app.route('/api/posts', postsRoutes)
 
 app.onError((err, c) => {
   console.error(err)
-  return c.json({ error: 'Internal server error' }, 500)
+  return serverError(c)
 })
 
-app.notFound((c) => c.json({ error: 'Not found' }, 404))
+app.notFound((c) => notFound(c))
 
 export default app

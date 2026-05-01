@@ -1,4 +1,5 @@
-import { NavLink } from 'react-router'
+import { Link, useRouterState } from '@tanstack/react-router'
+import { cn } from '../lib/utils'
 import { useAuth } from '../context/AuthContext'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Button } from './ui/button'
@@ -7,13 +8,15 @@ import { ThemeSwitcher } from './ThemeSwitcher'
 
 export function Sidebar() {
   const { currentUser, logout } = useAuth()
+  const pathname = useRouterState({ select: (state) => state.location.pathname })
 
-  const navLinkClass = ({ isActive }: { isActive: boolean }) =>
-    `flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors ${
-      isActive
+  const navLinkClass = (href: string) =>
+    cn(
+      'flex items-center gap-2 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+      pathname === href
         ? 'bg-accent text-accent-foreground'
-        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground'
-    }`
+        : 'text-muted-foreground hover:bg-accent hover:text-accent-foreground',
+    )
 
   return (
     <aside className="fixed left-0 top-0 flex h-screen w-64 flex-col border-r bg-background p-4">
@@ -32,24 +35,30 @@ export function Sidebar() {
 
       {/* Navigation */}
       <nav className="flex flex-1 flex-col gap-1">
-        <NavLink to="/feed" className={navLinkClass}>
-          Feed
-        </NavLink>
-        <NavLink to={`/u/${currentUser?.username}`} className={navLinkClass}>
-          Profile
-        </NavLink>
-        <NavLink to="/settings" className={navLinkClass}>
-          Settings
-        </NavLink>
         {currentUser?.role === 'subscriber' && (
-          <NavLink to="/become-creator" className={navLinkClass}>
+          <Link to="/feed" className={navLinkClass('/feed')}>
+            Feed
+          </Link>
+        )}
+        <Link
+          to="/u/$username"
+          params={{ username: currentUser?.username ?? '' }}
+          className={navLinkClass(`/u/${currentUser?.username ?? ''}`)}
+        >
+          Profile
+        </Link>
+        <Link to="/settings" className={navLinkClass('/settings')}>
+          Settings
+        </Link>
+        {currentUser?.role === 'subscriber' && (
+          <Link to="/become-creator" className={navLinkClass('/become-creator')}>
             Become Creator
-          </NavLink>
+          </Link>
         )}
         {currentUser?.role === 'creator' && (
-          <NavLink to="/studio" className={navLinkClass}>
+          <Link to="/studio" className={navLinkClass('/studio')}>
             Studio
-          </NavLink>
+          </Link>
         )}
       </nav>
 

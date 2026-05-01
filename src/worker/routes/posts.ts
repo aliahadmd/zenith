@@ -1,31 +1,17 @@
 import { Hono } from 'hono'
+import { zValidator } from '@hono/zod-validator'
 import { createDb } from '../db/client'
 import { posts } from '../db/schema'
 import { authMiddleware, requireRole, type HonoEnv } from '../middleware/auth'
+import { postCreateSchema } from '../lib/schemas'
+import { zodHook } from '../lib/http'
 
 export const postsRoutes = new Hono<HonoEnv>()
 
 // ── POST / ─────────────────────────────────────────────────────────────────
 
-postsRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
-  // Parse JSON body
-  let body: unknown
-  try {
-    body = await c.req.json()
-  } catch {
-    return c.json({ error: 'Post body must be between 1 and 500 characters' }, 422)
-  }
-
-  // Validate body field
-  const postBody = (body as Record<string, unknown>)?.body
-  if (
-    typeof postBody !== 'string' ||
-    postBody.length < 1 ||
-    postBody.length > 500
-  ) {
-    return c.json({ error: 'Post body must be between 1 and 500 characters' }, 422)
-  }
-
+postsRoutes.post('/', authMiddleware, requireRole('creator'), zValidator('json', postCreateSchema, zodHook), async (c) => {
+  const { body: postBody } = c.req.valid('json')
   const db = createDb(c.env.DB)
   const id = crypto.randomUUID()
   const authorId = c.var.user.id

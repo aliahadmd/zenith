@@ -1,7 +1,8 @@
-import { Navigate, Outlet } from 'react-router'
+import type { ReactNode } from 'react'
+import { Navigate } from '@tanstack/react-router'
 import { useAuth } from '../context/AuthContext'
 
-export function CreatorRoute() {
+export function CreatorRoute({ children }: { children?: ReactNode }) {
   const { currentUser, isLoading } = useAuth()
 
   if (isLoading) {
@@ -20,5 +21,5 @@ export function CreatorRoute() {
     return <Navigate to="/become-creator" replace />
   }
 
-  return <Outlet />
+  return <>{children}</>
 }

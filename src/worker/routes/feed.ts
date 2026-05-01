@@ -1,8 +1,11 @@
 import { Hono } from 'hono'
+import { zValidator } from '@hono/zod-validator'
 import { desc, eq } from 'drizzle-orm'
 import { createDb } from '../db/client'
 import { posts, follows, users } from '../db/schema'
 import { authMiddleware, requireRole, type HonoEnv } from '../middleware/auth'
+import { subscribeSchema } from '../lib/schemas'
+import { conflict, notFound, zodHook } from '../lib/http'
 
 export const feedRoutes = new Hono<HonoEnv>()
 
@@ -45,20 +48,8 @@ feedRoutes.get('/', authMiddleware, requireRole('subscriber'), async (c) => {
 
 // ── POST /subscribe ────────────────────────────────────────────────────────
 
-feedRoutes.post('/subscribe', authMiddleware, requireRole('subscriber'), async (c) => {
-  let body: { creatorId?: unknown }
-  try {
-    body = await c.req.json()
-  } catch {
-    return c.json({ error: 'Invalid JSON body' }, 422)
-  }
-
-  const { creatorId } = body as { creatorId: string }
-
-  if (!creatorId || typeof creatorId !== 'string') {
-    return c.json({ error: 'creatorId is required' }, 422)
-  }
-
+feedRoutes.post('/subscribe', authMiddleware, requireRole('subscriber'), zValidator('json', subscribeSchema, zodHook), async (c) => {
+  const { creatorId } = c.req.valid('json')
   const db = createDb(c.env.DB)
 
   // Verify the target user exists and is a creator
@@ -69,7 +60,7 @@ feedRoutes.post('/subscribe', authMiddleware, requireRole('subscriber'), async (
     .get()
 
   if (!creator || creator.role !== 'creator') {
-    return c.json({ error: 'Creator not found' }, 404)
+    return notFound(c, 'Creator not found')
   }
 
   const subscriberId = c.var.user.id
@@ -78,7 +69,7 @@ feedRoutes.post('/subscribe', authMiddleware, requireRole('subscriber'), async (
     await db.insert(follows).values({ followerId: subscriberId, followeeId: creatorId }).run()
   } catch (err) {
     if (err instanceof Error && err.message.toLowerCase().includes('unique')) {
-      return c.json({ error: 'Already subscribed to this creator' }, 409)
+      return conflict(c, 'Already subscribed to this creator')
     }
     throw err
   }

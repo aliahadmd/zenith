@@ -1,9 +1,14 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router'
 import { CreatorRoute } from './CreatorRoute'
 import * as AuthContext from '../context/AuthContext'
 import type { User } from '../context/AuthContext'
+
+vi.mock('@tanstack/react-router', () => ({
+  Navigate: ({ to }: { to: string }) => (
+    <div>{to === '/login' ? 'Login Page' : 'Become Creator Page'}</div>
+  ),
+}))
 
 // Mock the useAuth hook
 vi.mock('../context/AuthContext', async (importOriginal) => {
@@ -35,17 +40,7 @@ function makeUser(role: 'subscriber' | 'creator'): User {
  * Starting path is /protected so the guard is exercised immediately.
  */
 function renderCreatorRoute() {
-  return render(
-    <MemoryRouter initialEntries={['/protected']}>
-      <Routes>
-        <Route element={<CreatorRoute />}>
-          <Route path="/protected" element={<div>Protected Content</div>} />
-        </Route>
-        <Route path="/login" element={<div>Login Page</div>} />
-        <Route path="/become-creator" element={<div>Become Creator Page</div>} />
-      </Routes>
-    </MemoryRouter>
-  )
+  return render(<CreatorRoute><div>Protected Content</div></CreatorRoute>)
 }
 
 describe('CreatorRoute', () => {

@@ -1,10 +1,17 @@
-import { useState, useEffect, useRef } from 'react'
+import { useEffect, useRef } from 'react'
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useForm, useWatch } from 'react-hook-form'
+import { z } from 'zod'
 import { toast } from 'sonner'
 import { X, Loader2 } from 'lucide-react'
-import { apiPost } from '../lib/api'
+import { apiPostRequired } from '../lib/api'
+import { shortPostSchema } from '../lib/schemas'
 import { Button } from './ui/button'
+import { Form, FormControl, FormField, FormItem, FormMessage } from './ui/form'
 
 const MAX_BODY_LENGTH = 500
+type ShortPostValues = z.infer<typeof shortPostSchema>
 
 type ShortPostComposerProps = {
   open: boolean
@@ -12,16 +19,23 @@ type ShortPostComposerProps = {
 }
 
 export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
-  const [body, setBody] = useState('')
-  const [isSubmitting, setIsSubmitting] = useState(false)
+  const queryClient = useQueryClient()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
+  const form = useForm<ShortPostValues>({
+    resolver: zodResolver(shortPostSchema),
+    defaultValues: { body: '' },
+  })
+  const body = useWatch({ control: form.control, name: 'body' }) ?? ''
+  const publishMutation = useMutation({
+    mutationFn: (values: ShortPostValues) => apiPostRequired('/api/posts', values),
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: ['feed'] })
+    },
+  })
 
-  // Reset body when modal opens; focus textarea
+  // Focus textarea when modal opens
   useEffect(() => {
     if (open) {
-      setBody('')
-      setIsSubmitting(false)
-      // Defer focus so the element is visible first
       setTimeout(() => textareaRef.current?.focus(), 0)
     }
   }, [open])
@@ -29,7 +43,7 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
   const remaining = MAX_BODY_LENGTH - body.length
   const isBodyEmpty = body.length === 0
   const isBodyTooLong = body.length > MAX_BODY_LENGTH
-  const isPublishDisabled = isBodyEmpty || isBodyTooLong || isSubmitting
+  const isPublishDisabled = isBodyEmpty || isBodyTooLong || form.formState.isSubmitting
 
   const showValidationMessage = isBodyEmpty
     ? 'Post body cannot be empty.'
@@ -37,27 +51,28 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
       ? `Post body must be ${MAX_BODY_LENGTH} characters or fewer.`
       : null
 
-  async function handlePublish() {
-    if (isPublishDisabled) return
-
-    setIsSubmitting(true)
-    const { error } = await apiPost('/api/posts', { body })
-    setIsSubmitting(false)
-
-    if (error) {
-      toast.error(error)
+  async function handlePublish(values: ShortPostValues) {
+    try {
+      await publishMutation.mutateAsync(values)
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Post failed.')
       return
     }
 
     toast.success('Post published!')
+    handleClose()
+  }
+
+  function handleClose() {
+    form.reset()
     onClose()
   }
 
   function handleBackdropClick(e: React.MouseEvent<HTMLDivElement>) {
     // Only close when clicking the backdrop itself, not the modal content
-    if (e.target === e.currentTarget) {
-      onClose()
-    }
+      if (e.target === e.currentTarget) {
+      handleClose()
+      }
   }
 
   if (!open) return null
@@ -81,65 +96,82 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
           <Button
             variant="ghost"
             size="icon-sm"
-            onClick={onClose}
+            onClick={handleClose}
             aria-label="Close composer"
           >
             <X />
           </Button>
         </div>
 
-        {/* Body */}
-        <div className="space-y-3 px-6 py-5">
-          <textarea
-            ref={textareaRef}
-            value={body}
-            onChange={(e) => setBody(e.target.value)}
-            maxLength={MAX_BODY_LENGTH}
-            placeholder="What's on your mind?"
-            rows={5}
-            aria-label="Post body"
-            aria-describedby="char-count"
-            className="w-full resize-none rounded-none border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
-            disabled={isSubmitting}
-          />
+        <Form {...form}>
+          <form onSubmit={form.handleSubmit(handlePublish)} noValidate>
+            {/* Body */}
+            <div className="flex flex-col gap-3 px-6 py-5">
+              <FormField
+                control={form.control}
+                name="body"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <textarea
+                        {...field}
+                        ref={(node) => {
+                          field.ref(node)
+                          textareaRef.current = node
+                        }}
+                        maxLength={MAX_BODY_LENGTH}
+                        placeholder="What's on your mind?"
+                        rows={5}
+                        aria-label="Post body"
+                        aria-describedby="char-count"
+                        className="w-full resize-none rounded-none border border-border bg-background px-3 py-2 text-sm text-foreground placeholder:text-muted-foreground focus:outline-none focus:ring-2 focus:ring-ring/30 disabled:opacity-50"
+                        disabled={form.formState.isSubmitting}
+                      />
+                    </FormControl>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
-          {/* Character count */}
-          <p
-            id="char-count"
-            className={`text-right text-xs ${isBodyTooLong ? 'text-destructive' : 'text-muted-foreground'}`}
-          >
-            {remaining} / {MAX_BODY_LENGTH}
-          </p>
+              {/* Character count */}
+              <p
+                id="char-count"
+                className={`text-right text-xs ${isBodyTooLong ? 'text-destructive' : 'text-muted-foreground'}`}
+              >
+                {remaining} / {MAX_BODY_LENGTH}
+              </p>
 
-          {/* Validation message */}
-          {showValidationMessage && (
-            <p role="alert" className="text-xs text-destructive">
-              {showValidationMessage}
-            </p>
-          )}
-        </div>
+              {/* Validation message */}
+              {showValidationMessage && (
+                <p role="alert" className="text-xs text-destructive">
+                  {showValidationMessage}
+                </p>
+              )}
+            </div>
 
-        {/* Footer */}
-        <div className="flex justify-end gap-3 border-t border-border px-6 py-4">
-          <Button variant="outline" size="sm" onClick={onClose} disabled={isSubmitting}>
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            onClick={handlePublish}
-            disabled={isPublishDisabled}
-            aria-disabled={isPublishDisabled}
-          >
-            {isSubmitting ? (
-              <>
-                <Loader2 className="animate-spin" />
-                Publishing…
-              </>
-            ) : (
-              'Publish'
-            )}
-          </Button>
-        </div>
+            {/* Footer */}
+            <div className="flex justify-end gap-3 border-t border-border px-6 py-4">
+              <Button type="button" variant="outline" size="sm" onClick={handleClose} disabled={form.formState.isSubmitting}>
+                Cancel
+              </Button>
+              <Button
+                type="submit"
+                size="sm"
+                disabled={isPublishDisabled}
+                aria-disabled={isPublishDisabled}
+              >
+                {form.formState.isSubmitting ? (
+                  <>
+                    <Loader2 className="animate-spin" />
+                    Publishing…
+                  </>
+                ) : (
+                  'Publish'
+                )}
+              </Button>
+            </div>
+          </form>
+        </Form>
       </div>
     </div>
   )

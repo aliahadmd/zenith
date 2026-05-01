@@ -3,14 +3,6 @@
  * Uses only the Web Crypto API (crypto.subtle) — no Node.js crypto imports.
  */
 
-export type JwtPayload = {
-  sub: string
-  email: string
-  role: 'subscriber' | 'creator'
-  iat: number
-  exp: number
-}
-
 // ── Helpers ────────────────────────────────────────────────────────────────
 
 /** Encode an ArrayBuffer to a standard base64 string. */
@@ -21,27 +13,6 @@ function bufferToBase64(buffer: ArrayBuffer): string {
 /** Decode a standard base64 string to a Uint8Array. */
 function base64ToBuffer(b64: string): Uint8Array {
   return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0))
-}
-
-/** Encode an ArrayBuffer to a base64url string (no padding, URL-safe chars). */
-function bufferToBase64url(buffer: ArrayBuffer): string {
-  return bufferToBase64(buffer).replace(/\+/g, '-').replace(/\//g, '_').replace(/=+$/, '')
-}
-
-/** Encode a plain string to a base64url string. */
-function stringToBase64url(str: string): string {
-  const bytes = new TextEncoder().encode(str)
-  return bufferToBase64url(bytes.buffer as ArrayBuffer)
-}
-
-/** Decode a base64url string to a plain string. */
-function base64urlToString(b64url: string): string {
-  // Restore standard base64 padding and characters
-  const b64 = b64url.replace(/-/g, '+').replace(/_/g, '/').padEnd(
-    b64url.length + ((4 - (b64url.length % 4)) % 4),
-    '='
-  )
-  return atob(b64)
 }
 
 // ── Password hashing ───────────────────────────────────────────────────────
@@ -133,92 +104,5 @@ export async function verifyPassword(password: string, hash: string): Promise<bo
     return diff === 0
   } catch {
     return false
-  }
-}
-
-// ── JWT ────────────────────────────────────────────────────────────────────
-
-/**
- * Sign a JWT using HMAC-SHA256.
- * Sets `exp` to `iat + 7 days` if not already set.
- */
-export async function signJwt(payload: JwtPayload, secret: string): Promise<string> {
-  const header = { alg: 'HS256', typ: 'JWT' }
-
-  const now = Math.floor(Date.now() / 1000)
-  const fullPayload: JwtPayload = {
-    ...payload,
-    iat: payload.iat ?? now,
-    exp: payload.exp ?? now + 7 * 24 * 60 * 60,
-  }
-
-  const headerB64 = stringToBase64url(JSON.stringify(header))
-  const payloadB64 = stringToBase64url(JSON.stringify(fullPayload))
-  const signingInput = `${headerB64}.${payloadB64}`
-
-  const key = await crypto.subtle.importKey(
-    'raw',
-    new TextEncoder().encode(secret),
-    { name: 'HMAC', hash: 'SHA-256' },
-    false,
-    ['sign']
-  )
-
-  const signature = await crypto.subtle.sign('HMAC', key, new TextEncoder().encode(signingInput))
-  const signatureB64 = bufferToBase64url(signature)
-
-  return `${signingInput}.${signatureB64}`
-}
-
-/**
- * Verify a JWT and return its payload, or null if invalid/expired.
- */
-export async function verifyJwt(token: string, secret: string): Promise<JwtPayload | null> {
-  try {
-    const parts = token.split('.')
-    if (parts.length !== 3) {
-      return null
-    }
-
-    const [headerB64, payloadB64, signatureB64] = parts
-    const signingInput = `${headerB64}.${payloadB64}`
-
-    const key = await crypto.subtle.importKey(
-      'raw',
-      new TextEncoder().encode(secret),
-      { name: 'HMAC', hash: 'SHA-256' },
-      false,
-      ['verify']
-    )
-
-    // Decode the base64url signature back to bytes
-    const signatureBytes = base64ToBuffer(
-      signatureB64.replace(/-/g, '+').replace(/_/g, '/').padEnd(
-        signatureB64.length + ((4 - (signatureB64.length % 4)) % 4),
-        '='
-      )
-    )
-
-    const valid = await crypto.subtle.verify(
-      'HMAC',
-      key,
-      signatureBytes,
-      new TextEncoder().encode(signingInput)
-    )
-
-    if (!valid) {
-      return null
-    }
-
-    const payload = JSON.parse(base64urlToString(payloadB64)) as JwtPayload
-
-    // Check expiry
-    if (!payload.exp || payload.exp < Date.now() / 1000) {
-      return null
-    }
-
-    return payload
-  } catch {
-    return null
   }
 }

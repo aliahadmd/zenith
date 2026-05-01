@@ -1,9 +1,29 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
-import { MemoryRouter, Routes, Route } from 'react-router'
+import type { ReactNode } from 'react'
 import { Sidebar } from './Sidebar'
 import * as AuthContext from '../context/AuthContext'
 import type { User } from '../context/AuthContext'
+
+let mockPathname = '/feed'
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({
+    to,
+    params,
+    className,
+    children,
+  }: {
+    to: string
+    params?: { username?: string }
+    className?: string
+    children: ReactNode
+  }) => {
+    const href = params?.username ? to.replace('$username', params.username) : to
+    return <a href={href} className={className}>{children}</a>
+  },
+  useRouterState: () => mockPathname,
+}))
 
 // Mock the useAuth hook
 vi.mock('../context/AuthContext', async (importOriginal) => {
@@ -27,13 +47,8 @@ function makeUser(role: 'subscriber' | 'creator'): User {
 }
 
 function renderSidebar(initialPath = '/feed') {
-  return render(
-    <MemoryRouter initialEntries={[initialPath]}>
-      <Routes>
-        <Route path="*" element={<Sidebar />} />
-      </Routes>
-    </MemoryRouter>
-  )
+  mockPathname = initialPath
+  return render(<Sidebar />)
 }
 
 describe('Sidebar', () => {
