@@ -45,8 +45,30 @@ export const follows = sqliteTable('follows', {
   index('follows_followee_idx').on(t.followeeId),
 ])
 
+// ── Creator Applications ───────────────────────────────────────────────────
+export const creatorApplications = sqliteTable('creator_applications', {
+  id:               text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  userId:           text('user_id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  fullName:         text('full_name').notNull(),
+  address:          text('address').notNull(),
+  city:             text('city').notNull(),
+  country:          text('country').notNull(),
+  nidNumber:        text('nid_number').notNull(),
+  nidDocumentR2Key: text('nid_document_r2_key').notNull(),
+  socialLinks:      text('social_links').notNull(),   // JSON array of URL strings
+  contentLinks:     text('content_links').notNull(),  // JSON array of URL strings
+  status:           text('status', { enum: ['pending', 'approved', 'rejected'] })
+                      .notNull()
+                      .default('approved'),
+  createdAt:        integer('created_at', { mode: 'timestamp' })
+                      .notNull()
+                      .default(sql`(unixepoch())`),
+})
+
 // ── Inferred types ─────────────────────────────────────────────────────────
-export type User    = typeof users.$inferSelect
-export type NewUser = typeof users.$inferInsert
-export type Post    = typeof posts.$inferSelect
-export type Follow  = typeof follows.$inferSelect
+export type User                 = typeof users.$inferSelect
+export type NewUser              = typeof users.$inferInsert
+export type Post                 = typeof posts.$inferSelect
+export type Follow               = typeof follows.$inferSelect
+export type CreatorApplication   = typeof creatorApplications.$inferSelect
+export type NewCreatorApplication = typeof creatorApplications.$inferInsert

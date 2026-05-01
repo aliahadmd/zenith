@@ -41,6 +41,16 @@ export function Sidebar() {
         <NavLink to="/settings" className={navLinkClass}>
           Settings
         </NavLink>
+        {currentUser?.role === 'subscriber' && (
+          <NavLink to="/become-creator" className={navLinkClass}>
+            Become Creator
+          </NavLink>
+        )}
+        {currentUser?.role === 'creator' && (
+          <NavLink to="/studio" className={navLinkClass}>
+            Studio
+          </NavLink>
+        )}
       </nav>
 
       <ThemeSwitcher />

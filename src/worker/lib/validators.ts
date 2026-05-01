@@ -34,6 +34,21 @@ export function isValidUsername(username: string): boolean {
 }
 
 /**
+ * Validates that a string is a well-formed absolute URL with the `https:` scheme.
+ * Returns `true` if and only if the URL parses successfully and its protocol is `https:`.
+ * Returns `false` for any invalid URL, non-https URL (including plain `http:`), or
+ * non-URL string.
+ */
+export function isValidHttpsUrl(value: string): boolean {
+  try {
+    const parsed = new URL(value)
+    return parsed.protocol === 'https:'
+  } catch {
+    return false
+  }
+}
+
+/**
  * Validates a URL by attempting to parse it with the `URL` constructor.
  * Returns `true` only when parsing succeeds and the protocol is `http:` or `https:`.
  * Returns `false` for any unparseable string or non-http(s) protocol.

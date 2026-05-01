@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
-import { isValidEmail, isValidPassword, isValidUsername, isValidUrl, generateUsername } from './validators'
+import { isValidEmail, isValidPassword, isValidUsername, isValidUrl, isValidHttpsUrl, generateUsername } from './validators'
 
 describe('validator property tests', () => {
   // Feature: auth-and-social-feed, Property 5: Email validator rejects all malformed addresses
@@ -186,5 +186,64 @@ describe('profile-and-settings-improvements property tests', () => {
       ),
       { numRuns: 100 }
     )
+  })
+})
+
+describe('become-creator property tests', () => {
+  // Feature: become-creator, Property 1: URL validation accepts only https:// URLs
+  // Validates: Requirements 2.5
+  describe('Property 1: URL validation accepts only https:// URLs', () => {
+    it('accepts well-formed https:// URLs', () => {
+      fc.assert(
+        fc.property(
+          fc.webUrl({ validSchemes: ['https'] }),
+          (url) => {
+            expect(isValidHttpsUrl(url)).toBe(true)
+          }
+        ),
+        { numRuns: 100 }
+      )
+    })
+
+    it('rejects http:// URLs', () => {
+      fc.assert(
+        fc.property(
+          fc.webUrl({ validSchemes: ['http'] }),
+          (url) => {
+            expect(isValidHttpsUrl(url)).toBe(false)
+          }
+        ),
+        { numRuns: 100 }
+      )
+    })
+
+    it('rejects non-URL strings', () => {
+      fc.assert(
+        fc.property(
+          fc.string().filter(s => { try { new URL(s); return false } catch { return true } }),
+          (s) => {
+            expect(isValidHttpsUrl(s)).toBe(false)
+          }
+        ),
+        { numRuns: 100 }
+      )
+    })
+
+    it('rejects URLs with non-https schemes', () => {
+      fc.assert(
+        fc.property(
+          fc.oneof(
+            fc.constant('ftp://example.com/file'),
+            fc.constant('ws://example.com/socket'),
+            fc.constant('mailto:user@example.com'),
+            fc.constant('data:text/plain,hello'),
+          ),
+          (url) => {
+            expect(isValidHttpsUrl(url)).toBe(false)
+          }
+        ),
+        { numRuns: 100 }
+      )
+    })
   })
 })
