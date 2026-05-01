@@ -21,17 +21,17 @@ export function PostCard({ post }: { post: Post }) {
 
   return (
     <Card>
-      <CardHeader className="pb-2">
-        <div className="flex items-center justify-between">
-          <div>
-            <p className="font-semibold">{post.author.displayName}</p>
+      <CardHeader className="pb-3">
+        <div className="flex items-start justify-between gap-4">
+          <div className="min-w-0">
+            <p className="truncate font-semibold leading-tight">{post.author.displayName}</p>
             <p className="text-sm text-muted-foreground">@{post.author.username}</p>
           </div>
-          <time className="text-xs text-muted-foreground">{formattedDate}</time>
+          <time className="shrink-0 text-xs text-muted-foreground">{formattedDate}</time>
         </div>
       </CardHeader>
       <CardContent>
-        <p className="text-sm leading-relaxed">{post.body}</p>
+        <p className="text-sm leading-6">{post.body}</p>
       </CardContent>
     </Card>
   )

@@ -13,7 +13,7 @@ export function ThemeSwitcher() {
         onClick={() => setTheme('light')}
         aria-label="Light theme"
       >
-        <Sun className="h-4 w-4" />
+        <Sun data-icon="inline-start" />
       </Button>
       <Button
         variant={theme === 'dark' ? 'secondary' : 'ghost'}
@@ -21,7 +21,7 @@ export function ThemeSwitcher() {
         onClick={() => setTheme('dark')}
         aria-label="Dark theme"
       >
-        <Moon className="h-4 w-4" />
+        <Moon data-icon="inline-start" />
       </Button>
       <Button
         variant={theme === 'system' ? 'secondary' : 'ghost'}
@@ -29,7 +29,7 @@ export function ThemeSwitcher() {
         onClick={() => setTheme('system')}
         aria-label="System theme"
       >
-        <Monitor className="h-4 w-4" />
+        <Monitor data-icon="inline-start" />
       </Button>
     </div>
   )

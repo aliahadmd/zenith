@@ -67,8 +67,11 @@ describe('Sidebar', () => {
 
     renderSidebar()
 
+    expect(screen.getByRole('link', { name: 'Feed' }).querySelector('svg')).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Profile' }).querySelector('svg')).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Become Creator' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Studio' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Logout' }).querySelector('svg')).toBeInTheDocument()
   })
 
   it('renders "Studio" link for a creator', () => {
@@ -84,6 +87,7 @@ describe('Sidebar', () => {
 
     expect(screen.getByRole('link', { name: 'Studio' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Become Creator' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Feed' })).not.toBeInTheDocument()
   })
 
   it('applies active-link class when the current route matches the nav link', () => {

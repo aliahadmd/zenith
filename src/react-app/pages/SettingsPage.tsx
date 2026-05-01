@@ -159,12 +159,15 @@ export function SettingsPage() {
   }, [avatarPreview])
 
   return (
-    <div className="mx-auto flex max-w-2xl flex-col gap-6">
-      <h1 className="text-2xl font-bold">Settings</h1>
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Settings</h1>
+        <p className="mt-1 text-sm text-muted-foreground">Manage your account, profile, and security details.</p>
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>Public Profile</CardTitle>
+          <CardTitle className="tracking-normal normal-case">Public profile</CardTitle>
           <CardDescription>Update your display name, tagline, and social links</CardDescription>
         </CardHeader>
         <CardContent>
@@ -182,7 +185,7 @@ export function SettingsPage() {
               <InputField form={profileForm} name="github" label="GitHub URL" type="url" placeholder="https://github.com/yourhandle" />
               <InputField form={profileForm} name="website" label="Website URL" type="url" placeholder="https://yourwebsite.com" />
               <RootError message={profileForm.formState.errors.root?.message} />
-              <Button type="submit" disabled={profileForm.formState.isSubmitting}>
+              <Button type="submit" className="self-start tracking-normal normal-case" disabled={profileForm.formState.isSubmitting}>
                 {profileForm.formState.isSubmitting ? 'Saving…' : 'Save profile'}
               </Button>
             </form>
@@ -192,7 +195,7 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Username</CardTitle>
+          <CardTitle className="tracking-normal normal-case">Username</CardTitle>
           <CardDescription>Change your public username</CardDescription>
         </CardHeader>
         <CardContent>
@@ -209,7 +212,7 @@ export function SettingsPage() {
                 3-10 characters, lowercase letters, numbers, _ and - only
               </p>
               <RootError message={usernameForm.formState.errors.root?.message} />
-              <Button type="submit" disabled={usernameForm.formState.isSubmitting}>
+              <Button type="submit" className="self-start tracking-normal normal-case" disabled={usernameForm.formState.isSubmitting}>
                 {usernameForm.formState.isSubmitting ? 'Updating…' : 'Update username'}
               </Button>
             </form>
@@ -219,7 +222,7 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Profile Picture</CardTitle>
+          <CardTitle className="tracking-normal normal-case">Profile picture</CardTitle>
           <CardDescription>Upload a new profile picture (JPEG, PNG, or WebP, max 5 MB)</CardDescription>
         </CardHeader>
         <CardContent>
@@ -259,7 +262,7 @@ export function SettingsPage() {
                 )}
               />
               <RootError message={avatarForm.formState.errors.root?.message} />
-              <Button type="submit" disabled={avatarForm.formState.isSubmitting}>
+              <Button type="submit" className="self-start tracking-normal normal-case" disabled={avatarForm.formState.isSubmitting}>
                 {avatarForm.formState.isSubmitting ? 'Uploading…' : 'Upload'}
               </Button>
             </form>
@@ -269,7 +272,7 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Change Password</CardTitle>
+          <CardTitle className="tracking-normal normal-case">Change password</CardTitle>
           <CardDescription>Update your account password</CardDescription>
         </CardHeader>
         <CardContent>
@@ -285,7 +288,7 @@ export function SettingsPage() {
               <InputField form={passwordForm} name="newPassword" label="New password" type="password" autoComplete="new-password" />
               <InputField form={passwordForm} name="confirmPassword" label="Confirm new password" type="password" autoComplete="new-password" />
               <RootError message={passwordForm.formState.errors.root?.message} />
-              <Button type="submit" disabled={passwordForm.formState.isSubmitting}>
+              <Button type="submit" className="self-start tracking-normal normal-case" disabled={passwordForm.formState.isSubmitting}>
                 {passwordForm.formState.isSubmitting ? 'Updating…' : 'Update password'}
               </Button>
             </form>
@@ -295,7 +298,7 @@ export function SettingsPage() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Change Email</CardTitle>
+          <CardTitle className="tracking-normal normal-case">Change email</CardTitle>
           <CardDescription>Update the email address linked to your account</CardDescription>
         </CardHeader>
         <CardContent>
@@ -310,7 +313,7 @@ export function SettingsPage() {
               <InputField form={emailForm} name="newEmail" label="New email address" type="email" autoComplete="email" />
               <InputField form={emailForm} name="currentPassword" label="Current password" type="password" autoComplete="current-password" />
               <RootError message={emailForm.formState.errors.root?.message} />
-              <Button type="submit" disabled={emailForm.formState.isSubmitting}>
+              <Button type="submit" className="self-start tracking-normal normal-case" disabled={emailForm.formState.isSubmitting}>
                 {emailForm.formState.isSubmitting ? 'Updating…' : 'Update email'}
               </Button>
             </form>

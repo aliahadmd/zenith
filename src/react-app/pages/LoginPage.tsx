@@ -32,10 +32,10 @@ export function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-screen items-center justify-center bg-background p-4">
-      <Card className="w-full max-w-sm">
+    <div className="flex min-h-screen items-center justify-center bg-background p-4 sm:p-6">
+      <Card className="w-full max-w-md">
         <CardHeader>
-          <CardTitle>Sign in</CardTitle>
+          <CardTitle className="text-2xl font-semibold tracking-normal normal-case">Sign in</CardTitle>
           <CardDescription>Enter your email and password to access your account</CardDescription>
         </CardHeader>
         <Form {...form}>
@@ -82,7 +82,7 @@ export function LoginPage() {
               )}
             </CardContent>
             <CardFooter className="flex flex-col gap-3">
-              <Button type="submit" className="w-full" disabled={form.formState.isSubmitting}>
+              <Button type="submit" className="w-full tracking-normal normal-case" disabled={form.formState.isSubmitting}>
                 {form.formState.isSubmitting ? 'Signing in…' : 'Sign in'}
               </Button>
               <p className="text-sm text-muted-foreground">

@@ -107,7 +107,7 @@ export function BecomeCreatorPage() {
   // ── Already-applied state ─────────────────────────────────────────────────
   if (alreadyApplied) {
     return (
-      <div className="mx-auto max-w-2xl">
+      <div className="mx-auto max-w-3xl">
         <Card>
           <CardHeader>
             <CardTitle>Application Under Review</CardTitle>
@@ -128,15 +128,16 @@ export function BecomeCreatorPage() {
 
   // ── Form ──────────────────────────────────────────────────────────────────
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold">Become a Creator</h1>
-      <p className="text-sm text-muted-foreground">
-        Fill out the form below to apply for creator status. All fields are
-        required unless noted.
-      </p>
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Become a Creator</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Fill out the form below to apply for creator status. All fields are required unless noted.
+        </p>
+      </div>
 
       <Form {...form}>
-      <form onSubmit={handleSubmit(onSubmit)} className="space-y-6" noValidate>
+      <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6" noValidate>
         {/* ── Identity ─────────────────────────────────────────────────── */}
         <Card>
           <CardHeader>
@@ -145,9 +146,9 @@ export function BecomeCreatorPage() {
               Your legal identity details for verification
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="flex flex-col gap-4">
             {/* Full legal name */}
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="fullName">Full legal name</Label>
               <Input
                 id="fullName"
@@ -164,7 +165,7 @@ export function BecomeCreatorPage() {
             </div>
 
             {/* Street address */}
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="address">Street address</Label>
               <Input
                 id="address"
@@ -181,7 +182,7 @@ export function BecomeCreatorPage() {
             </div>
 
             {/* City */}
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="city">City</Label>
               <Input
                 id="city"
@@ -198,7 +199,7 @@ export function BecomeCreatorPage() {
             </div>
 
             {/* Country */}
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="country">Country</Label>
               <Input
                 id="country"
@@ -225,9 +226,9 @@ export function BecomeCreatorPage() {
               document (JPEG, PNG, or WebP, max 10 MB)
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="flex flex-col gap-4">
             {/* NID number */}
-            <div className="space-y-2">
+            <div className="flex flex-col gap-2">
               <Label htmlFor="nidNumber">NID number</Label>
               <Input
                 id="nidNumber"
@@ -274,11 +275,11 @@ export function BecomeCreatorPage() {
               At least one social profile URL (must start with https://)
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="flex flex-col gap-4">
             {socialFields.map((field, index) => (
-              <div key={field.id} className="space-y-2">
+              <div key={field.id} className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 space-y-1">
+                  <div className="flex flex-1 flex-col gap-1">
                     <Label htmlFor={`socialLinks.${index}.value`}>
                       Social profile URL {index + 1}
                     </Label>
@@ -335,11 +336,11 @@ export function BecomeCreatorPage() {
               At least one content sample URL (must start with https://)
             </CardDescription>
           </CardHeader>
-          <CardContent className="space-y-4">
+          <CardContent className="flex flex-col gap-4">
             {contentFields.map((field, index) => (
-              <div key={field.id} className="space-y-2">
+              <div key={field.id} className="flex flex-col gap-2">
                 <div className="flex items-center gap-2">
-                  <div className="flex-1 space-y-1">
+                  <div className="flex flex-1 flex-col gap-1">
                     <Label htmlFor={`contentLinks.${index}.value`}>
                       Content sample URL {index + 1}
                     </Label>

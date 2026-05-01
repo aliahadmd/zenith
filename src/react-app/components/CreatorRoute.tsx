@@ -1,16 +1,13 @@
 import type { ReactNode } from 'react'
 import { Navigate } from '@tanstack/react-router'
 import { useAuth } from '../context/AuthContext'
+import { LoadingBlock } from './LoadingBlock'
 
 export function CreatorRoute({ children }: { children?: ReactNode }) {
   const { currentUser, isLoading } = useAuth()
 
   if (isLoading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <div className="h-8 w-8 animate-spin rounded-full border-4 border-primary border-t-transparent" />
-      </div>
-    )
+    return <LoadingBlock label="Checking creator access" className="min-h-screen" />
   }
 
   if (!currentUser) {

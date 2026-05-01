@@ -70,9 +70,9 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
 
   function handleBackdropClick(e: React.MouseEvent<HTMLDivElement>) {
     // Only close when clicking the backdrop itself, not the modal content
-      if (e.target === e.currentTarget) {
+    if (e.target === e.currentTarget) {
       handleClose()
-      }
+    }
   }
 
   if (!open) return null
@@ -89,8 +89,8 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
       {/* Modal panel */}
       <div className="relative w-full max-w-lg rounded-none bg-card shadow-lg ring-1 ring-foreground/5">
         {/* Header */}
-        <div className="flex items-center justify-between border-b border-border px-6 py-4">
-          <h2 className="font-heading text-base font-semibold uppercase tracking-wider">
+        <div className="flex items-center justify-between border-b border-border px-5 py-4 sm:px-6">
+          <h2 className="text-base font-semibold">
             New Short Post
           </h2>
           <Button
@@ -99,14 +99,14 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
             onClick={handleClose}
             aria-label="Close composer"
           >
-            <X />
+            <X data-icon="inline-start" />
           </Button>
         </div>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(handlePublish)} noValidate>
             {/* Body */}
-            <div className="flex flex-col gap-3 px-6 py-5">
+            <div className="flex flex-col gap-3 px-5 py-5 sm:px-6">
               <FormField
                 control={form.control}
                 name="body"
@@ -150,7 +150,7 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
             </div>
 
             {/* Footer */}
-            <div className="flex justify-end gap-3 border-t border-border px-6 py-4">
+            <div className="flex justify-end gap-3 border-t border-border px-5 py-4 sm:px-6">
               <Button type="button" variant="outline" size="sm" onClick={handleClose} disabled={form.formState.isSubmitting}>
                 Cancel
               </Button>
@@ -162,7 +162,7 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
               >
                 {form.formState.isSubmitting ? (
                   <>
-                    <Loader2 className="animate-spin" />
+                    <Loader2 className="animate-spin" data-icon="inline-start" />
                     Publishing…
                   </>
                 ) : (

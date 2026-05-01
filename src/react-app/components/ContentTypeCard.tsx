@@ -31,7 +31,7 @@ export function ContentTypeCard({
           'transition-colors',
           disabled
             ? 'opacity-50 cursor-not-allowed'
-            : 'cursor-pointer hover:bg-accent hover:text-accent-foreground',
+            : 'cursor-pointer hover:bg-accent/70 hover:text-accent-foreground focus-visible:ring-2 focus-visible:ring-ring/30',
         )}
         onClick={handleClick}
         role={disabled ? undefined : 'button'}
@@ -50,8 +50,8 @@ export function ContentTypeCard({
       >
         <CardHeader className="pb-2">
           <div className="flex items-center gap-3">
-            <div className="text-2xl">{icon}</div>
-            <span className="font-heading text-lg font-semibold tracking-wider uppercase">
+            <div className="text-primary">{icon}</div>
+            <span className="text-base font-semibold">
               {title}
             </span>
           </div>
@@ -63,7 +63,7 @@ export function ContentTypeCard({
 
       {comingSoon && (
         <div className="absolute right-3 top-3">
-          <span className="rounded-full bg-muted px-2.5 py-0.5 text-xs font-medium text-muted-foreground">
+          <span className="rounded-md bg-muted px-2.5 py-1 text-xs font-medium text-muted-foreground">
             Coming Soon
           </span>
         </div>

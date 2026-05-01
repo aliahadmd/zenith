@@ -7,13 +7,15 @@ export function StudioPage() {
   const [composerOpen, setComposerOpen] = useState(false)
 
   return (
-    <div className="mx-auto max-w-2xl space-y-6">
-      <h1 className="text-2xl font-bold">Studio</h1>
-      <p className="text-sm text-muted-foreground">
-        Choose a content type to start creating.
-      </p>
+    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+      <div>
+        <h1 className="text-2xl font-semibold">Studio</h1>
+        <p className="mt-1 text-sm text-muted-foreground">
+          Choose a content type to start creating.
+        </p>
+      </div>
 
-      <div className="grid gap-4 sm:grid-cols-1">
+      <div className="grid gap-4">
         <ContentTypeCard
           icon={<FileText />}
           title="Short Post"
