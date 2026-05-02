@@ -129,3 +129,81 @@
     @apply font-sans;
     }
 }
+
+@keyframes auth-grid-pan {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 42px 42px;
+  }
+}
+
+@keyframes auth-fade-up {
+  from {
+    opacity: 0;
+    transform: translateY(16px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes auth-float {
+  0%, 100% {
+    transform: translate3d(0, 0, 0);
+  }
+  50% {
+    transform: translate3d(0, -10px, 0);
+  }
+}
+
+@keyframes auth-path-draw {
+  to {
+    stroke-dashoffset: 0;
+  }
+}
+
+@layer utilities {
+  .auth-grid {
+    background-image:
+      linear-gradient(color-mix(in oklch, var(--border) 58%, transparent) 1px, transparent 1px),
+      linear-gradient(90deg, color-mix(in oklch, var(--border) 58%, transparent) 1px, transparent 1px);
+    background-size: 42px 42px;
+    animation: auth-grid-pan 34s linear infinite;
+    mask-image: linear-gradient(to bottom, black, transparent 92%);
+  }
+
+  .auth-fade-up {
+    animation: auth-fade-up 640ms ease-out both;
+  }
+
+  .auth-float {
+    animation: auth-float 8s ease-in-out infinite;
+  }
+
+  .auth-path-draw {
+    stroke-dasharray: 640;
+    stroke-dashoffset: 640;
+    animation: auth-path-draw 2200ms ease-out both;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .auth-grid,
+  .auth-fade-up,
+  .auth-float,
+  .auth-path-draw {
+    animation: none;
+  }
+
+  .auth-fade-up {
+    opacity: 1;
+    transform: none;
+  }
+
+  .auth-path-draw {
+    stroke-dashoffset: 0;
+  }
+}
