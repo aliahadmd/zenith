@@ -18,6 +18,8 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
 import { Route as AuthenticatedBecomeCreatorRouteImport } from './routes/_authenticated/become-creator'
 import { Route as AuthenticatedUUsernameRouteImport } from './routes/_authenticated/u.$username'
+import { Route as AuthenticatedStudioSubscriptionsRouteImport } from './routes/_authenticated/studio_.subscriptions'
+import { Route as AuthenticatedStudioPayoutsRouteImport } from './routes/_authenticated/studio_.payouts'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -64,6 +66,18 @@ const AuthenticatedUUsernameRoute = AuthenticatedUUsernameRouteImport.update({
   path: '/u/$username',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedStudioSubscriptionsRoute =
+  AuthenticatedStudioSubscriptionsRouteImport.update({
+    id: '/studio_/subscriptions',
+    path: '/studio/subscriptions',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedStudioPayoutsRoute =
+  AuthenticatedStudioPayoutsRouteImport.update({
+    id: '/studio_/payouts',
+    path: '/studio/payouts',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 
 export interface FileRoutesByFullPath {
   '/': typeof IndexRoute
@@ -73,6 +87,8 @@ export interface FileRoutesByFullPath {
   '/feed': typeof AuthenticatedFeedRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/studio': typeof AuthenticatedStudioRoute
+  '/studio/payouts': typeof AuthenticatedStudioPayoutsRoute
+  '/studio/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/u/$username': typeof AuthenticatedUUsernameRoute
 }
 export interface FileRoutesByTo {
@@ -83,6 +99,8 @@ export interface FileRoutesByTo {
   '/feed': typeof AuthenticatedFeedRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/studio': typeof AuthenticatedStudioRoute
+  '/studio/payouts': typeof AuthenticatedStudioPayoutsRoute
+  '/studio/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/u/$username': typeof AuthenticatedUUsernameRoute
 }
 export interface FileRoutesById {
@@ -95,6 +113,8 @@ export interface FileRoutesById {
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/studio': typeof AuthenticatedStudioRoute
+  '/_authenticated/studio_/payouts': typeof AuthenticatedStudioPayoutsRoute
+  '/_authenticated/studio_/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/_authenticated/u/$username': typeof AuthenticatedUUsernameRoute
 }
 export interface FileRouteTypes {
@@ -107,6 +127,8 @@ export interface FileRouteTypes {
     | '/feed'
     | '/settings'
     | '/studio'
+    | '/studio/payouts'
+    | '/studio/subscriptions'
     | '/u/$username'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -117,6 +139,8 @@ export interface FileRouteTypes {
     | '/feed'
     | '/settings'
     | '/studio'
+    | '/studio/payouts'
+    | '/studio/subscriptions'
     | '/u/$username'
   id:
     | '__root__'
@@ -128,6 +152,8 @@ export interface FileRouteTypes {
     | '/_authenticated/feed'
     | '/_authenticated/settings'
     | '/_authenticated/studio'
+    | '/_authenticated/studio_/payouts'
+    | '/_authenticated/studio_/subscriptions'
     | '/_authenticated/u/$username'
   fileRoutesById: FileRoutesById
 }
@@ -203,6 +229,20 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUUsernameRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/studio_/subscriptions': {
+      id: '/_authenticated/studio_/subscriptions'
+      path: '/studio/subscriptions'
+      fullPath: '/studio/subscriptions'
+      preLoaderRoute: typeof AuthenticatedStudioSubscriptionsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/studio_/payouts': {
+      id: '/_authenticated/studio_/payouts'
+      path: '/studio/payouts'
+      fullPath: '/studio/payouts'
+      preLoaderRoute: typeof AuthenticatedStudioPayoutsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
   }
 }
 
@@ -211,6 +251,8 @@ interface AuthenticatedRouteChildren {
   AuthenticatedFeedRoute: typeof AuthenticatedFeedRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedStudioRoute: typeof AuthenticatedStudioRoute
+  AuthenticatedStudioPayoutsRoute: typeof AuthenticatedStudioPayoutsRoute
+  AuthenticatedStudioSubscriptionsRoute: typeof AuthenticatedStudioSubscriptionsRoute
   AuthenticatedUUsernameRoute: typeof AuthenticatedUUsernameRoute
 }
 
@@ -219,6 +261,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedFeedRoute: AuthenticatedFeedRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedStudioRoute: AuthenticatedStudioRoute,
+  AuthenticatedStudioPayoutsRoute: AuthenticatedStudioPayoutsRoute,
+  AuthenticatedStudioSubscriptionsRoute: AuthenticatedStudioSubscriptionsRoute,
   AuthenticatedUUsernameRoute: AuthenticatedUUsernameRoute,
 }
 

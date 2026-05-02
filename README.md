@@ -82,6 +82,22 @@ Monitor your workers:
 npx wrangler tail
 ```
 
+## Stripe Test Mode
+
+Paid creator subscriptions use Stripe Connect in test mode. Configure non-secret defaults in `wrangler.json`, then add secrets per environment:
+
+```bash
+npx wrangler secret put STRIPE_SECRET_KEY
+npx wrangler secret put STRIPE_WEBHOOK_SECRET
+```
+
+For local development, add the same keys to `.dev.vars`:
+
+```bash
+STRIPE_SECRET_KEY=sk_test_...
+STRIPE_WEBHOOK_SECRET=whsec_...
+```
+
 ## Additional Resources
 
 - [Cloudflare Workers Documentation](https://developers.cloudflare.com/workers/)

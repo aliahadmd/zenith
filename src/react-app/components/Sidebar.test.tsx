@@ -74,7 +74,7 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: 'Logout' }).querySelector('svg')).toBeInTheDocument()
   })
 
-  it('renders "Studio" link for a creator', () => {
+  it('renders creator workspace entry for a creator', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('creator'),
       isLoading: false,
@@ -85,9 +85,11 @@ describe('Sidebar', () => {
 
     renderSidebar()
 
+    expect(screen.getByRole('link', { name: 'Feed' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Studio' })).toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Subscriptions' })).not.toBeInTheDocument()
+    expect(screen.queryByRole('link', { name: 'Money' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Become Creator' })).not.toBeInTheDocument()
-    expect(screen.queryByRole('link', { name: 'Feed' })).not.toBeInTheDocument()
   })
 
   it('applies active-link class when the current route matches the nav link', () => {

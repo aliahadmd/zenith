@@ -109,3 +109,55 @@ export const shortPostSchema = z.object({
     .min(1, 'Post body cannot be empty.')
     .max(500, 'Post body must be 500 characters or fewer.'),
 })
+
+const priceInputSchema = z
+  .string()
+  .trim()
+  .optional()
+  .refine((value) => !value || /^\d+(\.\d{1,2})?$/.test(value), {
+    message: 'Use a valid USD amount.',
+  })
+
+function centsFromPriceInput(value: string | undefined) {
+  if (!value) return null
+  return Math.round(Number(value) * 100)
+}
+
+export const creatorSubscriptionPlanSchema = z.object({
+  name: z.string().trim().min(1, 'Plan name is required').max(80, 'Plan name must be 80 characters or fewer'),
+  description: z.string().trim().max(500, 'Description must be 500 characters or fewer').optional(),
+  paidEnabled: z.boolean(),
+  monthlyAmount: priceInputSchema,
+  yearlyAmount: priceInputSchema,
+  freePermanentEnabled: z.boolean(),
+  freeTrialEnabled: z.boolean(),
+  freeTrialDays: z
+    .number({ error: 'Trial length is required.' })
+    .int('Trial length must be a whole number of days.')
+    .min(1, 'Trial must be at least 1 day.')
+    .max(365, 'Trial must be 365 days or fewer.')
+    .optional(),
+}).superRefine((values, ctx) => {
+  if (values.paidEnabled) {
+    const monthlyCents = centsFromPriceInput(values.monthlyAmount)
+    const yearlyCents = centsFromPriceInput(values.yearlyAmount)
+
+    if (monthlyCents === null) {
+      ctx.addIssue({ code: 'custom', path: ['monthlyAmount'], message: 'Monthly price is required.' })
+    } else if (monthlyCents < 100) {
+      ctx.addIssue({ code: 'custom', path: ['monthlyAmount'], message: 'Monthly price must be at least $1.00.' })
+    }
+
+    if (yearlyCents === null) {
+      ctx.addIssue({ code: 'custom', path: ['yearlyAmount'], message: 'Yearly price is required.' })
+    } else if (yearlyCents < 100) {
+      ctx.addIssue({ code: 'custom', path: ['yearlyAmount'], message: 'Yearly price must be at least $1.00.' })
+    }
+  }
+
+  if (values.freeTrialEnabled && values.freeTrialDays === undefined) {
+    ctx.addIssue({ code: 'custom', path: ['freeTrialDays'], message: 'Trial length is required.' })
+  }
+})
+
+export type CreatorSubscriptionPlanFormValues = z.infer<typeof creatorSubscriptionPlanSchema>

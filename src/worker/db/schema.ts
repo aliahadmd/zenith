@@ -1,4 +1,4 @@
-import { sqliteTable, text, integer, primaryKey, index } from 'drizzle-orm/sqlite-core'
+import { sqliteTable, text, integer, primaryKey, index, uniqueIndex } from 'drizzle-orm/sqlite-core'
 import { sql } from 'drizzle-orm'
 
 // ── Users ──────────────────────────────────────────────────────────────────
@@ -130,6 +130,157 @@ export const creatorApplications = sqliteTable('creator_applications', {
                       .default(sql`(unixepoch())`),
 })
 
+// ── Creator Payment Accounts ───────────────────────────────────────────────
+export const creatorPaymentAccounts = sqliteTable('creator_payment_accounts', {
+  creatorId:         text('creator_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  provider:          text('provider', { enum: ['stripe'] }).notNull(),
+  providerAccountId: text('provider_account_id').notNull().unique(),
+  status:            text('status', { enum: ['not_connected', 'onboarding', 'active', 'restricted'] })
+                       .notNull()
+                       .default('onboarding'),
+  chargesEnabled:    integer('charges_enabled', { mode: 'boolean' }).notNull().default(false),
+  payoutsEnabled:    integer('payouts_enabled', { mode: 'boolean' }).notNull().default(false),
+  detailsSubmitted:  integer('details_submitted', { mode: 'boolean' }).notNull().default(false),
+  requirementsDue:   text('requirements_due'),
+  createdAt:         integer('created_at')
+                       .notNull()
+                       .default(sql`(unixepoch())`),
+  updatedAt:         integer('updated_at', { mode: 'timestamp_ms' })
+                       .notNull()
+                       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                       .$onUpdate(() => new Date()),
+}, (t) => [
+  index('creator_payment_accounts_provider_idx').on(t.provider, t.providerAccountId),
+])
+
+// ── Membership Plans ───────────────────────────────────────────────────────
+export const membershipPlans = sqliteTable('membership_plans', {
+  id:                   text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  creatorId:            text('creator_id').notNull().unique().references(() => users.id, { onDelete: 'cascade' }),
+  name:                 text('name').notNull().default('Membership'),
+  description:          text('description'),
+  currency:             text('currency').notNull().default('usd'),
+  paidEnabled:          integer('paid_enabled', { mode: 'boolean' }).notNull().default(false),
+  freePermanentEnabled: integer('free_permanent_enabled', { mode: 'boolean' }).notNull().default(false),
+  freeTrialEnabled:     integer('free_trial_enabled', { mode: 'boolean' }).notNull().default(false),
+  freeTrialDays:        integer('free_trial_days'),
+  createdAt:            integer('created_at')
+                          .notNull()
+                          .default(sql`(unixepoch())`),
+  updatedAt:            integer('updated_at', { mode: 'timestamp_ms' })
+                          .notNull()
+                          .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                          .$onUpdate(() => new Date()),
+}, (t) => [
+  index('membership_plans_creator_idx').on(t.creatorId),
+])
+
+export const membershipPlanPrices = sqliteTable('membership_plan_prices', {
+  id:                text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  planId:            text('plan_id').notNull().references(() => membershipPlans.id, { onDelete: 'cascade' }),
+  creatorId:         text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  provider:          text('provider', { enum: ['stripe'] }).notNull(),
+  interval:          text('interval', { enum: ['monthly', 'yearly'] }).notNull(),
+  amountCents:       integer('amount_cents').notNull(),
+  currency:          text('currency').notNull().default('usd'),
+  providerProductId: text('provider_product_id').notNull(),
+  providerPriceId:   text('provider_price_id').notNull(),
+  active:            integer('active', { mode: 'boolean' }).notNull().default(true),
+  createdAt:         integer('created_at')
+                       .notNull()
+                       .default(sql`(unixepoch())`),
+  updatedAt:         integer('updated_at', { mode: 'timestamp_ms' })
+                       .notNull()
+                       .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                       .$onUpdate(() => new Date()),
+}, (t) => [
+  uniqueIndex('membership_plan_prices_plan_interval_provider_unique').on(t.planId, t.interval, t.provider),
+  index('membership_plan_prices_creator_idx').on(t.creatorId),
+  index('membership_plan_prices_provider_price_idx').on(t.provider, t.providerPriceId),
+])
+
+// ── Payment Customers ──────────────────────────────────────────────────────
+export const paymentCustomers = sqliteTable('payment_customers', {
+  userId:             text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  provider:           text('provider', { enum: ['stripe'] }).notNull(),
+  providerCustomerId: text('provider_customer_id').notNull(),
+  createdAt:          integer('created_at')
+                        .notNull()
+                        .default(sql`(unixepoch())`),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.provider] }),
+  uniqueIndex('payment_customers_provider_customer_unique').on(t.provider, t.providerCustomerId),
+])
+
+// ── Subscription Memberships ───────────────────────────────────────────────
+export const subscriptionMemberships = sqliteTable('subscription_memberships', {
+  id:                        text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  creatorId:                 text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  subscriberId:              text('subscriber_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  planId:                    text('plan_id').references(() => membershipPlans.id, { onDelete: 'set null' }),
+  provider:                  text('provider', { enum: ['internal', 'stripe'] }).notNull(),
+  accessType:                text('access_type', { enum: ['free', 'trial', 'paid'] }).notNull(),
+  interval:                  text('interval', { enum: ['monthly', 'yearly'] }),
+  status:                    text('status', {
+                              enum: ['pending', 'active', 'trialing', 'past_due', 'canceled', 'expired', 'incomplete'],
+                            })
+                              .notNull()
+                              .default('active'),
+  providerSubscriptionId:    text('provider_subscription_id'),
+  providerCheckoutSessionId: text('provider_checkout_session_id'),
+  providerCustomerId:        text('provider_customer_id'),
+  currentPeriodStart:        integer('current_period_start'),
+  currentPeriodEnd:          integer('current_period_end'),
+  trialEndsAt:               integer('trial_ends_at'),
+  cancelAt:                  integer('cancel_at'),
+  canceledAt:                integer('canceled_at'),
+  createdAt:                 integer('created_at')
+                                .notNull()
+                                .default(sql`(unixepoch())`),
+  updatedAt:                 integer('updated_at', { mode: 'timestamp_ms' })
+                                .notNull()
+                                .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                                .$onUpdate(() => new Date()),
+}, (t) => [
+  uniqueIndex('subscription_memberships_subscriber_creator_unique').on(t.subscriberId, t.creatorId),
+  index('subscription_memberships_creator_idx').on(t.creatorId),
+  index('subscription_memberships_subscriber_idx').on(t.subscriberId),
+  index('subscription_memberships_provider_subscription_idx').on(t.provider, t.providerSubscriptionId),
+  index('subscription_memberships_checkout_idx').on(t.providerCheckoutSessionId),
+])
+
+// ── Revenue Events ─────────────────────────────────────────────────────────
+export const revenueEvents = sqliteTable('revenue_events', {
+  id:                text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  creatorId:         text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  subscriberId:      text('subscriber_id').references(() => users.id, { onDelete: 'set null' }),
+  membershipId:      text('membership_id').references(() => subscriptionMemberships.id, { onDelete: 'set null' }),
+  provider:          text('provider', { enum: ['stripe'] }).notNull(),
+  providerEventId:   text('provider_event_id'),
+  providerInvoiceId: text('provider_invoice_id'),
+  amountGrossCents:  integer('amount_gross_cents').notNull(),
+  amountFeeCents:    integer('amount_fee_cents').notNull(),
+  amountNetCents:    integer('amount_net_cents').notNull(),
+  currency:          text('currency').notNull().default('usd'),
+  occurredAt:        integer('occurred_at').notNull(),
+  createdAt:         integer('created_at')
+                       .notNull()
+                       .default(sql`(unixepoch())`),
+}, (t) => [
+  index('revenue_events_creator_occurred_idx').on(t.creatorId, t.occurredAt),
+  uniqueIndex('revenue_events_provider_invoice_unique').on(t.provider, t.providerInvoiceId),
+])
+
+// ── Payment Webhook Events ─────────────────────────────────────────────────
+export const paymentWebhookEvents = sqliteTable('payment_webhook_events', {
+  id:          text('id').primaryKey(),
+  provider:    text('provider', { enum: ['stripe'] }).notNull(),
+  eventType:   text('event_type').notNull(),
+  processedAt: integer('processed_at')
+                 .notNull()
+                 .default(sql`(unixepoch())`),
+})
+
 // ── Inferred types ─────────────────────────────────────────────────────────
 export type User                 = typeof users.$inferSelect
 export type NewUser              = typeof users.$inferInsert
@@ -140,3 +291,10 @@ export type Post                 = typeof posts.$inferSelect
 export type Follow               = typeof follows.$inferSelect
 export type CreatorApplication   = typeof creatorApplications.$inferSelect
 export type NewCreatorApplication = typeof creatorApplications.$inferInsert
+export type CreatorPaymentAccount = typeof creatorPaymentAccounts.$inferSelect
+export type MembershipPlan        = typeof membershipPlans.$inferSelect
+export type MembershipPlanPrice   = typeof membershipPlanPrices.$inferSelect
+export type PaymentCustomer       = typeof paymentCustomers.$inferSelect
+export type SubscriptionMembership = typeof subscriptionMemberships.$inferSelect
+export type RevenueEvent          = typeof revenueEvents.$inferSelect
+export type PaymentWebhookEvent   = typeof paymentWebhookEvents.$inferSelect

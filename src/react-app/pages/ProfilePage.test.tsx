@@ -26,6 +26,8 @@ vi.mock('@tanstack/react-router', () => ({
 
 vi.mock('../lib/api', () => ({
   apiGetRequired: vi.fn(),
+  apiPostRequired: vi.fn(),
+  apiPutRequired: vi.fn(),
 }))
 
 vi.mock('../context/AuthContext', async (importOriginal) => {

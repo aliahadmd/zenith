@@ -2,7 +2,15 @@ import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
+import type { ReactNode } from 'react'
 import { StudioPage } from './StudioPage'
+
+vi.mock('@tanstack/react-router', () => ({
+  Link: ({ to, className, children }: { to: string; className?: string; children: ReactNode }) => (
+    <a href={to} className={className}>{children}</a>
+  ),
+  useRouterState: () => '/studio',
+}))
 
 // Mock the api module (ShortPostComposer uses apiPostRequired)
 vi.mock('../lib/api', () => ({
@@ -31,6 +39,15 @@ describe('StudioPage', () => {
     expect(screen.getByText('Short Post')).toBeInTheDocument()
     expect(screen.getByText('Long Post')).toBeInTheDocument()
     expect(screen.getByText('Course')).toBeInTheDocument()
+  })
+
+  it('renders Studio-local navigation', () => {
+    renderStudioPage()
+
+    expect(screen.getAllByRole('navigation', { name: /studio sections/i })).toHaveLength(2)
+    expect(screen.getAllByRole('link', { name: /create/i })[0]).toHaveAttribute('href', '/studio')
+    expect(screen.getAllByRole('link', { name: /subscriptions/i })[0]).toHaveAttribute('href', '/studio/subscriptions')
+    expect(screen.getAllByRole('link', { name: /money/i })[0]).toHaveAttribute('href', '/studio/payouts')
   })
 
   // Validates: Requirements 6.4

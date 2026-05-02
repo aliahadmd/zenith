@@ -2,19 +2,17 @@ import { useState } from 'react'
 import { FileText, BookOpen, GraduationCap } from 'lucide-react'
 import { ContentTypeCard } from '../components/ContentTypeCard'
 import { ShortPostComposer } from '../components/ShortPostComposer'
+import { StudioLayout } from '../components/StudioLayout'
 
 export function StudioPage() {
   const [composerOpen, setComposerOpen] = useState(false)
 
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Studio</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          Choose a content type to start creating.
-        </p>
-      </div>
-
+    <StudioLayout
+      title="Studio"
+      description="Choose a content type to start creating."
+      contentClassName="max-w-3xl"
+    >
       <div className="grid gap-4">
         <ContentTypeCard
           icon={<FileText />}
@@ -44,6 +42,6 @@ export function StudioPage() {
         open={composerOpen}
         onClose={() => setComposerOpen(false)}
       />
-    </div>
+    </StudioLayout>
   )
 }

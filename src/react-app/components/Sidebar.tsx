@@ -45,10 +45,13 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           { to: '/become-creator' as const, label: 'Become Creator', icon: BadgePlus },
         ]
       : []),
-    { to: '/settings' as const, label: 'Settings', icon: Settings },
     ...(currentUser?.role === 'creator'
-      ? [{ to: '/studio' as const, label: 'Studio', icon: LayoutDashboard }]
+      ? [
+          { to: '/feed' as const, label: 'Feed', icon: Rss },
+          { to: '/studio' as const, label: 'Studio', icon: LayoutDashboard },
+        ]
       : []),
+    { to: '/settings' as const, label: 'Settings', icon: Settings },
   ]
 
   async function handleLogout() {

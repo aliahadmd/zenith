@@ -1,8 +1,8 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { eq, and } from 'drizzle-orm'
+import { and, eq, gt, or } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { users, follows } from '../db/schema'
+import { users, subscriptionMemberships } from '../db/schema'
 import { type HonoEnv } from '../middleware/auth'
 import { userIdParamSchema, usernameParamSchema } from '../lib/schemas'
 import { notFound, zodHook } from '../lib/http'
@@ -42,6 +42,7 @@ profileRoutes.get('/:username', zValidator('param', usernameParamSchema, zodHook
       id: users.id,
       displayName: users.displayName,
       username: users.username,
+      role: users.role,
       tagline: users.tagline,
       avatarUrl: users.avatarUrl,
       socialLinks: users.socialLinks,
@@ -56,6 +57,7 @@ profileRoutes.get('/:username', zValidator('param', usernameParamSchema, zodHook
     id: user.id,
     displayName: user.displayName,
     username: user.username,
+    role: user.role,
     tagline: user.tagline,
     avatarUrl: user.avatarUrl,
     socialLinks: user.socialLinks,
@@ -76,15 +78,25 @@ profileRoutes.get('/:username/subscriptions', zValidator('param', usernameParamS
 
   if (!user) return notFound(c)
 
+  const now = Math.floor(Date.now() / 1000)
   const subscriptions = await db
     .select({
       displayName: users.displayName,
       username: users.username,
       avatarUrl: users.avatarUrl,
+      status: subscriptionMemberships.status,
+      accessType: subscriptionMemberships.accessType,
     })
-    .from(follows)
-    .innerJoin(users, eq(users.id, follows.followeeId))
-    .where(and(eq(follows.followerId, user.id), eq(users.role, 'creator')))
+    .from(subscriptionMemberships)
+    .innerJoin(users, eq(users.id, subscriptionMemberships.creatorId))
+    .where(and(
+      eq(subscriptionMemberships.subscriberId, user.id),
+      eq(users.role, 'creator'),
+      or(
+        eq(subscriptionMemberships.status, 'active'),
+        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
+      ),
+    ))
     .all()
 
   return c.json({ subscriptions })

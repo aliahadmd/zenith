@@ -1,9 +1,9 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { desc, eq } from 'drizzle-orm'
+import { and, desc, eq, gt, or } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { posts, follows, users } from '../db/schema'
-import { authMiddleware, requireRole, type HonoEnv } from '../middleware/auth'
+import { posts, follows, users, subscriptionMemberships, membershipPlans } from '../db/schema'
+import { authMiddleware, type HonoEnv } from '../middleware/auth'
 import { subscribeSchema } from '../lib/schemas'
 import { conflict, notFound, zodHook } from '../lib/http'
 
@@ -11,8 +11,9 @@ export const feedRoutes = new Hono<HonoEnv>()
 
 // ── GET / ──────────────────────────────────────────────────────────────────
 
-feedRoutes.get('/', authMiddleware, requireRole('subscriber'), async (c) => {
+feedRoutes.get('/', authMiddleware, async (c) => {
   const db = createDb(c.env.DB)
+  const now = Math.floor(Date.now() / 1000)
 
   const rows = await db
     .select({
@@ -23,9 +24,15 @@ feedRoutes.get('/', authMiddleware, requireRole('subscriber'), async (c) => {
       authorUsername: users.username,
     })
     .from(posts)
-    .innerJoin(follows, eq(follows.followeeId, posts.authorId))
+    .innerJoin(subscriptionMemberships, eq(subscriptionMemberships.creatorId, posts.authorId))
     .innerJoin(users, eq(users.id, posts.authorId))
-    .where(eq(follows.followerId, c.var.user.id))
+    .where(and(
+      eq(subscriptionMemberships.subscriberId, c.var.user.id),
+      or(
+        eq(subscriptionMemberships.status, 'active'),
+        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
+      ),
+    ))
     .orderBy(desc(posts.createdAt))
     .all()
 
@@ -48,7 +55,7 @@ feedRoutes.get('/', authMiddleware, requireRole('subscriber'), async (c) => {
 
 // ── POST /subscribe ────────────────────────────────────────────────────────
 
-feedRoutes.post('/subscribe', authMiddleware, requireRole('subscriber'), zValidator('json', subscribeSchema, zodHook), async (c) => {
+feedRoutes.post('/subscribe', authMiddleware, zValidator('json', subscribeSchema, zodHook), async (c) => {
   const { creatorId } = c.req.valid('json')
   const db = createDb(c.env.DB)
 
@@ -64,6 +71,7 @@ feedRoutes.post('/subscribe', authMiddleware, requireRole('subscriber'), zValida
   }
 
   const subscriberId = c.var.user.id
+  if (subscriberId === creatorId) return conflict(c, 'You cannot subscribe to yourself')
 
   try {
     await db.insert(follows).values({ followerId: subscriberId, followeeId: creatorId }).run()
@@ -72,6 +80,52 @@ feedRoutes.post('/subscribe', authMiddleware, requireRole('subscriber'), zValida
       return conflict(c, 'Already subscribed to this creator')
     }
     throw err
+  }
+
+  let plan = await db
+    .select()
+    .from(membershipPlans)
+    .where(eq(membershipPlans.creatorId, creatorId))
+    .get()
+
+  if (!plan) {
+    const planId = crypto.randomUUID()
+    await db
+      .insert(membershipPlans)
+      .values({
+        id: planId,
+        creatorId,
+        freePermanentEnabled: true,
+      })
+      .run()
+    plan = await db.select().from(membershipPlans).where(eq(membershipPlans.id, planId)).get()
+  }
+
+  if (plan) {
+    await db
+      .insert(subscriptionMemberships)
+      .values({
+        id: crypto.randomUUID(),
+        creatorId,
+        subscriberId,
+        planId: plan.id,
+        provider: 'internal',
+        accessType: 'free',
+        status: 'active',
+      })
+      .onConflictDoUpdate({
+        target: [subscriptionMemberships.subscriberId, subscriptionMemberships.creatorId],
+        set: {
+          planId: plan.id,
+          provider: 'internal',
+          accessType: 'free',
+          interval: null,
+          status: 'active',
+          trialEndsAt: null,
+          updatedAt: new Date(),
+        },
+      })
+      .run()
   }
 
   return c.json({ subscriberId, creatorId }, 201)

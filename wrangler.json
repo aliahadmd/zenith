@@ -19,7 +19,9 @@
 		"not_found_handling": "single-page-application"
 	},
 	"vars": {
-		"BETTER_AUTH_SECRET": "change-me-in-production"
+		"BETTER_AUTH_SECRET": "change-me-in-production",
+		"PAYMENT_PROVIDER": "stripe",
+		"PLATFORM_FEE_BPS": "1000"
 	},
 	"d1_databases": [
 		{

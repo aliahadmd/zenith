@@ -6,6 +6,7 @@ import { profileRoutes } from './routes/profile'
 import { settingsRoutes } from './routes/settings'
 import { creatorRoutes } from './routes/creator'
 import { postsRoutes } from './routes/posts'
+import { paymentsRoutes } from './routes/payments'
 import { notFound, serverError } from './lib/http'
 
 const app = new Hono<HonoEnv>()
@@ -16,6 +17,7 @@ app.route('/api/profile', profileRoutes)
 app.route('/api/settings', settingsRoutes)
 app.route('/api/creator', creatorRoutes)
 app.route('/api/posts', postsRoutes)
+app.route('/api/payments', paymentsRoutes)
 
 app.onError((err, c) => {
   console.error(err)
