@@ -8,7 +8,7 @@ export const Route = createFileRoute('/login')({
     if (!user) return
 
     throw redirect({
-      to: user.role === 'creator' ? '/studio' : '/feed',
+      to: '/feed',
       replace: true,
     })
   },

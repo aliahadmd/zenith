@@ -35,6 +35,10 @@
 		{
 			"binding": "AVATARS",
 			"bucket_name": "social-feed-avatars"
+		},
+		{
+			"binding": "MEDIA",
+			"bucket_name": "social-feed-media"
 		}
 	]
 	/**

@@ -1,5 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import type { ReactNode } from 'react'
 import { Sidebar } from './Sidebar'
 import * as AuthContext from '../context/AuthContext'
@@ -74,6 +75,21 @@ describe('Sidebar', () => {
     expect(screen.getByRole('button', { name: 'Logout' }).querySelector('svg')).toBeInTheDocument()
   })
 
+  it('orders Feed before Profile in the main navigation', () => {
+    mockUseAuth.mockReturnValue({
+      currentUser: makeUser('subscriber'),
+      isLoading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      refreshCurrentUser: vi.fn(),
+    })
+
+    renderSidebar()
+
+    const linkNames = screen.getAllByRole('link').map((link) => link.textContent)
+    expect(linkNames).toEqual(['Feed', 'Profile', 'Become Creator', 'Settings'])
+  })
+
   it('renders creator workspace entry for a creator', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('creator'),
@@ -124,5 +140,23 @@ describe('Sidebar', () => {
     const studioLink = screen.getByRole('link', { name: 'Studio' })
     expect(studioLink).toHaveClass('bg-accent')
     expect(studioLink).toHaveClass('text-accent-foreground')
+  })
+
+  it('calls logout when the logout button is clicked', async () => {
+    const user = userEvent.setup()
+    const logout = vi.fn().mockResolvedValue(undefined)
+    mockUseAuth.mockReturnValue({
+      currentUser: makeUser('subscriber'),
+      isLoading: false,
+      login: vi.fn(),
+      logout,
+      refreshCurrentUser: vi.fn(),
+    })
+
+    renderSidebar()
+
+    await user.click(screen.getByRole('button', { name: 'Logout' }))
+
+    expect(logout).toHaveBeenCalledTimes(1)
   })
 })

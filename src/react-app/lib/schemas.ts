@@ -110,6 +110,56 @@ export const shortPostSchema = z.object({
     .max(500, 'Post body must be 500 characters or fewer.'),
 })
 
+const imageListSchema = z
+  .array(z.instanceof(File))
+  .max(4, 'Upload 4 images or fewer.')
+  .refine((files) => files.every((file) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type)), {
+    message: 'Use JPEG, PNG, or WebP images.',
+  })
+  .refine((files) => files.every((file) => file.size <= 5 * 1024 * 1024), {
+    message: 'Each image must be 5 MB or smaller.',
+  })
+
+const pollOptionSchema = z.object({
+  value: z.string().trim().max(80, 'Poll options must be 80 characters or fewer.'),
+})
+
+export const richPostSchema = z.object({
+  body: z.string().trim().max(500, 'Post body must be 500 characters or fewer.'),
+  images: imageListSchema,
+  pollEnabled: z.boolean(),
+  pollQuestion: z.string().trim().max(140, 'Poll question must be 140 characters or fewer.'),
+  pollOptions: z.array(pollOptionSchema).min(2).max(4),
+}).superRefine((values, ctx) => {
+  const hasBody = values.body.length > 0
+  const hasImages = values.images.length > 0
+  const hasPoll = values.pollEnabled
+
+  if (!hasBody && !hasImages && !hasPoll) {
+    ctx.addIssue({ code: 'custom', path: ['body'], message: 'Add post text, images, or a poll.' })
+  }
+
+  if (hasPoll) {
+    if (!values.pollQuestion) {
+      ctx.addIssue({ code: 'custom', path: ['pollQuestion'], message: 'Poll question is required.' })
+    }
+
+    const filledOptions = values.pollOptions.map((option) => option.value.trim()).filter(Boolean)
+    if (filledOptions.length < 2 || filledOptions.length > 4) {
+      ctx.addIssue({ code: 'custom', path: ['pollOptions'], message: 'Polls must include 2 to 4 options.' })
+    }
+  }
+})
+
+export const replySchema = z.object({
+  body: z
+    .string()
+    .trim()
+    .min(1, 'Reply body cannot be empty.')
+    .max(500, 'Reply body must be 500 characters or fewer.'),
+  images: imageListSchema,
+})
+
 const priceInputSchema = z
   .string()
   .trim()
@@ -161,3 +211,5 @@ export const creatorSubscriptionPlanSchema = z.object({
 })
 
 export type CreatorSubscriptionPlanFormValues = z.infer<typeof creatorSubscriptionPlanSchema>
+export type RichPostFormValues = z.infer<typeof richPostSchema>
+export type ReplyFormValues = z.infer<typeof replySchema>

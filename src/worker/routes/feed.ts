@@ -6,6 +6,7 @@ import { posts, follows, users, subscriptionMemberships, membershipPlans } from 
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
 import { subscribeSchema } from '../lib/schemas'
 import { conflict, notFound, zodHook } from '../lib/http'
+import { buildPostExtras, toUnixSeconds } from '../lib/post-data'
 
 export const feedRoutes = new Hono<HonoEnv>()
 
@@ -18,8 +19,10 @@ feedRoutes.get('/', authMiddleware, async (c) => {
   const rows = await db
     .select({
       id: posts.id,
+      slug: posts.slug,
       body: posts.body,
       createdAt: posts.createdAt,
+      authorId: posts.authorId,
       authorDisplayName: users.displayName,
       authorUsername: users.username,
     })
@@ -34,21 +37,34 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       ),
     ))
     .orderBy(desc(posts.createdAt))
+    .limit(50)
     .all()
 
   if (rows.length === 0) {
     return c.json({ posts: [], message: "You haven't subscribed to any creators yet" })
   }
 
-  const mappedPosts = rows.map((row) => ({
-    id: row.id,
-    body: row.body,
-    createdAt: row.createdAt,
-    author: {
-      displayName: row.authorDisplayName,
-      username: row.authorUsername,
-    },
-  }))
+  const extras = await buildPostExtras(db, c.var.user.id, rows.map((row) => row.id))
+
+  const mappedPosts = rows.map((row) => {
+    const createdAt = toUnixSeconds(row.createdAt)
+    return {
+      id: row.id,
+      slug: row.slug,
+      body: row.body,
+      createdAt,
+      author: {
+        id: row.authorId,
+        displayName: row.authorDisplayName,
+        username: row.authorUsername,
+      },
+      attachments: extras.attachmentsByPostId.get(row.id) ?? [],
+      likeCount: extras.postLikeCounts.get(row.id) ?? 0,
+      replyCount: extras.postReplyCounts.get(row.id) ?? 0,
+      viewerLiked: extras.viewerLikedPostIds.has(row.id),
+      poll: extras.pollsByPostId.get(row.id) ?? null,
+    }
+  })
 
   return c.json({ posts: mappedPosts })
 })

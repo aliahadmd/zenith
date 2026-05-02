@@ -6,7 +6,7 @@ export const Route = createFileRoute('/')({
     const user = await context.queryClient.ensureQueryData(authMeQueryOptions)
 
     throw redirect({
-      to: user?.role === 'creator' ? '/studio' : user ? '/feed' : '/login',
+      to: user ? '/feed' : '/login',
       replace: true,
     })
   },

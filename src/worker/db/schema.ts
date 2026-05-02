@@ -89,12 +89,130 @@ export const verification = sqliteTable('verification', {
 export const posts = sqliteTable('posts', {
   id:        text('id').primaryKey(),
   authorId:  text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  slug:      text('slug').notNull(),
   body:      text('body').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' })
                .notNull()
                .default(sql`(unixepoch())`),
 }, (t) => [
+  uniqueIndex('posts_author_slug_unique').on(t.authorId, t.slug),
   index('posts_author_created_idx').on(t.authorId, t.createdAt),
+])
+
+// ── Post Media Attachments ─────────────────────────────────────────────────
+export const postAttachments = sqliteTable('post_attachments', {
+  id:           text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  postId:       text('post_id').notNull().references(() => posts.id, { onDelete: 'cascade' }),
+  uploaderId:   text('uploader_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  r2Key:        text('r2_key').notNull().unique(),
+  fileName:     text('file_name').notNull(),
+  contentType:  text('content_type').notNull(),
+  sizeBytes:    integer('size_bytes').notNull(),
+  displayOrder: integer('display_order').notNull().default(0),
+  createdAt:    integer('created_at')
+                  .notNull()
+                  .default(sql`(unixepoch())`),
+}, (t) => [
+  index('post_attachments_post_idx').on(t.postId, t.displayOrder),
+])
+
+// ── Post Replies ───────────────────────────────────────────────────────────
+export const postReplies = sqliteTable('post_replies', {
+  id:              text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  postId:          text('post_id').notNull().references(() => posts.id, { onDelete: 'cascade' }),
+  authorId:        text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  parentReplyId:   text('parent_reply_id'),
+  mentionedUserId: text('mentioned_user_id').references(() => users.id, { onDelete: 'set null' }),
+  body:            text('body').notNull(),
+  createdAt:       integer('created_at', { mode: 'timestamp' })
+                     .notNull()
+                     .default(sql`(unixepoch())`),
+  updatedAt:       integer('updated_at', { mode: 'timestamp_ms' })
+                     .notNull()
+                     .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                     .$onUpdate(() => new Date()),
+}, (t) => [
+  index('post_replies_post_created_idx').on(t.postId, t.createdAt),
+  index('post_replies_parent_idx').on(t.parentReplyId),
+])
+
+export const replyAttachments = sqliteTable('reply_attachments', {
+  id:           text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  replyId:      text('reply_id').notNull().references(() => postReplies.id, { onDelete: 'cascade' }),
+  uploaderId:   text('uploader_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  r2Key:        text('r2_key').notNull().unique(),
+  fileName:     text('file_name').notNull(),
+  contentType:  text('content_type').notNull(),
+  sizeBytes:    integer('size_bytes').notNull(),
+  displayOrder: integer('display_order').notNull().default(0),
+  createdAt:    integer('created_at')
+                  .notNull()
+                  .default(sql`(unixepoch())`),
+}, (t) => [
+  index('reply_attachments_reply_idx').on(t.replyId, t.displayOrder),
+])
+
+export const postLikes = sqliteTable('post_likes', {
+  postId:    text('post_id').notNull().references(() => posts.id, { onDelete: 'cascade' }),
+  userId:    text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at')
+               .notNull()
+               .default(sql`(unixepoch())`),
+}, (t) => [
+  primaryKey({ columns: [t.postId, t.userId] }),
+  index('post_likes_user_idx').on(t.userId),
+])
+
+export const replyLikes = sqliteTable('reply_likes', {
+  replyId:   text('reply_id').notNull().references(() => postReplies.id, { onDelete: 'cascade' }),
+  userId:    text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at')
+               .notNull()
+               .default(sql`(unixepoch())`),
+}, (t) => [
+  primaryKey({ columns: [t.replyId, t.userId] }),
+  index('reply_likes_user_idx').on(t.userId),
+])
+
+// ── Post Polls ─────────────────────────────────────────────────────────────
+export const postPolls = sqliteTable('post_polls', {
+  id:        text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  postId:    text('post_id').notNull().unique().references(() => posts.id, { onDelete: 'cascade' }),
+  question:  text('question').notNull(),
+  closesAt:  integer('closes_at'),
+  createdAt: integer('created_at')
+               .notNull()
+               .default(sql`(unixepoch())`),
+}, (t) => [
+  index('post_polls_post_idx').on(t.postId),
+])
+
+export const pollOptions = sqliteTable('poll_options', {
+  id:        text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  pollId:    text('poll_id').notNull().references(() => postPolls.id, { onDelete: 'cascade' }),
+  text:      text('text').notNull(),
+  position:  integer('position').notNull(),
+  createdAt: integer('created_at')
+               .notNull()
+               .default(sql`(unixepoch())`),
+}, (t) => [
+  index('poll_options_poll_position_idx').on(t.pollId, t.position),
+])
+
+export const pollVotes = sqliteTable('poll_votes', {
+  pollId:    text('poll_id').notNull().references(() => postPolls.id, { onDelete: 'cascade' }),
+  userId:    text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  optionId:  text('option_id').notNull().references(() => pollOptions.id, { onDelete: 'cascade' }),
+  createdAt: integer('created_at')
+               .notNull()
+               .default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp_ms' })
+               .notNull()
+               .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+               .$onUpdate(() => new Date()),
+}, (t) => [
+  primaryKey({ columns: [t.pollId, t.userId] }),
+  index('poll_votes_option_idx').on(t.optionId),
 ])
 
 // ── Follows ────────────────────────────────────────────────────────────────
@@ -288,6 +406,14 @@ export type Session              = typeof session.$inferSelect
 export type Account              = typeof account.$inferSelect
 export type Verification         = typeof verification.$inferSelect
 export type Post                 = typeof posts.$inferSelect
+export type PostAttachment       = typeof postAttachments.$inferSelect
+export type PostReply            = typeof postReplies.$inferSelect
+export type ReplyAttachment      = typeof replyAttachments.$inferSelect
+export type PostLike             = typeof postLikes.$inferSelect
+export type ReplyLike            = typeof replyLikes.$inferSelect
+export type PostPoll             = typeof postPolls.$inferSelect
+export type PollOption           = typeof pollOptions.$inferSelect
+export type PollVote             = typeof pollVotes.$inferSelect
 export type Follow               = typeof follows.$inferSelect
 export type CreatorApplication   = typeof creatorApplications.$inferSelect
 export type NewCreatorApplication = typeof creatorApplications.$inferInsert

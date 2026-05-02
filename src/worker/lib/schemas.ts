@@ -21,7 +21,37 @@ export const authLoginSchema = z.object({
 })
 
 export const postCreateSchema = z.object({
-  body: z.string().min(1, 'Post body must be between 1 and 500 characters').max(500, 'Post body must be between 1 and 500 characters'),
+  body: z.string().trim().min(1, 'Post body must be between 1 and 500 characters').max(500, 'Post body must be between 1 and 500 characters'),
+})
+
+export const postSlugParamSchema = z.object({
+  username: z.string().min(1, 'username is required'),
+  slug: z.string().min(1, 'slug is required'),
+})
+
+export const postIdParamSchema = z.object({
+  postId: z.string().min(1, 'postId is required'),
+})
+
+export const replyIdParamSchema = z.object({
+  replyId: z.string().min(1, 'replyId is required'),
+})
+
+export const pollIdParamSchema = z.object({
+  pollId: z.string().min(1, 'pollId is required'),
+})
+
+export const attachmentIdParamSchema = z.object({
+  attachmentId: z.string().min(1, 'attachmentId is required'),
+})
+
+export const replyCreateJsonSchema = z.object({
+  body: z.string().trim().min(1, 'Reply body must be between 1 and 500 characters').max(500, 'Reply body must be between 1 and 500 characters'),
+  parentReplyId: z.string().min(1).optional(),
+})
+
+export const pollVoteSchema = z.object({
+  optionId: z.string().min(1, 'optionId is required'),
 })
 
 export const subscribeSchema = z.object({

@@ -51,7 +51,7 @@ export function RegisterPage() {
       form.setError('root', { message: error })
       return
     }
-    await navigate({ to: loggedInUser?.role === 'creator' ? '/studio' : '/feed' })
+    await navigate({ to: loggedInUser ? '/feed' : '/login' })
   }
 
   return (

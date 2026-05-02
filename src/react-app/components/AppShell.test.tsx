@@ -7,6 +7,7 @@ import * as AuthContext from '../context/AuthContext'
 import type { User } from '../context/AuthContext'
 
 let mockPathname = '/feed'
+const mockNavigate = vi.hoisted(() => vi.fn())
 
 vi.mock('@tanstack/react-router', () => ({
   Outlet: () => <div>Page Content</div>,
@@ -27,6 +28,7 @@ vi.mock('@tanstack/react-router', () => ({
     return <a href={href} className={className} onClick={onClick}>{children}</a>
   },
   useRouterState: () => mockPathname,
+  useNavigate: () => mockNavigate,
 }))
 
 vi.mock('../context/AuthContext', async (importOriginal) => {
@@ -72,5 +74,19 @@ describe('AppShell', () => {
 
     expect(screen.getByRole('dialog', { name: /navigation/i })).toBeInTheDocument()
     expect(screen.getAllByRole('link', { name: 'Feed' }).length).toBeGreaterThanOrEqual(1)
+  })
+
+  it('redirects to login when the authenticated shell loses the user', () => {
+    mockUseAuth.mockReturnValue({
+      currentUser: null,
+      isLoading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      refreshCurrentUser: vi.fn(),
+    })
+
+    render(<AppShell />)
+
+    expect(mockNavigate).toHaveBeenCalledWith({ to: '/login', replace: true })
   })
 })

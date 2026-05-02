@@ -27,7 +27,7 @@ export function LoginPage() {
     if (error) {
       form.setError('root', { message: error })
     } else {
-      await navigate({ to: loggedInUser?.role === 'creator' ? '/studio' : '/feed' })
+      await navigate({ to: loggedInUser ? '/feed' : '/login' })
     }
   }
 

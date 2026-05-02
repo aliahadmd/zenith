@@ -38,21 +38,22 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground',
     )
 
-  const navItems: NavItem[] = [
-    ...(currentUser?.role === 'subscriber'
+  const roleNavItems: NavItem[] =
+    currentUser?.role === 'subscriber'
       ? [
           { to: '/feed' as const, label: 'Feed', icon: Rss },
           { to: '/become-creator' as const, label: 'Become Creator', icon: BadgePlus },
         ]
-      : []),
-    ...(currentUser?.role === 'creator'
-      ? [
-          { to: '/feed' as const, label: 'Feed', icon: Rss },
-          { to: '/studio' as const, label: 'Studio', icon: LayoutDashboard },
-        ]
-      : []),
-    { to: '/settings' as const, label: 'Settings', icon: Settings },
-  ]
+      : currentUser?.role === 'creator'
+        ? [
+            { to: '/feed' as const, label: 'Feed', icon: Rss },
+            { to: '/studio' as const, label: 'Studio', icon: LayoutDashboard },
+          ]
+        : []
+
+  const [feedNavItem, ...secondaryNavItems] = roleNavItems
+  const settingsNavItem: NavItem = { to: '/settings' as const, label: 'Settings', icon: Settings }
+  const FeedIcon = feedNavItem?.icon
 
   async function handleLogout() {
     await logout()
@@ -79,6 +80,12 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
       {/* Navigation */}
       <nav className="flex flex-1 flex-col gap-1">
+        {feedNavItem && FeedIcon ? (
+          <Link to={feedNavItem.to} className={navLinkClass(feedNavItem.to)} onClick={onNavigate}>
+            <FeedIcon data-icon="inline-start" />
+            {feedNavItem.label}
+          </Link>
+        ) : null}
         <Link
           to="/u/$username"
           params={{ username: currentUser?.username ?? '' }}
@@ -88,7 +95,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           <User data-icon="inline-start" />
           Profile
         </Link>
-        {navItems.map((item) => {
+        {[...secondaryNavItems, settingsNavItem].map((item) => {
           const Icon = item.icon
           return (
             <Link key={item.to} to={item.to} className={navLinkClass(item.to)} onClick={onNavigate}>

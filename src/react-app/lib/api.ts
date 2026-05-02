@@ -106,6 +106,10 @@ export function apiPut<T>(url: string, body?: unknown): Promise<ApiResponse<T>> 
   })
 }
 
+export function apiDelete<T>(url: string): Promise<ApiResponse<T>> {
+  return apiFetch<T>(url, { method: 'DELETE' })
+}
+
 export async function apiRequest<T>(
   url: string,
   options: RequestInit = {}
@@ -135,4 +139,8 @@ export function apiPutRequired<T>(url: string, body?: unknown): Promise<T> {
     method: 'PUT',
     body: body instanceof FormData ? body : JSON.stringify(body),
   })
+}
+
+export function apiDeleteRequired<T>(url: string): Promise<T> {
+  return apiRequest<T>(url, { method: 'DELETE' })
 }

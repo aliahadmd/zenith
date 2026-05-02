@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { render, screen, waitFor } from '@testing-library/react'
+import { cleanup, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import fc from 'fast-check'
 import type { ReactElement } from 'react'
@@ -231,15 +231,18 @@ describe('ShortPostComposer — property tests', () => {
       fc.asyncProperty(
         fc.constant(''),
         async () => {
+          cleanup()
           const { unmount } = renderComposer(true)
 
-          const publishBtn = screen.getByRole('button', { name: /publish/i })
-          expect(publishBtn).toBeDisabled()
+          try {
+            const publishBtn = screen.getByRole('button', { name: /publish/i })
+            expect(publishBtn).toBeDisabled()
 
-          // Validation message should be present
-          expect(screen.getByRole('alert')).toBeInTheDocument()
-
-          unmount()
+            // Validation message should be present
+            expect(screen.getByRole('alert')).toBeInTheDocument()
+          } finally {
+            unmount()
+          }
         }
       ),
       { numRuns: 10 }
@@ -252,20 +255,23 @@ describe('ShortPostComposer — property tests', () => {
         // Generate strings of length 1–500 (valid range)
         fc.string({ minLength: 1, maxLength: 500, unit: 'binary' }),
         async (validBody) => {
+          cleanup()
           const user = userEvent.setup()
           const { unmount } = renderComposer(true)
 
-          const textarea = screen.getByRole('textbox', { name: /post body/i })
-          await user.type(textarea, validBody)
+          try {
+            const textarea = screen.getByRole('textbox', { name: /post body/i })
+            await user.type(textarea, validBody)
 
-          const publishBtn = screen.getByRole('button', { name: /publish/i })
-          // For valid bodies (1–500 chars), publish should be enabled
-          expect(publishBtn).not.toBeDisabled()
+            const publishBtn = screen.getByRole('button', { name: /publish/i })
+            // For valid bodies (1–500 chars), publish should be enabled
+            expect(publishBtn).not.toBeDisabled()
 
-          // No validation message for valid body
-          expect(screen.queryByRole('alert')).not.toBeInTheDocument()
-
-          unmount()
+            // No validation message for valid body
+            expect(screen.queryByRole('alert')).not.toBeInTheDocument()
+          } finally {
+            unmount()
+          }
         }
       ),
       { numRuns: 100 }

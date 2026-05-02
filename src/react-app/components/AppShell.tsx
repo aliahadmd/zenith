@@ -1,7 +1,8 @@
-import { useState } from 'react'
-import { Outlet } from '@tanstack/react-router'
+import { useEffect, useState } from 'react'
+import { Outlet, useNavigate } from '@tanstack/react-router'
 import { Menu } from 'lucide-react'
 import { Sidebar } from './Sidebar'
+import { useAuth } from '../context/AuthContext'
 import { Button } from './ui/button'
 import {
   Sheet,
@@ -14,6 +15,14 @@ import {
 
 export function AppShell() {
   const [mobileNavOpen, setMobileNavOpen] = useState(false)
+  const { currentUser, isLoading } = useAuth()
+  const navigate = useNavigate()
+
+  useEffect(() => {
+    if (!isLoading && !currentUser) {
+      void navigate({ to: '/login', replace: true })
+    }
+  }, [currentUser, isLoading, navigate])
 
   return (
     <div className="min-h-screen bg-background">

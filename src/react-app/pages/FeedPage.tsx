@@ -1,28 +1,10 @@
 import { useQuery } from '@tanstack/react-query'
-import { apiGetRequired } from '../lib/api'
 import { PostCard } from '../components/PostCard'
 import { LoadingBlock } from '../components/LoadingBlock'
-
-type Post = {
-  id: string
-  body: string
-  createdAt: number | null
-  author: {
-    displayName: string
-    username: string
-  }
-}
-
-type FeedResponse = {
-  posts: Post[]
-  message?: string
-}
+import { feedQueryOptions } from '../lib/posts'
 
 export function FeedPage() {
-  const feedQuery = useQuery({
-    queryKey: ['feed'],
-    queryFn: () => apiGetRequired<FeedResponse>('/api/feed'),
-  })
+  const feedQuery = useQuery(feedQueryOptions())
 
   if (feedQuery.isPending) {
     return <LoadingBlock label="Loading feed" />
