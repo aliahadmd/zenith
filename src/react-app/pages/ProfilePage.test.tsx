@@ -111,6 +111,13 @@ describe('ProfilePage', () => {
         }
       }
 
+      if (String(url).endsWith('/articles')) {
+        return {
+          hasAccess: true,
+          articles: [],
+        }
+      }
+
       return {
         id: 'creator-1',
         displayName: 'Creator One',
@@ -118,6 +125,7 @@ describe('ProfilePage', () => {
         role: 'creator',
         tagline: 'Design notes and field guides.',
         avatarUrl: null,
+        profileTabs: null,
         socialLinks: JSON.stringify({
           github: 'https://github.com/creatorone',
           twitter: 'https://x.com/creatorone',
@@ -161,6 +169,20 @@ describe('ProfilePage', () => {
     await user.click(screen.getByRole('tab', { name: 'Subscribers' }))
     expect(await screen.findByText('Member One')).toBeInTheDocument()
     expect(screen.getByText('@memberone')).toBeInTheDocument()
+  })
+
+  it('keeps the fifth visible creator tab inside the More menu', async () => {
+    const user = userEvent.setup()
+    renderProfilePage()
+
+    expect(await screen.findByRole('tab', { name: 'About' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Posts' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Articles' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Subscribers' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Subscribed to' })).not.toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: /more/i }))
+    expect(await screen.findByRole('menuitem', { name: 'Subscribed to' })).toBeInTheDocument()
   })
 })
 

@@ -7,6 +7,7 @@ import { authMiddleware, type HonoEnv } from '../middleware/auth'
 import { userIdParamSchema, usernameParamSchema } from '../lib/schemas'
 import { notFound, zodHook } from '../lib/http'
 import { buildPostExtras, hasCreatorAccess, toUnixSeconds } from '../lib/post-data'
+import { getCreatorProfileTabs } from '../lib/profile-tabs'
 import { listPublishedArticlesForCreator } from './articles'
 
 export const profileRoutes = new Hono<HonoEnv>()
@@ -63,6 +64,7 @@ profileRoutes.get('/:username', zValidator('param', usernameParamSchema, zodHook
     tagline: user.tagline,
     avatarUrl: user.avatarUrl,
     socialLinks: user.socialLinks,
+    profileTabs: user.role === 'creator' ? await getCreatorProfileTabs(db, user.id) : null,
   })
 })
 

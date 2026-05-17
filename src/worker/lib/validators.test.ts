@@ -1,6 +1,7 @@
 import { describe, it, expect } from 'vitest'
 import fc from 'fast-check'
 import { isValidEmail, isValidPassword, isValidUsername, isValidUrl, isValidHttpsUrl, generateUsername } from './validators'
+import { profileTabsSettingsSchema } from './schemas'
 
 describe('validator property tests', () => {
   // Feature: auth-and-social-feed, Property 5: Email validator rejects all malformed addresses
@@ -186,6 +187,54 @@ describe('profile-and-settings-improvements property tests', () => {
       ),
       { numRuns: 100 }
     )
+  })
+})
+
+describe('creator profile tab settings schema', () => {
+  const validTabs = [
+    { key: 'about', visible: true },
+    { key: 'posts', visible: true },
+    { key: 'articles', visible: true },
+    { key: 'subscribers', visible: true },
+    { key: 'subscribed', visible: true },
+  ]
+
+  it('accepts the full known tab list with at least one visible tab', () => {
+    expect(profileTabsSettingsSchema.safeParse({ tabs: validTabs }).success).toBe(true)
+  })
+
+  it('rejects duplicate tab keys', () => {
+    expect(profileTabsSettingsSchema.safeParse({
+      tabs: [
+        { key: 'about', visible: true },
+        { key: 'about', visible: true },
+        { key: 'articles', visible: true },
+        { key: 'subscribers', visible: true },
+        { key: 'subscribed', visible: true },
+      ],
+    }).success).toBe(false)
+  })
+
+  it('rejects unknown tab keys and zero visible tabs', () => {
+    expect(profileTabsSettingsSchema.safeParse({
+      tabs: [
+        { key: 'about', visible: false },
+        { key: 'posts', visible: false },
+        { key: 'articles', visible: false },
+        { key: 'subscribers', visible: false },
+        { key: 'subscribed', visible: false },
+      ],
+    }).success).toBe(false)
+
+    expect(profileTabsSettingsSchema.safeParse({
+      tabs: [
+        { key: 'about', visible: true },
+        { key: 'posts', visible: true },
+        { key: 'articles', visible: true },
+        { key: 'subscribers', visible: true },
+        { key: 'unknown', visible: true },
+      ],
+    }).success).toBe(false)
   })
 })
 

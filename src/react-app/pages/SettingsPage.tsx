@@ -1,6 +1,25 @@
-import { useEffect, useMemo } from 'react'
+import { useEffect, useMemo, useState } from 'react'
+import {
+  closestCenter,
+  DndContext,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  type DragEndEvent,
+} from '@dnd-kit/core'
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from '@dnd-kit/sortable'
+import { CSS } from '@dnd-kit/utilities'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
+import { Link } from '@tanstack/react-router'
+import { GripVertical, KeyRound, Loader2, PanelsTopLeft, ShieldCheck, UserRound } from 'lucide-react'
 import { useForm, useWatch, type FieldValues, type Path, type UseFormReturn } from 'react-hook-form'
 import { z } from 'zod'
 import { toast } from 'sonner'
@@ -14,10 +33,21 @@ import {
   profileSettingsSchema,
   usernameSettingsSchema,
 } from '../lib/schemas'
+import {
+  profileTabDescription,
+  profileTabsKeys,
+  profileTabsQueryOptions,
+  updateProfileTabs,
+  type ProfileTabSetting,
+} from '../lib/profile-tabs'
+import { cn } from '../lib/utils'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../components/ui/form'
+import { Switch } from '../components/ui/switch'
+import { Badge } from '../components/ui/badge'
+import { Skeleton } from '../components/ui/skeleton'
 
 type ProfileSettingsValues = z.infer<typeof profileSettingsSchema>
 type UsernameSettingsValues = z.infer<typeof usernameSettingsSchema>
@@ -25,7 +55,65 @@ type AvatarSettingsValues = z.infer<typeof avatarSettingsSchema>
 type PasswordSettingsValues = z.infer<typeof passwordSettingsSchema>
 type EmailSettingsValues = z.infer<typeof emailSettingsSchema>
 
-export function SettingsPage() {
+export type SettingsSection = 'profile' | 'profile-tabs' | 'account' | 'security'
+
+const settingsNavItems: Array<{
+  section: SettingsSection
+  label: string
+  description: string
+  to: '/settings/profile' | '/settings/profile-tabs' | '/settings/account' | '/settings/security'
+  icon: typeof UserRound
+}> = [
+  {
+    section: 'profile',
+    label: 'Profile',
+    description: 'Public identity',
+    to: '/settings/profile',
+    icon: UserRound,
+  },
+  {
+    section: 'profile-tabs',
+    label: 'Profile Tabs',
+    description: 'Order and visibility',
+    to: '/settings/profile-tabs',
+    icon: PanelsTopLeft,
+  },
+  {
+    section: 'account',
+    label: 'Account',
+    description: 'Username and email',
+    to: '/settings/account',
+    icon: ShieldCheck,
+  },
+  {
+    section: 'security',
+    label: 'Security',
+    description: 'Password',
+    to: '/settings/security',
+    icon: KeyRound,
+  },
+]
+
+const sectionCopy: Record<SettingsSection, { title: string; description: string }> = {
+  profile: {
+    title: 'Profile',
+    description: 'Manage the public details people see on your profile.',
+  },
+  'profile-tabs': {
+    title: 'Profile Tabs',
+    description: 'Choose which profile sections appear first and which move into More.',
+  },
+  account: {
+    title: 'Account',
+    description: 'Manage your username and email address.',
+  },
+  security: {
+    title: 'Security',
+    description: 'Keep your password current.',
+  },
+}
+
+export function SettingsPage({ section = 'profile' }: { section?: SettingsSection }) {
   const { currentUser } = useAuth()
   const queryClient = useQueryClient()
   const socialLinks = useMemo(() => parseSocialLinks(currentUser?.socialLinks), [currentUser?.socialLinks])
@@ -158,168 +246,438 @@ export function SettingsPage() {
     }
   }, [avatarPreview])
 
+  const currentSection = sectionCopy[section]
+
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
-      <div>
-        <h1 className="text-2xl font-semibold">Settings</h1>
-        <p className="mt-1 text-sm text-muted-foreground">Manage your account, profile, and security details.</p>
-      </div>
+    <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+      <aside className="min-w-0">
+        <div className="lg:sticky lg:top-6">
+          <div className="mb-4">
+            <h1 className="text-2xl font-semibold">Settings</h1>
+            <p className="mt-1 text-sm text-muted-foreground">Manage profile, account, and security details.</p>
+          </div>
+          <nav aria-label="Settings sections" className="flex gap-2 overflow-x-auto pb-1 lg:flex-col lg:overflow-visible lg:pb-0">
+            {settingsNavItems.map((item) => {
+              const Icon = item.icon
+              const isActive = item.section === section
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="tracking-normal normal-case">Public profile</CardTitle>
-          <CardDescription>Update your display name, tagline, and social links</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...profileForm}>
-            <form
-              onSubmit={profileForm.handleSubmit((values) => profileMutation.mutateAsync(values).catch((error: Error) => {
-                profileForm.setError('root', { message: error.message })
-              }))}
-              className="flex flex-col gap-4"
-              noValidate
-            >
-              <InputField form={profileForm} name="displayName" label="Display name" autoComplete="name" />
-              <InputField form={profileForm} name="tagline" label="Tagline" placeholder="A short bio or tagline" />
-              <InputField form={profileForm} name="twitter" label="Twitter URL" type="url" placeholder="https://twitter.com/yourhandle" />
-              <InputField form={profileForm} name="github" label="GitHub URL" type="url" placeholder="https://github.com/yourhandle" />
-              <InputField form={profileForm} name="website" label="Website URL" type="url" placeholder="https://yourwebsite.com" />
-              <RootError message={profileForm.formState.errors.root?.message} />
-              <Button type="submit" className="self-start tracking-normal normal-case" disabled={profileForm.formState.isSubmitting}>
-                {profileForm.formState.isSubmitting ? 'Saving…' : 'Save profile'}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+              return (
+                <Link
+                  key={item.section}
+                  to={item.to}
+                  className={cn(
+                    'flex min-w-44 items-center gap-3 rounded-md border px-3 py-2 text-sm transition-colors hover:bg-card/50 lg:min-w-0',
+                    isActive ? 'border-primary/50 bg-card text-foreground' : 'border-transparent text-muted-foreground',
+                  )}
+                >
+                  <Icon data-icon="inline-start" />
+                  <span className="min-w-0">
+                    <span className="block truncate font-medium">{item.label}</span>
+                    <span className="block truncate text-xs text-muted-foreground">{item.description}</span>
+                  </span>
+                </Link>
+              )
+            })}
+          </nav>
+        </div>
+      </aside>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="tracking-normal normal-case">Username</CardTitle>
-          <CardDescription>Change your public username</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...usernameForm}>
-            <form
-              onSubmit={usernameForm.handleSubmit((values) => usernameMutation.mutateAsync(values).catch((error: Error) => {
-                usernameForm.setError('root', { message: error.message })
-              }))}
-              className="flex flex-col gap-4"
-              noValidate
-            >
-              <InputField form={usernameForm} name="username" label="Username" autoComplete="username" />
-              <p className="text-xs text-muted-foreground">
-                3-10 characters, lowercase letters, numbers, _ and - only
-              </p>
-              <RootError message={usernameForm.formState.errors.root?.message} />
-              <Button type="submit" className="self-start tracking-normal normal-case" disabled={usernameForm.formState.isSubmitting}>
-                {usernameForm.formState.isSubmitting ? 'Updating…' : 'Update username'}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+      <main className="min-w-0">
+        <div className="mb-6">
+          <h2 className="text-2xl font-semibold">{currentSection.title}</h2>
+          <p className="mt-1 text-sm text-muted-foreground">{currentSection.description}</p>
+        </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="tracking-normal normal-case">Profile picture</CardTitle>
-          <CardDescription>Upload a new profile picture (JPEG, PNG, or WebP, max 5 MB)</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...avatarForm}>
-            <form
-              onSubmit={avatarForm.handleSubmit((values) => avatarMutation.mutateAsync(values).catch((error: Error) => {
-                avatarForm.setError('root', { message: error.message })
-              }))}
-              className="flex flex-col gap-4"
-              noValidate
-            >
-              {avatarPreview && (
-                <img
-                  src={avatarPreview}
-                  alt="Avatar preview"
-                  className="size-24 rounded-full object-cover"
-                />
-              )}
-              <FormField
-                control={avatarForm.control}
-                name="avatar"
-                render={({ field: { onChange, ref, name, onBlur } }) => (
-                  <FormItem>
-                    <FormLabel>Choose image</FormLabel>
-                    <FormControl>
-                      <Input
-                        ref={ref}
-                        name={name}
-                        type="file"
-                        accept="image/jpeg,image/png,image/webp"
-                        onBlur={onBlur}
-                        onChange={(event) => onChange(event.target.files?.[0])}
+        <div className="flex flex-col gap-5">
+          {section === 'profile' && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="tracking-normal normal-case">Public profile</CardTitle>
+                  <CardDescription>Update your display name, tagline, and social links</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Form {...profileForm}>
+                    <form
+                      onSubmit={profileForm.handleSubmit((values) => profileMutation.mutateAsync(values).catch((error: Error) => {
+                        profileForm.setError('root', { message: error.message })
+                      }))}
+                      className="flex flex-col gap-4"
+                      noValidate
+                    >
+                      <InputField form={profileForm} name="displayName" label="Display name" autoComplete="name" />
+                      <InputField form={profileForm} name="tagline" label="Tagline" placeholder="A short bio or tagline" />
+                      <InputField form={profileForm} name="twitter" label="Twitter URL" type="url" placeholder="https://twitter.com/yourhandle" />
+                      <InputField form={profileForm} name="github" label="GitHub URL" type="url" placeholder="https://github.com/yourhandle" />
+                      <InputField form={profileForm} name="website" label="Website URL" type="url" placeholder="https://yourwebsite.com" />
+                      <RootError message={profileForm.formState.errors.root?.message} />
+                      <Button type="submit" className="self-start tracking-normal normal-case" disabled={profileForm.formState.isSubmitting}>
+                        {profileForm.formState.isSubmitting ? 'Saving…' : 'Save profile'}
+                      </Button>
+                    </form>
+                  </Form>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="tracking-normal normal-case">Profile picture</CardTitle>
+                  <CardDescription>Upload a new profile picture (JPEG, PNG, or WebP, max 5 MB)</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Form {...avatarForm}>
+                    <form
+                      onSubmit={avatarForm.handleSubmit((values) => avatarMutation.mutateAsync(values).catch((error: Error) => {
+                        avatarForm.setError('root', { message: error.message })
+                      }))}
+                      className="flex flex-col gap-4"
+                      noValidate
+                    >
+                      {avatarPreview && (
+                        <img
+                          src={avatarPreview}
+                          alt="Avatar preview"
+                          className="size-24 rounded-full object-cover"
+                        />
+                      )}
+                      <FormField
+                        control={avatarForm.control}
+                        name="avatar"
+                        render={({ field: { onChange, ref, name, onBlur } }) => (
+                          <FormItem>
+                            <FormLabel>Choose image</FormLabel>
+                            <FormControl>
+                              <Input
+                                ref={ref}
+                                name={name}
+                                type="file"
+                                accept="image/jpeg,image/png,image/webp"
+                                onBlur={onBlur}
+                                onChange={(event) => onChange(event.target.files?.[0])}
+                              />
+                            </FormControl>
+                            <FormMessage />
+                          </FormItem>
+                        )}
                       />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-              <RootError message={avatarForm.formState.errors.root?.message} />
-              <Button type="submit" className="self-start tracking-normal normal-case" disabled={avatarForm.formState.isSubmitting}>
-                {avatarForm.formState.isSubmitting ? 'Uploading…' : 'Upload'}
-              </Button>
-            </form>
-          </Form>
+                      <RootError message={avatarForm.formState.errors.root?.message} />
+                      <Button type="submit" className="self-start tracking-normal normal-case" disabled={avatarForm.formState.isSubmitting}>
+                        {avatarForm.formState.isSubmitting ? 'Uploading…' : 'Upload'}
+                      </Button>
+                    </form>
+                  </Form>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {section === 'profile-tabs' && (
+            <ProfileTabsSettings />
+          )}
+
+          {section === 'account' && (
+            <>
+              <Card>
+                <CardHeader>
+                  <CardTitle className="tracking-normal normal-case">Username</CardTitle>
+                  <CardDescription>Change your public username</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Form {...usernameForm}>
+                    <form
+                      onSubmit={usernameForm.handleSubmit((values) => usernameMutation.mutateAsync(values).catch((error: Error) => {
+                        usernameForm.setError('root', { message: error.message })
+                      }))}
+                      className="flex flex-col gap-4"
+                      noValidate
+                    >
+                      <InputField form={usernameForm} name="username" label="Username" autoComplete="username" />
+                      <p className="text-xs text-muted-foreground">
+                        3-10 characters, lowercase letters, numbers, _ and - only
+                      </p>
+                      <RootError message={usernameForm.formState.errors.root?.message} />
+                      <Button type="submit" className="self-start tracking-normal normal-case" disabled={usernameForm.formState.isSubmitting}>
+                        {usernameForm.formState.isSubmitting ? 'Updating…' : 'Update username'}
+                      </Button>
+                    </form>
+                  </Form>
+                </CardContent>
+              </Card>
+
+              <Card>
+                <CardHeader>
+                  <CardTitle className="tracking-normal normal-case">Change email</CardTitle>
+                  <CardDescription>Update the email address linked to your account</CardDescription>
+                </CardHeader>
+                <CardContent>
+                  <Form {...emailForm}>
+                    <form
+                      onSubmit={emailForm.handleSubmit((values) => emailMutation.mutateAsync(values).catch((error: Error) => {
+                        emailForm.setError('root', { message: error.message })
+                      }))}
+                      className="flex flex-col gap-4"
+                      noValidate
+                    >
+                      <InputField form={emailForm} name="newEmail" label="New email address" type="email" autoComplete="email" />
+                      <InputField form={emailForm} name="currentPassword" label="Current password" type="password" autoComplete="current-password" />
+                      <RootError message={emailForm.formState.errors.root?.message} />
+                      <Button type="submit" className="self-start tracking-normal normal-case" disabled={emailForm.formState.isSubmitting}>
+                        {emailForm.formState.isSubmitting ? 'Updating…' : 'Update email'}
+                      </Button>
+                    </form>
+                  </Form>
+                </CardContent>
+              </Card>
+            </>
+          )}
+
+          {section === 'security' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="tracking-normal normal-case">Change password</CardTitle>
+                <CardDescription>Update your account password</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <Form {...passwordForm}>
+                  <form
+                    onSubmit={passwordForm.handleSubmit((values) => passwordMutation.mutateAsync(values).catch((error: Error) => {
+                      passwordForm.setError('root', { message: error.message })
+                    }))}
+                    className="flex flex-col gap-4"
+                    noValidate
+                  >
+                    <InputField form={passwordForm} name="currentPassword" label="Current password" type="password" autoComplete="current-password" />
+                    <InputField form={passwordForm} name="newPassword" label="New password" type="password" autoComplete="new-password" />
+                    <InputField form={passwordForm} name="confirmPassword" label="Confirm new password" type="password" autoComplete="new-password" />
+                    <RootError message={passwordForm.formState.errors.root?.message} />
+                    <Button type="submit" className="self-start tracking-normal normal-case" disabled={passwordForm.formState.isSubmitting}>
+                      {passwordForm.formState.isSubmitting ? 'Updating…' : 'Update password'}
+                    </Button>
+                  </form>
+                </Form>
+              </CardContent>
+            </Card>
+          )}
+        </div>
+      </main>
+    </div>
+  )
+}
+
+function ProfileTabsSettings() {
+  const { currentUser } = useAuth()
+  const queryClient = useQueryClient()
+  const [customTabs, setCustomTabs] = useState<ProfileTabSetting[] | null>(null)
+  const profileTabsQuery = useQuery(profileTabsQueryOptions(currentUser?.role === 'creator'))
+  const tabs = customTabs ?? profileTabsQuery.data?.tabs ?? []
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 6 } }),
+    useSensor(KeyboardSensor, { coordinateGetter: sortableKeyboardCoordinates }),
+  )
+
+  const saveMutation = useMutation({
+    mutationFn: () => updateProfileTabs(tabs.map((tab) => ({ key: tab.key, visible: tab.visible }))),
+    onSuccess: async (data) => {
+      setCustomTabs(data.tabs)
+      toast.success('Profile tabs updated.')
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: profileTabsKeys.settings }),
+        queryClient.invalidateQueries({ queryKey: authKeys.me }),
+        queryClient.invalidateQueries({ queryKey: ['profile'] }),
+        currentUser?.username
+          ? queryClient.invalidateQueries({ queryKey: ['profile', currentUser.username] })
+          : Promise.resolve(),
+      ])
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Profile tabs could not be saved.')
+    },
+  })
+
+  if (currentUser?.role !== 'creator') {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="tracking-normal normal-case">Creator profiles only</CardTitle>
+          <CardDescription>Upgrade to creator before managing profile tab visibility and order.</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  if (profileTabsQuery.isPending) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-5 w-40" />
+          <Skeleton className="h-4 w-72" />
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Skeleton className="h-16 w-full rounded-md" />
+          <Skeleton className="h-16 w-full rounded-md" />
+          <Skeleton className="h-16 w-full rounded-md" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  if (profileTabsQuery.isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="tracking-normal normal-case">Profile tabs unavailable</CardTitle>
+          <CardDescription>{profileTabsQuery.error.message}</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  const visibleTabs = tabs.filter((tab) => tab.visible)
+  const primaryTabs = visibleTabs.slice(0, 4)
+  const overflowTabs = visibleTabs.slice(4)
+  const hasVisibleTab = visibleTabs.length > 0
+
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event
+    if (!over || active.id === over.id) return
+
+    setCustomTabs((currentTabs) => {
+      const baseTabs = currentTabs ?? tabs
+      const oldIndex = baseTabs.findIndex((tab) => tab.key === active.id)
+      const newIndex = baseTabs.findIndex((tab) => tab.key === over.id)
+      return arrayMove(baseTabs, oldIndex, newIndex).map((tab, index) => ({ ...tab, order: index }))
+    })
+  }
+
+  return (
+    <>
+      <Card>
+        <CardHeader>
+          <CardTitle className="tracking-normal normal-case">Profile tab order</CardTitle>
+          <CardDescription>
+            Drag tabs into the order you want. The first four visible tabs appear directly on your profile.
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="flex flex-col gap-4">
+          <DndContext sensors={sensors} collisionDetection={closestCenter} onDragEnd={handleDragEnd}>
+            <SortableContext items={tabs.map((tab) => tab.key)} strategy={verticalListSortingStrategy}>
+              <div className="flex flex-col gap-2">
+                {tabs.map((tab) => (
+                  <SortableTabRow
+                    key={tab.key}
+                    tab={tab}
+                    onVisibleChange={(visible) => {
+                      setCustomTabs((currentTabs) => (currentTabs ?? tabs).map((currentTab) => (
+                        currentTab.key === tab.key ? { ...currentTab, visible } : currentTab
+                      )))
+                    }}
+                  />
+                ))}
+              </div>
+            </SortableContext>
+          </DndContext>
+
+          {!hasVisibleTab && (
+            <p className="text-sm text-destructive">At least one tab must remain visible.</p>
+          )}
+
+          <Button
+            type="button"
+            className="self-start tracking-normal normal-case"
+            disabled={!hasVisibleTab || saveMutation.isPending}
+            onClick={() => saveMutation.mutate()}
+          >
+            {saveMutation.isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
+            Save tab settings
+          </Button>
         </CardContent>
       </Card>
 
       <Card>
         <CardHeader>
-          <CardTitle className="tracking-normal normal-case">Change password</CardTitle>
-          <CardDescription>Update your account password</CardDescription>
+          <CardTitle className="tracking-normal normal-case">Profile preview</CardTitle>
+          <CardDescription>Visible tabs after the fourth item move into the More menu automatically.</CardDescription>
         </CardHeader>
-        <CardContent>
-          <Form {...passwordForm}>
-            <form
-              onSubmit={passwordForm.handleSubmit((values) => passwordMutation.mutateAsync(values).catch((error: Error) => {
-                passwordForm.setError('root', { message: error.message })
-              }))}
-              className="flex flex-col gap-4"
-              noValidate
-            >
-              <InputField form={passwordForm} name="currentPassword" label="Current password" type="password" autoComplete="current-password" />
-              <InputField form={passwordForm} name="newPassword" label="New password" type="password" autoComplete="new-password" />
-              <InputField form={passwordForm} name="confirmPassword" label="Confirm new password" type="password" autoComplete="new-password" />
-              <RootError message={passwordForm.formState.errors.root?.message} />
-              <Button type="submit" className="self-start tracking-normal normal-case" disabled={passwordForm.formState.isSubmitting}>
-                {passwordForm.formState.isSubmitting ? 'Updating…' : 'Update password'}
-              </Button>
-            </form>
-          </Form>
+        <CardContent className="flex flex-col gap-4">
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">Primary tabs</p>
+            <div className="flex flex-wrap gap-2">
+              {primaryTabs.length > 0 ? primaryTabs.map((tab) => (
+                <Badge key={tab.key} variant="secondary" className="normal-case tracking-normal">
+                  {tab.label}
+                </Badge>
+              )) : (
+                <span className="text-sm text-muted-foreground">No visible tabs.</span>
+              )}
+            </div>
+          </div>
+          <div>
+            <p className="mb-2 text-xs font-medium text-muted-foreground">More menu</p>
+            <div className="flex flex-wrap gap-2">
+              {overflowTabs.length > 0 ? overflowTabs.map((tab) => (
+                <Badge key={tab.key} variant="outline" className="normal-case tracking-normal">
+                  {tab.label}
+                </Badge>
+              )) : (
+                <span className="text-sm text-muted-foreground">No overflow tabs.</span>
+              )}
+            </div>
+          </div>
         </CardContent>
       </Card>
+    </>
+  )
+}
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="tracking-normal normal-case">Change email</CardTitle>
-          <CardDescription>Update the email address linked to your account</CardDescription>
-        </CardHeader>
-        <CardContent>
-          <Form {...emailForm}>
-            <form
-              onSubmit={emailForm.handleSubmit((values) => emailMutation.mutateAsync(values).catch((error: Error) => {
-                emailForm.setError('root', { message: error.message })
-              }))}
-              className="flex flex-col gap-4"
-              noValidate
-            >
-              <InputField form={emailForm} name="newEmail" label="New email address" type="email" autoComplete="email" />
-              <InputField form={emailForm} name="currentPassword" label="Current password" type="password" autoComplete="current-password" />
-              <RootError message={emailForm.formState.errors.root?.message} />
-              <Button type="submit" className="self-start tracking-normal normal-case" disabled={emailForm.formState.isSubmitting}>
-                {emailForm.formState.isSubmitting ? 'Updating…' : 'Update email'}
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
+function SortableTabRow({
+  tab,
+  onVisibleChange,
+}: {
+  tab: ProfileTabSetting
+  onVisibleChange: (visible: boolean) => void
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id: tab.key })
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+  }
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      className={cn(
+        'flex items-center gap-3 rounded-md border bg-card px-3 py-3',
+        isDragging && 'opacity-70',
+      )}
+    >
+      <Button
+        type="button"
+        variant="ghost"
+        size="icon-sm"
+        aria-label={`Move ${tab.label}`}
+        {...attributes}
+        {...listeners}
+      >
+        <GripVertical />
+      </Button>
+      <div className="min-w-0 flex-1">
+        <p className="truncate text-sm font-medium">{tab.label}</p>
+        <p className="truncate text-xs text-muted-foreground">{profileTabDescription(tab.key)}</p>
+      </div>
+      <Switch
+        size="sm"
+        checked={tab.visible}
+        onCheckedChange={onVisibleChange}
+        aria-label={`${tab.visible ? 'Hide' : 'Show'} ${tab.label}`}
+      />
     </div>
   )
 }

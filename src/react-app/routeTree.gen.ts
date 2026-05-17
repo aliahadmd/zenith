@@ -20,6 +20,10 @@ import { Route as AuthenticatedBecomeCreatorRouteImport } from './routes/_authen
 import { Route as AuthenticatedUUsernameRouteImport } from './routes/_authenticated/u.$username'
 import { Route as AuthenticatedStudioSubscriptionsRouteImport } from './routes/_authenticated/studio_.subscriptions'
 import { Route as AuthenticatedStudioPayoutsRouteImport } from './routes/_authenticated/studio_.payouts'
+import { Route as AuthenticatedSettingsSecurityRouteImport } from './routes/_authenticated/settings_.security'
+import { Route as AuthenticatedSettingsProfileTabsRouteImport } from './routes/_authenticated/settings_.profile-tabs'
+import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings_.profile'
+import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings_.account'
 import { Route as AuthenticatedStudioArticlesNewRouteImport } from './routes/_authenticated/studio_.articles.new'
 import { Route as AuthenticatedUUsernamePostSlugRouteImport } from './routes/_authenticated/u.$username_.post.$slug'
 import { Route as AuthenticatedUUsernameArticleSlugRouteImport } from './routes/_authenticated/u.$username_.article.$slug'
@@ -82,6 +86,30 @@ const AuthenticatedStudioPayoutsRoute =
     path: '/studio/payouts',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedSettingsSecurityRoute =
+  AuthenticatedSettingsSecurityRouteImport.update({
+    id: '/settings_/security',
+    path: '/settings/security',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSettingsProfileTabsRoute =
+  AuthenticatedSettingsProfileTabsRouteImport.update({
+    id: '/settings_/profile-tabs',
+    path: '/settings/profile-tabs',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSettingsProfileRoute =
+  AuthenticatedSettingsProfileRouteImport.update({
+    id: '/settings_/profile',
+    path: '/settings/profile',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSettingsAccountRoute =
+  AuthenticatedSettingsAccountRouteImport.update({
+    id: '/settings_/account',
+    path: '/settings/account',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedStudioArticlesNewRoute =
   AuthenticatedStudioArticlesNewRouteImport.update({
     id: '/studio_/articles/new',
@@ -115,6 +143,10 @@ export interface FileRoutesByFullPath {
   '/feed': typeof AuthenticatedFeedRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/studio': typeof AuthenticatedStudioRoute
+  '/settings/account': typeof AuthenticatedSettingsAccountRoute
+  '/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/settings/profile-tabs': typeof AuthenticatedSettingsProfileTabsRoute
+  '/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/studio/payouts': typeof AuthenticatedStudioPayoutsRoute
   '/studio/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/u/$username': typeof AuthenticatedUUsernameRoute
@@ -131,6 +163,10 @@ export interface FileRoutesByTo {
   '/feed': typeof AuthenticatedFeedRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/studio': typeof AuthenticatedStudioRoute
+  '/settings/account': typeof AuthenticatedSettingsAccountRoute
+  '/settings/profile': typeof AuthenticatedSettingsProfileRoute
+  '/settings/profile-tabs': typeof AuthenticatedSettingsProfileTabsRoute
+  '/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/studio/payouts': typeof AuthenticatedStudioPayoutsRoute
   '/studio/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/u/$username': typeof AuthenticatedUUsernameRoute
@@ -149,6 +185,10 @@ export interface FileRoutesById {
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/studio': typeof AuthenticatedStudioRoute
+  '/_authenticated/settings_/account': typeof AuthenticatedSettingsAccountRoute
+  '/_authenticated/settings_/profile': typeof AuthenticatedSettingsProfileRoute
+  '/_authenticated/settings_/profile-tabs': typeof AuthenticatedSettingsProfileTabsRoute
+  '/_authenticated/settings_/security': typeof AuthenticatedSettingsSecurityRoute
   '/_authenticated/studio_/payouts': typeof AuthenticatedStudioPayoutsRoute
   '/_authenticated/studio_/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/_authenticated/u/$username': typeof AuthenticatedUUsernameRoute
@@ -167,6 +207,10 @@ export interface FileRouteTypes {
     | '/feed'
     | '/settings'
     | '/studio'
+    | '/settings/account'
+    | '/settings/profile'
+    | '/settings/profile-tabs'
+    | '/settings/security'
     | '/studio/payouts'
     | '/studio/subscriptions'
     | '/u/$username'
@@ -183,6 +227,10 @@ export interface FileRouteTypes {
     | '/feed'
     | '/settings'
     | '/studio'
+    | '/settings/account'
+    | '/settings/profile'
+    | '/settings/profile-tabs'
+    | '/settings/security'
     | '/studio/payouts'
     | '/studio/subscriptions'
     | '/u/$username'
@@ -200,6 +248,10 @@ export interface FileRouteTypes {
     | '/_authenticated/feed'
     | '/_authenticated/settings'
     | '/_authenticated/studio'
+    | '/_authenticated/settings_/account'
+    | '/_authenticated/settings_/profile'
+    | '/_authenticated/settings_/profile-tabs'
+    | '/_authenticated/settings_/security'
     | '/_authenticated/studio_/payouts'
     | '/_authenticated/studio_/subscriptions'
     | '/_authenticated/u/$username'
@@ -295,6 +347,34 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStudioPayoutsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings_/security': {
+      id: '/_authenticated/settings_/security'
+      path: '/settings/security'
+      fullPath: '/settings/security'
+      preLoaderRoute: typeof AuthenticatedSettingsSecurityRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings_/profile-tabs': {
+      id: '/_authenticated/settings_/profile-tabs'
+      path: '/settings/profile-tabs'
+      fullPath: '/settings/profile-tabs'
+      preLoaderRoute: typeof AuthenticatedSettingsProfileTabsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings_/profile': {
+      id: '/_authenticated/settings_/profile'
+      path: '/settings/profile'
+      fullPath: '/settings/profile'
+      preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings_/account': {
+      id: '/_authenticated/settings_/account'
+      path: '/settings/account'
+      fullPath: '/settings/account'
+      preLoaderRoute: typeof AuthenticatedSettingsAccountRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/studio_/articles/new': {
       id: '/_authenticated/studio_/articles/new'
       path: '/studio/articles/new'
@@ -331,6 +411,10 @@ interface AuthenticatedRouteChildren {
   AuthenticatedFeedRoute: typeof AuthenticatedFeedRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedStudioRoute: typeof AuthenticatedStudioRoute
+  AuthenticatedSettingsAccountRoute: typeof AuthenticatedSettingsAccountRoute
+  AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
+  AuthenticatedSettingsProfileTabsRoute: typeof AuthenticatedSettingsProfileTabsRoute
+  AuthenticatedSettingsSecurityRoute: typeof AuthenticatedSettingsSecurityRoute
   AuthenticatedStudioPayoutsRoute: typeof AuthenticatedStudioPayoutsRoute
   AuthenticatedStudioSubscriptionsRoute: typeof AuthenticatedStudioSubscriptionsRoute
   AuthenticatedUUsernameRoute: typeof AuthenticatedUUsernameRoute
@@ -345,6 +429,10 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedFeedRoute: AuthenticatedFeedRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedStudioRoute: AuthenticatedStudioRoute,
+  AuthenticatedSettingsAccountRoute: AuthenticatedSettingsAccountRoute,
+  AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
+  AuthenticatedSettingsProfileTabsRoute: AuthenticatedSettingsProfileTabsRoute,
+  AuthenticatedSettingsSecurityRoute: AuthenticatedSettingsSecurityRoute,
   AuthenticatedStudioPayoutsRoute: AuthenticatedStudioPayoutsRoute,
   AuthenticatedStudioSubscriptionsRoute: AuthenticatedStudioSubscriptionsRoute,
   AuthenticatedUUsernameRoute: AuthenticatedUUsernameRoute,

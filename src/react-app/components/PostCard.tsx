@@ -1,10 +1,11 @@
 import { useMutation, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Heart, MessageCircle } from 'lucide-react'
+import { FileText, Heart, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { likePost, postKeys, type FeedPost, unlikePost, votePoll } from '../lib/posts'
 import { cn } from '../lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
+import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 
 type PostCardProps = {
@@ -71,6 +72,10 @@ export function PostCard({ post, showReplyAction = true }: PostCardProps) {
                   {post.author.displayName}
                 </Link>
                 <span className="text-sm text-muted-foreground">@{post.author.username}</span>
+                <Badge variant="secondary" className="normal-case tracking-normal">
+                  <FileText data-icon="inline-start" />
+                  Post
+                </Badge>
               </div>
             </div>
             <time className="shrink-0 text-xs text-muted-foreground">{formattedDate}</time>

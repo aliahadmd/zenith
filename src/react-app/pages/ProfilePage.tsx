@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { ExternalLink, Globe, Loader2 } from 'lucide-react'
+import { ExternalLink, Globe, Loader2, MoreHorizontal } from 'lucide-react'
 import { FaLinkedin } from 'react-icons/fa6'
 import { SiGithub, SiInstagram, SiX, SiYoutube } from 'react-icons/si'
 import { toast } from 'sonner'
@@ -9,6 +9,8 @@ import { useAuth } from '../context/AuthContext'
 import { apiGetRequired } from '../lib/api'
 import { articleKeys, type ArticleSummary, type CreatorArticlesResponse } from '../lib/articles'
 import { postKeys, type FeedPost } from '../lib/posts'
+import { cn } from '../lib/utils'
+import { defaultProfileTabs, type ProfileTabKey, type ProfileTabSetting } from '../lib/profile-tabs'
 import {
   formatCurrency,
   formatUnixDate,
@@ -20,6 +22,13 @@ import {
 } from '../lib/payments'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '../components/ui/tabs'
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuGroup,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '../components/ui/dropdown-menu'
 import { Badge } from '../components/ui/badge'
 import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
@@ -44,6 +53,7 @@ type ProfileData = {
   tagline: string | null
   avatarUrl: string | null
   socialLinks: string | null
+  profileTabs: ProfileTabSetting[] | null
 }
 
 type Subscription = {
@@ -81,35 +91,44 @@ export function ProfilePage({ username }: { username: string }) {
   const [pendingFreeKind, setPendingFreeKind] = useState<'free' | 'trial' | null>(null)
 
   const isOwnProfile = currentUser?.username === username
-  const defaultTab = isOwnProfile && currentUser?.role === 'creator'
+  const initialTab = isOwnProfile && currentUser?.role === 'creator'
     ? 'posts'
     : isOwnProfile
       ? 'subscribed'
       : 'about'
+  const [activeSelection, setActiveSelection] = useState<{ username: string; tab: ProfileTabKey }>({
+    username,
+    tab: initialTab,
+  })
+  const requestedActiveTab = activeSelection.username === username ? activeSelection.tab : initialTab
 
   const profileQuery = useQuery({
     queryKey: ['profile', username],
     queryFn: () => apiGetRequired<ProfileData>(`/api/profile/${username}`),
   })
+  const resolvedTabs = resolveProfileTabs(profileQuery.data)
+  const visibleTabs = resolvedTabs.filter((tab) => tab.visible)
+  const isTabVisible = (tabKey: ProfileTabKey) => visibleTabs.some((tab) => tab.key === tabKey)
   const subscriptionsQuery = useQuery({
     queryKey: ['subscriptions', username],
     queryFn: () => apiGetRequired<SubscriptionsResponse>(`/api/profile/${username}/subscriptions`),
+    enabled: Boolean(profileQuery.data && isTabVisible('subscribed')),
   })
   const isCreatorProfile = profileQuery.data?.role === 'creator'
   const creatorPostsQuery = useQuery({
     queryKey: postKeys.creator(username),
     queryFn: () => apiGetRequired<CreatorPostsResponse>(`/api/profile/${username}/posts`),
-    enabled: Boolean(isCreatorProfile),
+    enabled: Boolean(isCreatorProfile && isTabVisible('posts')),
   })
   const creatorArticlesQuery = useQuery({
     queryKey: articleKeys.creator(username),
     queryFn: () => apiGetRequired<CreatorArticlesResponse>(`/api/profile/${username}/articles`),
-    enabled: Boolean(isCreatorProfile),
+    enabled: Boolean(isCreatorProfile && isTabVisible('articles')),
   })
   const creatorSubscribersQuery = useQuery({
     queryKey: ['profile', username, 'subscribers'],
     queryFn: () => apiGetRequired<CreatorSubscribersResponse>(`/api/profile/${username}/subscribers`),
-    enabled: Boolean(isCreatorProfile),
+    enabled: Boolean(isCreatorProfile && isTabVisible('subscribers')),
   })
   const subscriptionOptionsQuery = useQuery(subscriptionOptionsQueryOptions(
     username,
@@ -140,7 +159,7 @@ export function ProfilePage({ username }: { username: string }) {
     },
   })
 
-  if (profileQuery.isPending || subscriptionsQuery.isPending) {
+  if (profileQuery.isPending) {
     return <LoadingBlock label="Loading profile" />
   }
 
@@ -153,7 +172,13 @@ export function ProfilePage({ username }: { username: string }) {
   }
 
   const profile = profileQuery.data
+  const currentActiveTab = isTabVisible(requestedActiveTab)
+    ? requestedActiveTab
+    : getPreferredProfileTab({ tabs: visibleTabs, isOwnProfile, role: profile.role })
   const subscriptions = subscriptionsQuery.data?.subscriptions ?? []
+  const primaryTabs = visibleTabs.slice(0, 4)
+  const overflowTabs = visibleTabs.slice(4)
+  const activeOverflowTab = overflowTabs.find((tab) => tab.key === currentActiveTab)
   const socialLinks = Object.entries(parseSocialLinks(profile.socialLinks))
     .filter(([, url]) => Boolean(url))
   const showMembershipCard = profile.role === 'creator' && !isOwnProfile
@@ -198,15 +223,47 @@ export function ProfilePage({ username }: { username: string }) {
         )}
 
         {/* Tabs */}
-        <Tabs defaultValue={defaultTab}>
+        <Tabs
+          value={currentActiveTab}
+          onValueChange={(value) => setActiveSelection({ username, tab: value as ProfileTabKey })}
+        >
           <TabsList variant="line" className="h-auto w-full flex-wrap justify-start rounded-none border-b px-4 py-0">
-            <TabsTrigger value="about">About</TabsTrigger>
-            {profile.role === 'creator' && <TabsTrigger value="posts">Posts</TabsTrigger>}
-            {profile.role === 'creator' && <TabsTrigger value="articles">Articles</TabsTrigger>}
-            {profile.role === 'creator' && <TabsTrigger value="subscribers">Subscribers</TabsTrigger>}
-            <TabsTrigger value="subscribed">Subscribed to</TabsTrigger>
+            {primaryTabs.map((tab) => (
+              <TabsTrigger key={tab.key} value={tab.key}>{tab.label}</TabsTrigger>
+            ))}
+            {overflowTabs.length > 0 && (
+              <DropdownMenu>
+                <DropdownMenuTrigger asChild>
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    className={cn(
+                      'h-10 rounded-none border-b-2 border-transparent px-3 text-muted-foreground normal-case tracking-normal hover:text-foreground',
+                      activeOverflowTab && 'border-primary text-foreground',
+                    )}
+                  >
+                    {activeOverflowTab?.label ?? 'More'}
+                    <MoreHorizontal data-icon="inline-end" />
+                  </Button>
+                </DropdownMenuTrigger>
+                <DropdownMenuContent align="start">
+                  <DropdownMenuGroup>
+                    {overflowTabs.map((tab) => (
+                      <DropdownMenuItem
+                        key={tab.key}
+                        onSelect={() => setActiveSelection({ username, tab: tab.key })}
+                      >
+                        {tab.label}
+                      </DropdownMenuItem>
+                    ))}
+                  </DropdownMenuGroup>
+                </DropdownMenuContent>
+              </DropdownMenu>
+            )}
           </TabsList>
-          <TabsContent value="about">
+          {isTabVisible('about') && (
+            <TabsContent value="about">
             <section className="border-b p-5">
               <div className="flex flex-col gap-5">
                 <div>
@@ -225,8 +282,10 @@ export function ProfilePage({ username }: { username: string }) {
                 )}
               </div>
             </section>
-          </TabsContent>
-          <TabsContent value="subscribed">
+            </TabsContent>
+          )}
+          {isTabVisible('subscribed') && (
+            <TabsContent value="subscribed">
             {subscriptions.length === 0 ? (
               <div className="border-b p-5">
                 <p className="text-sm text-muted-foreground">Not subscribed to any creators yet.</p>
@@ -252,8 +311,9 @@ export function ProfilePage({ username }: { username: string }) {
                 ))}
               </div>
             )}
-          </TabsContent>
-          {profile.role === 'creator' && (
+            </TabsContent>
+          )}
+          {profile.role === 'creator' && isTabVisible('posts') && (
             <TabsContent value="posts">
               <CreatorPostsTab
                 posts={creatorPostsQuery.data?.posts ?? []}
@@ -264,7 +324,7 @@ export function ProfilePage({ username }: { username: string }) {
               />
             </TabsContent>
           )}
-          {profile.role === 'creator' && (
+          {profile.role === 'creator' && isTabVisible('articles') && (
             <TabsContent value="articles">
               <CreatorArticlesTab
                 articles={creatorArticlesQuery.data?.articles ?? []}
@@ -275,7 +335,7 @@ export function ProfilePage({ username }: { username: string }) {
               />
             </TabsContent>
           )}
-          {profile.role === 'creator' && (
+          {profile.role === 'creator' && isTabVisible('subscribers') && (
             <TabsContent value="subscribers">
               <CreatorSubscribersTab
                 subscribers={creatorSubscribersQuery.data?.subscribers ?? []}
@@ -331,6 +391,30 @@ export function ProfilePage({ username }: { username: string }) {
       </Dialog>
     </div>
   )
+}
+
+function resolveProfileTabs(profile: ProfileData | undefined): ProfileTabSetting[] {
+  if (!profile) return defaultProfileTabs()
+  if (profile.role !== 'creator') {
+    return defaultProfileTabs().filter((tab) => tab.key === 'about' || tab.key === 'subscribed')
+  }
+  return profile.profileTabs ?? defaultProfileTabs()
+}
+
+function getPreferredProfileTab({
+  tabs,
+  isOwnProfile,
+  role,
+}: {
+  tabs: ProfileTabSetting[]
+  isOwnProfile: boolean
+  role: ProfileData['role']
+}): ProfileTabKey {
+  const keys = tabs.map((tab) => tab.key)
+  if (isOwnProfile && role === 'creator' && keys.includes('posts')) return 'posts'
+  if (isOwnProfile && keys.includes('subscribed')) return 'subscribed'
+  if (keys.includes('about')) return 'about'
+  return keys[0] ?? 'about'
 }
 
 function CreatorPostsTab({

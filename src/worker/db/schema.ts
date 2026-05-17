@@ -25,6 +25,24 @@ export const users = sqliteTable('users', {
                   .$onUpdate(() => new Date()),
 })
 
+// ── Creator Profile Tabs ──────────────────────────────────────────────────
+export const creatorProfileTabs = sqliteTable('creator_profile_tabs', {
+  creatorId:    text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  tabKey:       text('tab_key', { enum: ['about', 'posts', 'articles', 'subscribers', 'subscribed'] }).notNull(),
+  visible:      integer('visible', { mode: 'boolean' }).notNull().default(true),
+  displayOrder: integer('display_order').notNull(),
+  createdAt:    integer('created_at')
+                  .notNull()
+                  .default(sql`(unixepoch())`),
+  updatedAt:    integer('updated_at', { mode: 'timestamp_ms' })
+                  .notNull()
+                  .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                  .$onUpdate(() => new Date()),
+}, (t) => [
+  primaryKey({ columns: [t.creatorId, t.tabKey] }),
+  index('creator_profile_tabs_creator_order_idx').on(t.creatorId, t.displayOrder),
+])
+
 // ── Better Auth Sessions ───────────────────────────────────────────────────
 export const session = sqliteTable('session', {
   id:        text('id').primaryKey(),
@@ -427,6 +445,7 @@ export const paymentWebhookEvents = sqliteTable('payment_webhook_events', {
 // ── Inferred types ─────────────────────────────────────────────────────────
 export type User                 = typeof users.$inferSelect
 export type NewUser              = typeof users.$inferInsert
+export type CreatorProfileTab    = typeof creatorProfileTabs.$inferSelect
 export type Session              = typeof session.$inferSelect
 export type Account              = typeof account.$inferSelect
 export type Verification         = typeof verification.$inferSelect

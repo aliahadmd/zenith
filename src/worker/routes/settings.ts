@@ -2,12 +2,13 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { eq, and, not } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { account, users } from '../db/schema'
+import { account, creatorProfileTabs, users } from '../db/schema'
 import { hashPassword, verifyPassword } from '../lib/crypto'
-import { authMiddleware, type HonoEnv } from '../middleware/auth'
+import { authMiddleware, requireRole, type HonoEnv } from '../middleware/auth'
 import {
   emailSettingsSchema,
   passwordSettingsSchema,
+  profileTabsSettingsSchema,
   profileSettingsSchema,
   usernameSettingsSchema,
 } from '../lib/schemas'
@@ -20,8 +21,42 @@ import {
   unsupportedMediaType,
   zodHook,
 } from '../lib/http'
+import { getCreatorProfileTabs } from '../lib/profile-tabs'
 
 export const settingsRoutes = new Hono<HonoEnv>()
+
+// ── GET/PUT /profile-tabs ─────────────────────────────────────────────────
+
+settingsRoutes.get('/profile-tabs', authMiddleware, requireRole('creator'), async (c) => {
+  const db = createDb(c.env.DB)
+  return c.json({ tabs: await getCreatorProfileTabs(db, c.var.user.id) })
+})
+
+settingsRoutes.put('/profile-tabs', authMiddleware, requireRole('creator'), zValidator('json', profileTabsSettingsSchema, zodHook), async (c) => {
+  const { tabs } = c.req.valid('json')
+  const db = createDb(c.env.DB)
+
+  for (const [index, tab] of tabs.entries()) {
+    await db
+      .insert(creatorProfileTabs)
+      .values({
+        creatorId: c.var.user.id,
+        tabKey: tab.key,
+        visible: tab.visible,
+        displayOrder: index,
+      })
+      .onConflictDoUpdate({
+        target: [creatorProfileTabs.creatorId, creatorProfileTabs.tabKey],
+        set: {
+          visible: tab.visible,
+          displayOrder: index,
+          updatedAt: new Date(),
+        },
+      })
+  }
+
+  return c.json({ tabs: await getCreatorProfileTabs(db, c.var.user.id) })
+})
 
 // ── PUT /avatar ────────────────────────────────────────────────────────────
 
