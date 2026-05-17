@@ -99,6 +99,7 @@ describe('ProfilePage', () => {
                 id: 'creator-1',
                 displayName: 'Creator One',
                 username: 'creatorone',
+                avatarUrl: null,
               },
               attachments: [],
               likeCount: 2,

@@ -175,6 +175,7 @@ profileRoutes.get('/:username/posts', authMiddleware, zValidator('param', userna
       authorId: posts.authorId,
       authorDisplayName: users.displayName,
       authorUsername: users.username,
+      authorAvatarUrl: users.avatarUrl,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
@@ -193,6 +194,7 @@ profileRoutes.get('/:username/posts', authMiddleware, zValidator('param', userna
       id: row.authorId,
       displayName: row.authorDisplayName,
       username: row.authorUsername,
+      avatarUrl: row.authorAvatarUrl,
     },
     attachments: extras.attachmentsByPostId.get(row.id) ?? [],
     likeCount: extras.postLikeCounts.get(row.id) ?? 0,

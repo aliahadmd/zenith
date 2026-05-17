@@ -64,6 +64,7 @@ type PostRow = {
   authorId: string
   authorDisplayName: string
   authorUsername: string
+  authorAvatarUrl: string | null
 }
 
 const replyAuthors = alias(users, 'reply_authors')
@@ -207,6 +208,7 @@ async function getPostRowById(db: Db, postId: string) {
       authorId: posts.authorId,
       authorDisplayName: users.displayName,
       authorUsername: users.username,
+      authorAvatarUrl: users.avatarUrl,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
@@ -230,6 +232,7 @@ function serializePost(post: PostRow, extras: Awaited<ReturnType<typeof buildPos
       id: post.authorId,
       displayName: post.authorDisplayName,
       username: post.authorUsername,
+      avatarUrl: post.authorAvatarUrl,
     },
     attachments: extras.attachmentsByPostId.get(post.id) ?? [],
     likeCount: extras.postLikeCounts.get(post.id) ?? 0,
@@ -251,6 +254,7 @@ async function serializeReplies(db: Db, viewerId: string, postId: string) {
       authorId: postReplies.authorId,
       authorDisplayName: replyAuthors.displayName,
       authorUsername: replyAuthors.username,
+      authorAvatarUrl: replyAuthors.avatarUrl,
       mentionedUsername: mentionedUsers.username,
       mentionedDisplayName: mentionedUsers.displayName,
     })
@@ -277,6 +281,7 @@ async function serializeReplies(db: Db, viewerId: string, postId: string) {
       id: reply.authorId,
       displayName: reply.authorDisplayName,
       username: reply.authorUsername,
+      avatarUrl: reply.authorAvatarUrl,
     },
     mentionedUser: reply.mentionedUserId
       ? {
@@ -418,6 +423,7 @@ postsRoutes.get('/by-slug/:username/:slug', authMiddleware, zValidator('param', 
       authorId: posts.authorId,
       authorDisplayName: users.displayName,
       authorUsername: users.username,
+      authorAvatarUrl: users.avatarUrl,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))

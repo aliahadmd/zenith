@@ -4,7 +4,7 @@ import { Heart, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { likePost, postKeys, type FeedPost, unlikePost, votePoll } from '../lib/posts'
 import { cn } from '../lib/utils'
-import { Avatar, AvatarFallback } from './ui/avatar'
+import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Button } from './ui/button'
 
 type PostCardProps = {
@@ -53,6 +53,7 @@ export function PostCard({ post, showReplyAction = true }: PostCardProps) {
     <article className="border-b bg-background px-5 py-4 transition-colors hover:bg-card/40">
       <div className="flex gap-3">
         <Avatar className="mt-0.5 size-10">
+          <AvatarImage src={post.author.avatarUrl ?? undefined} alt={post.author.displayName} />
           <AvatarFallback className="text-sm font-semibold">
             {post.author.displayName.slice(0, 2).toUpperCase()}
           </AvatarFallback>

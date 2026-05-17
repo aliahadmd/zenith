@@ -45,6 +45,7 @@ const post: FeedPost = {
     id: 'creator-1',
     displayName: 'Creator One',
     username: 'creatorone',
+    avatarUrl: '/api/profile/avatar/creator-1',
   },
   attachments: [],
   likeCount: 3,
@@ -64,6 +65,7 @@ const replies: PostReply[] = [
       id: 'member-1',
       displayName: 'Member One',
       username: 'memberone',
+      avatarUrl: null,
     },
     mentionedUser: {
       id: 'creator-1',
@@ -92,6 +94,7 @@ const replies: PostReply[] = [
       id: 'member-2',
       displayName: 'Nested Member',
       username: 'nestedmember',
+      avatarUrl: null,
     },
     mentionedUser: {
       id: 'member-1',

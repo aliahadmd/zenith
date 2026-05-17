@@ -49,6 +49,7 @@ const post: FeedPost = {
     id: 'creator-1',
     displayName: 'Creator One',
     username: 'creatorone',
+    avatarUrl: '/api/profile/avatar/creator-1',
   },
   attachments: [
     {

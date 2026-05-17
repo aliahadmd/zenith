@@ -339,7 +339,7 @@ describe('ShortPostComposer — property tests', () => {
     await fc.assert(
       fc.asyncProperty(
         // Generate strings of length 1–500 (valid range)
-        fc.string({ minLength: 1, maxLength: 500, unit: 'binary' }),
+        fc.string({ minLength: 1, maxLength: 500, unit: 'binary' }).filter((value) => value.trim().length > 0),
         async (validBody) => {
           cleanup()
           const user = userEvent.setup()

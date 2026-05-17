@@ -32,6 +32,7 @@ export type FeedPost = {
     id: string
     displayName: string
     username: string
+    avatarUrl: string | null
   }
   attachments: Attachment[]
   likeCount: number
@@ -50,6 +51,7 @@ export type PostReply = {
     id: string
     displayName: string
     username: string
+    avatarUrl: string | null
   }
   mentionedUser: {
     id: string

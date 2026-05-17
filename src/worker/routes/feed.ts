@@ -25,6 +25,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       authorId: posts.authorId,
       authorDisplayName: users.displayName,
       authorUsername: users.username,
+      authorAvatarUrl: users.avatarUrl,
     })
     .from(posts)
     .innerJoin(subscriptionMemberships, eq(subscriptionMemberships.creatorId, posts.authorId))
@@ -57,6 +58,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
         id: row.authorId,
         displayName: row.authorDisplayName,
         username: row.authorUsername,
+        avatarUrl: row.authorAvatarUrl,
       },
       attachments: extras.attachmentsByPostId.get(row.id) ?? [],
       likeCount: extras.postLikeCounts.get(row.id) ?? 0,

@@ -295,7 +295,7 @@ function ReplyItem({
       >
         <div className={cn('flex gap-3', isNested && 'pl-8 sm:pl-10')}>
           <Avatar className="mt-0.5 size-9">
-            <AvatarImage alt={reply.author.displayName} />
+            <AvatarImage src={reply.author.avatarUrl ?? undefined} alt={reply.author.displayName} />
             <AvatarFallback className="text-xs font-semibold">
               {reply.author.displayName.slice(0, 2).toUpperCase()}
             </AvatarFallback>
