@@ -121,9 +121,8 @@ describe('Sidebar', () => {
     renderSidebar('/become-creator')
 
     const becomeCreatorLink = screen.getByRole('link', { name: 'Become Creator' })
-    // Active links get bg-accent and text-accent-foreground classes
-    expect(becomeCreatorLink).toHaveClass('bg-accent')
-    expect(becomeCreatorLink).toHaveClass('text-accent-foreground')
+    expect(becomeCreatorLink).toHaveClass('text-foreground')
+    expect(becomeCreatorLink).toHaveClass('before:bg-primary')
   })
 
   it('applies active-link class to Studio link when on /studio as creator', () => {
@@ -138,8 +137,8 @@ describe('Sidebar', () => {
     renderSidebar('/studio')
 
     const studioLink = screen.getByRole('link', { name: 'Studio' })
-    expect(studioLink).toHaveClass('bg-accent')
-    expect(studioLink).toHaveClass('text-accent-foreground')
+    expect(studioLink).toHaveClass('text-foreground')
+    expect(studioLink).toHaveClass('before:bg-primary')
   })
 
   it('calls logout when the logout button is clicked', async () => {

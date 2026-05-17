@@ -4,6 +4,7 @@ import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { StudioPage } from './StudioPage'
+import * as AuthContext from '../context/AuthContext'
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ to, className, children }: { to: string; className?: string; children: ReactNode }) => (
@@ -19,6 +20,14 @@ vi.mock('../lib/api', () => ({
   apiPut: vi.fn(),
 }))
 
+vi.mock('../context/AuthContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof AuthContext>()
+  return {
+    ...actual,
+    useAuth: vi.fn(),
+  }
+})
+
 // Mock sonner toast
 vi.mock('sonner', () => ({
   toast: {
@@ -30,6 +39,20 @@ vi.mock('sonner', () => ({
 describe('StudioPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    vi.mocked(AuthContext.useAuth).mockReturnValue({
+      currentUser: {
+        id: 'creator-1',
+        email: 'creator@example.com',
+        role: 'creator',
+        displayName: 'Creator One',
+        username: 'creatorone',
+        avatarUrl: null,
+      },
+      isLoading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      refreshCurrentUser: vi.fn(),
+    })
   })
 
   // Validates: Requirements 6.1, 6.4

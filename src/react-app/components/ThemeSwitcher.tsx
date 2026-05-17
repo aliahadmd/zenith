@@ -6,7 +6,7 @@ export function ThemeSwitcher() {
   const { theme, setTheme } = useTheme()
 
   return (
-    <div className="flex gap-1">
+    <div className="flex gap-1 rounded-full border bg-card/60 p-1">
       <Button
         variant={theme === 'light' ? 'secondary' : 'ghost'}
         size="icon"

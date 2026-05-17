@@ -25,10 +25,10 @@ export function AppShell() {
   }, [currentUser, isLoading, navigate])
 
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-background text-foreground">
       <Sidebar className="hidden lg:flex" />
 
-      <header className="sticky top-0 z-40 flex h-16 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden">
+      <header className="sticky top-0 z-40 flex h-14 items-center gap-3 border-b bg-background/95 px-4 backdrop-blur supports-[backdrop-filter]:bg-background/80 lg:hidden">
         <Sheet open={mobileNavOpen} onOpenChange={setMobileNavOpen}>
           <SheetTrigger asChild>
             <Button variant="ghost" size="icon-sm" aria-label="Open navigation">
@@ -52,8 +52,8 @@ export function AppShell() {
         </div>
       </header>
 
-      <main className="min-h-screen lg:pl-64">
-        <div className="mx-auto w-full p-4 sm:p-6 lg:p-8">
+      <main className="min-h-screen lg:pl-72">
+        <div className="mx-auto w-full p-4 sm:p-6 lg:px-8 lg:py-0">
           <Outlet />
         </div>
       </main>

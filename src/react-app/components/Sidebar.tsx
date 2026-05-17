@@ -32,10 +32,10 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
 
   const navLinkClass = (href: string) =>
     cn(
-      'flex min-h-10 items-center gap-3 rounded-md px-3 py-2 text-sm font-medium transition-colors',
+      'relative flex min-h-11 items-center gap-3 rounded-md px-3 py-2 text-[15px] font-medium transition-colors before:absolute before:left-0 before:top-1/2 before:h-5 before:w-0.5 before:-translate-y-1/2 before:rounded-full before:bg-transparent',
       pathname === href
-        ? 'bg-accent text-accent-foreground shadow-sm ring-1 ring-border/60'
-        : 'text-muted-foreground hover:bg-accent/70 hover:text-accent-foreground',
+        ? 'bg-transparent text-foreground before:bg-primary'
+        : 'text-muted-foreground hover:bg-accent/50 hover:text-foreground',
     )
 
   const roleNavItems: NavItem[] =
@@ -61,17 +61,17 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
   }
 
   return (
-    <aside className={cn('fixed left-0 top-0 flex h-screen w-64 flex-col border-r bg-background p-4', className)}>
+    <aside className={cn('fixed left-0 top-0 flex h-screen w-72 flex-col border-r bg-background p-4', className)}>
       {/* User info */}
       <div className="flex items-center gap-3 pb-4">
-        <Avatar>
+        <Avatar className="size-11">
           <AvatarImage src={currentUser?.avatarUrl ?? undefined} alt={currentUser?.displayName} />
           <AvatarFallback>
             {currentUser?.displayName?.slice(0, 2).toUpperCase() ?? 'U'}
           </AvatarFallback>
         </Avatar>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold leading-tight">{currentUser?.displayName}</p>
+          <p className="truncate text-[15px] font-semibold leading-tight">{currentUser?.displayName}</p>
           <p className="truncate text-xs text-muted-foreground">@{currentUser?.username}</p>
         </div>
       </div>
@@ -79,7 +79,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
       <Separator className="mb-4" />
 
       {/* Navigation */}
-      <nav className="flex flex-1 flex-col gap-1">
+      <nav className="flex flex-1 flex-col gap-1.5">
         {feedNavItem && FeedIcon ? (
           <Link to={feedNavItem.to} className={navLinkClass(feedNavItem.to)} onClick={onNavigate}>
             <FeedIcon data-icon="inline-start" />
@@ -112,7 +112,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         <Separator />
 
         {/* Logout */}
-        <Button variant="ghost" className="min-h-10 w-full justify-start gap-3 px-3" onClick={handleLogout}>
+        <Button variant="ghost" className="min-h-11 w-full justify-start gap-3 px-3 text-muted-foreground hover:text-foreground" onClick={handleLogout}>
           <LogOut data-icon="inline-start" />
           Logout
         </Button>

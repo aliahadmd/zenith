@@ -1,5 +1,6 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
+import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { ProfilePage } from './ProfilePage'
@@ -15,17 +16,20 @@ vi.mock('@tanstack/react-router', () => ({
     children,
   }: {
     to: string
-    params?: { username?: string }
+    params?: { username?: string; slug?: string }
     className?: string
     children: ReactNode
   }) => {
-    const href = params?.username ? to.replace('$username', params.username) : to
+    const href = to
+      .replace('$username', params?.username ?? '')
+      .replace('$slug', params?.slug ?? '')
     return <a href={href} className={className}>{children}</a>
   },
 }))
 
 vi.mock('../lib/api', () => ({
   apiGetRequired: vi.fn(),
+  apiDeleteRequired: vi.fn(),
   apiPostRequired: vi.fn(),
   apiPutRequired: vi.fn(),
 }))
@@ -55,7 +59,7 @@ describe('ProfilePage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
     mockUseAuth.mockReturnValue({
-      currentUser: makeUser(),
+      currentUser: { ...makeUser(), id: 'creator-1', role: 'creator', username: 'creatorone' },
       isLoading: false,
       login: vi.fn(),
       logout: vi.fn(),
@@ -66,10 +70,51 @@ describe('ProfilePage', () => {
         return { subscriptions: [] }
       }
 
+      if (String(url).endsWith('/subscribers')) {
+        return {
+          subscribers: [
+            {
+              displayName: 'Member One',
+              username: 'memberone',
+              avatarUrl: null,
+              status: 'active',
+              accessType: 'paid',
+              trialEndsAt: null,
+              createdAt: 1_700_000_000,
+            },
+          ],
+        }
+      }
+
+      if (String(url).endsWith('/posts')) {
+        return {
+          hasAccess: true,
+          posts: [
+            {
+              id: 'post-1',
+              slug: 'first-member-update',
+              body: 'First member update',
+              createdAt: 1_700_000_000,
+              author: {
+                id: 'creator-1',
+                displayName: 'Creator One',
+                username: 'creatorone',
+              },
+              attachments: [],
+              likeCount: 2,
+              replyCount: 1,
+              viewerLiked: false,
+              poll: null,
+            },
+          ],
+        }
+      }
+
       return {
         id: 'creator-1',
         displayName: 'Creator One',
         username: 'creatorone',
+        role: 'creator',
         tagline: 'Design notes and field guides.',
         avatarUrl: null,
         socialLinks: JSON.stringify({
@@ -82,7 +127,10 @@ describe('ProfilePage', () => {
   })
 
   it('renders profile social links as accessible icon links', async () => {
+    const user = userEvent.setup()
     renderProfilePage()
+
+    await user.click(await screen.findByRole('tab', { name: 'About' }))
 
     expect(await screen.findByRole('link', { name: 'Open GitHub profile' })).toHaveAttribute(
       'href',
@@ -97,6 +145,21 @@ describe('ProfilePage', () => {
       'https://creator.example',
     )
     expect(screen.queryByRole('link', { name: 'github' })).not.toBeInTheDocument()
+  })
+
+  it('adds creator posts and subscribers tabs', async () => {
+    const user = userEvent.setup()
+    renderProfilePage()
+
+    expect(await screen.findByRole('tab', { name: 'Posts' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Subscribers' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Posts' }))
+    expect(await screen.findByText('First member update')).toBeInTheDocument()
+
+    await user.click(screen.getByRole('tab', { name: 'Subscribers' }))
+    expect(await screen.findByText('Member One')).toBeInTheDocument()
+    expect(screen.getByText('@memberone')).toBeInTheDocument()
   })
 })
 

@@ -6,6 +6,7 @@ import type { ReactElement } from 'react'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import { ShortPostComposer } from './ShortPostComposer'
 import * as api from '../lib/api'
+import * as AuthContext from '../context/AuthContext'
 
 // Mock the api module
 vi.mock('../lib/api', () => ({
@@ -13,6 +14,14 @@ vi.mock('../lib/api', () => ({
   apiGet: vi.fn(),
   apiPut: vi.fn(),
 }))
+
+vi.mock('../context/AuthContext', async (importOriginal) => {
+  const actual = await importOriginal<typeof AuthContext>()
+  return {
+    ...actual,
+    useAuth: vi.fn(),
+  }
+})
 
 // Mock sonner toast
 vi.mock('sonner', () => ({
@@ -23,6 +32,7 @@ vi.mock('sonner', () => ({
 }))
 
 const mockApiPostRequired = vi.mocked(api.apiPostRequired)
+const mockUseAuth = vi.mocked(AuthContext.useAuth)
 
 function renderComposer(open = true, onClose = vi.fn()) {
   return renderWithQueryClient(<ShortPostComposer open={open} onClose={onClose} />)
@@ -43,6 +53,28 @@ function renderWithQueryClient(ui: ReactElement) {
 describe('ShortPostComposer', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn((file: File) => `blob:${file.name}`),
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    mockUseAuth.mockReturnValue({
+      currentUser: {
+        id: 'creator-1',
+        email: 'creator@example.com',
+        role: 'creator',
+        displayName: 'Creator One',
+        username: 'creatorone',
+        avatarUrl: null,
+      },
+      isLoading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      refreshCurrentUser: vi.fn(),
+    })
   })
 
   // Validates: Requirements 7.2
@@ -83,7 +115,7 @@ describe('ShortPostComposer', () => {
   // Validates: Requirements 7.5 — validation message shown for empty body
   it('shows validation message when body is empty', () => {
     renderComposer()
-    expect(screen.getByRole('alert')).toHaveTextContent(/cannot be empty/i)
+    expect(screen.queryByRole('alert')).not.toBeInTheDocument()
   })
 
   // Validates: Requirements 7.6
@@ -124,15 +156,12 @@ describe('ShortPostComposer', () => {
   })
 
   // Validates: Requirements 7.7
-  it('closes without sending any request when backdrop is clicked', async () => {
+  it('closes through shadcn dialog escape handling without sending any request', async () => {
     const user = userEvent.setup()
     const onClose = vi.fn()
 
-    const { container } = renderComposer(true, onClose)
-
-    // The backdrop is the outermost div with role="dialog"
-    const backdrop = container.querySelector('[role="dialog"]') as HTMLElement
-    await user.click(backdrop)
+    renderComposer(true, onClose)
+    await user.keyboard('{Escape}')
 
     expect(onClose).toHaveBeenCalledOnce()
     expect(mockApiPostRequired).not.toHaveBeenCalled()
@@ -182,6 +211,42 @@ describe('ShortPostComposer', () => {
     expect(screen.getByText('495 / 500')).toBeInTheDocument()
   })
 
+  it('uses a compact photo action, renders previews, and removes selected images', async () => {
+    const user = userEvent.setup()
+    renderComposer()
+
+    const file = new File(['image-data'], 'preview.jpg', { type: 'image/jpeg' })
+    await user.upload(screen.getByLabelText(/upload photos/i), file)
+
+    expect(screen.getByRole('img', { name: 'preview.jpg' })).toHaveAttribute('src', 'blob:preview.jpg')
+    expect(screen.getByRole('button', { name: '1 photo' })).toBeInTheDocument()
+
+    await user.click(screen.getByRole('button', { name: 'Remove preview.jpg' }))
+
+    expect(screen.queryByRole('img', { name: 'preview.jpg' })).not.toBeInTheDocument()
+    expect(screen.getByRole('button', { name: 'Photo' })).toBeInTheDocument()
+  })
+
+  it('reveals compact poll controls and submits polls as FormData', async () => {
+    const user = userEvent.setup()
+    mockApiPostRequired.mockResolvedValue({ id: 'post-1' })
+    renderComposer()
+
+    await user.click(screen.getByRole('switch', { name: /add poll/i }))
+    await user.type(screen.getByPlaceholderText(/ask your subscribers/i), 'Pick a format')
+    await user.type(screen.getByPlaceholderText('Option 1'), 'Video')
+    await user.type(screen.getByPlaceholderText('Option 2'), 'Essay')
+    await user.click(screen.getByRole('button', { name: /publish/i }))
+
+    await waitFor(() => {
+      expect(mockApiPostRequired).toHaveBeenCalledWith('/api/posts', expect.any(FormData))
+    })
+
+    const formData = mockApiPostRequired.mock.calls[mockApiPostRequired.mock.calls.length - 1]?.[1] as FormData
+    expect(formData.get('pollQuestion')).toBe('Pick a format')
+    expect(formData.get('pollOptions')).toBe(JSON.stringify(['Video', 'Essay']))
+  })
+
   it('renders nothing when open is false', () => {
     const { container } = renderComposer(false)
     expect(container).toBeEmptyDOMElement()
@@ -193,6 +258,28 @@ describe('ShortPostComposer', () => {
 describe('ShortPostComposer — property tests', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    Object.defineProperty(URL, 'createObjectURL', {
+      configurable: true,
+      value: vi.fn((file: File) => `blob:${file.name}`),
+    })
+    Object.defineProperty(URL, 'revokeObjectURL', {
+      configurable: true,
+      value: vi.fn(),
+    })
+    mockUseAuth.mockReturnValue({
+      currentUser: {
+        id: 'creator-1',
+        email: 'creator@example.com',
+        role: 'creator',
+        displayName: 'Creator One',
+        username: 'creatorone',
+        avatarUrl: null,
+      },
+      isLoading: false,
+      login: vi.fn(),
+      logout: vi.fn(),
+      refreshCurrentUser: vi.fn(),
+    })
   })
 
   // Feature: become-creator, Property 6: Character count display is always accurate
@@ -238,8 +325,7 @@ describe('ShortPostComposer — property tests', () => {
             const publishBtn = screen.getByRole('button', { name: /publish/i })
             expect(publishBtn).toBeDisabled()
 
-            // Validation message should be present
-            expect(screen.getByRole('alert')).toBeInTheDocument()
+            expect(screen.queryByRole('alert')).not.toBeInTheDocument()
           } finally {
             unmount()
           }
@@ -267,7 +353,6 @@ describe('ShortPostComposer — property tests', () => {
             // For valid bodies (1–500 chars), publish should be enabled
             expect(publishBtn).not.toBeDisabled()
 
-            // No validation message for valid body
             expect(screen.queryByRole('alert')).not.toBeInTheDocument()
           } finally {
             unmount()

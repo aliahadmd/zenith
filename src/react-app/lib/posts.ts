@@ -73,6 +73,7 @@ export type FeedResponse = {
 
 export const postKeys = {
   feed: ['feed'] as const,
+  creator: (username: string) => ['profile', username, 'posts'] as const,
   detail: (username: string, slug: string) => ['posts', username, slug] as const,
   replies: (postId: string) => ['posts', postId, 'replies'] as const,
 }

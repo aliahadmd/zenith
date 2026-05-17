@@ -50,7 +50,7 @@ export function AuthPageShell({ children, description, footer, mode, title }: Au
         <section className="hidden min-h-[38rem] flex-col justify-between gap-8 lg:flex">
           <div className="auth-fade-up flex max-w-2xl flex-col gap-6">
             <Link to="/login" className="inline-flex w-fit items-center gap-3 text-sm font-semibold">
-              <span className="flex size-10 items-center justify-center rounded-md border bg-card shadow-sm">
+              <span className="flex size-10 items-center justify-center rounded-md border bg-card/70">
                 <Sparkles aria-hidden="true" />
               </span>
               Creator Network
@@ -77,9 +77,9 @@ export function AuthPageShell({ children, description, footer, mode, title }: Au
                 return (
                   <div
                     key={item.title}
-                    className="flex min-h-24 items-start gap-3 border bg-card/70 p-4 shadow-sm backdrop-blur"
+                    className="flex min-h-24 items-start gap-3 border bg-card/60 p-4 backdrop-blur"
                   >
-                    <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-background">
+                    <div className="flex size-9 shrink-0 items-center justify-center rounded-md border bg-background text-primary">
                       <Icon aria-hidden="true" />
                     </div>
                     <div className="min-w-0">
@@ -96,7 +96,7 @@ export function AuthPageShell({ children, description, footer, mode, title }: Au
         <section className="auth-fade-up mx-auto flex w-full max-w-md flex-col gap-5 [animation-delay:80ms]">
           <div className="flex flex-col gap-4 lg:hidden">
             <Link to="/login" className="inline-flex w-fit items-center gap-3 text-sm font-semibold">
-              <span className="flex size-10 items-center justify-center rounded-md border bg-card shadow-sm">
+              <span className="flex size-10 items-center justify-center rounded-md border bg-card/70">
                 <Sparkles aria-hidden="true" />
               </span>
               Creator Network
@@ -109,7 +109,7 @@ export function AuthPageShell({ children, description, footer, mode, title }: Au
             </div>
           </div>
 
-          <div className="border bg-card/90 p-5 shadow-lg shadow-foreground/5 backdrop-blur sm:p-6">
+          <div className="border bg-card/85 p-5 backdrop-blur sm:p-6">
             <div className="mb-6 flex flex-col gap-2">
               <p className="text-2xl font-semibold leading-tight">{title}</p>
               <p className="text-sm leading-6 text-muted-foreground">{description}</p>
@@ -127,9 +127,9 @@ export function AuthPageShell({ children, description, footer, mode, title }: Au
 function AuthBackground() {
   return (
     <div aria-hidden="true" className="pointer-events-none absolute inset-0 overflow-hidden">
-      <div className="auth-grid absolute inset-0 opacity-70" />
+      <div className="auth-grid absolute inset-0 opacity-45" />
       <svg
-        className="auth-float absolute -right-24 top-8 hidden h-[34rem] w-[42rem] text-primary/10 lg:block"
+        className="auth-float absolute -right-24 top-8 hidden h-[34rem] w-[42rem] text-primary/15 lg:block"
         viewBox="0 0 672 544"
         fill="none"
       >
@@ -164,8 +164,8 @@ function AuthBackground() {
 
 function AuthIllustration() {
   return (
-    <div className="auth-fade-up relative min-h-[24rem] overflow-hidden border bg-card/70 p-6 shadow-sm backdrop-blur [animation-delay:60ms]">
-      <div className="absolute inset-0 auth-grid opacity-40" aria-hidden="true" />
+    <div className="auth-fade-up relative min-h-[24rem] overflow-hidden border bg-card/60 p-6 backdrop-blur [animation-delay:60ms]">
+      <div className="absolute inset-0 auth-grid opacity-30" aria-hidden="true" />
       <div className="relative flex h-full flex-col justify-between gap-6">
         <div className="flex items-start justify-between gap-6">
           <div className="flex flex-col gap-2">
@@ -174,7 +174,7 @@ function AuthIllustration() {
               Draft, publish, and turn audience momentum into a repeatable subscription engine.
             </p>
           </div>
-          <div className="flex size-12 items-center justify-center rounded-md border bg-background">
+          <div className="flex size-12 items-center justify-center rounded-md border bg-background text-primary">
             <PlayCircle aria-hidden="true" />
           </div>
         </div>
@@ -213,15 +213,15 @@ function AuthIllustration() {
             ['Members', 'Feed'],
             ['Revenue', 'Payouts'],
           ].map(([label, value]) => (
-            <div key={label} className="border bg-background/80 p-3">
+            <div key={label} className="border bg-background/70 p-3">
               <p className="text-xs text-muted-foreground">{label}</p>
               <p className="mt-1 text-sm font-semibold">{value}</p>
             </div>
           ))}
         </div>
 
-        <div className="flex items-center gap-3 border bg-background/80 p-4">
-          <ChartNoAxesColumnIncreasing aria-hidden="true" />
+        <div className="flex items-center gap-3 border bg-background/70 p-4">
+          <ChartNoAxesColumnIncreasing className="text-primary" aria-hidden="true" />
           <div>
             <p className="text-sm font-semibold">Audience signal</p>
             <p className="text-sm text-muted-foreground">Subscription activity and feed engagement stay visible.</p>
@@ -234,7 +234,7 @@ function AuthIllustration() {
 
 export function AuthFooter({ children, className }: { children: ReactNode; className?: string }) {
   return (
-    <div className={cn('border bg-card/80 px-5 py-4 text-center text-sm text-muted-foreground backdrop-blur', className)}>
+    <div className={cn('border bg-card/70 px-5 py-4 text-center text-sm text-muted-foreground backdrop-blur', className)}>
       {children}
     </div>
   )
