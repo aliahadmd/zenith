@@ -1,5 +1,6 @@
 import { queryOptions } from '@tanstack/react-query'
 import { apiDeleteRequired, apiGetRequired, apiPostRequired } from './api'
+import type { ArticleSummary } from './articles'
 
 export type Attachment = {
   id: string
@@ -25,6 +26,7 @@ export type Poll = {
 
 export type FeedPost = {
   id: string
+  type?: 'post'
   slug: string
   body: string
   createdAt: number | null
@@ -70,6 +72,7 @@ export type PostDetailResponse = {
 
 export type FeedResponse = {
   posts: FeedPost[]
+  items?: Array<FeedPost | ArticleSummary>
   message?: string
 }
 

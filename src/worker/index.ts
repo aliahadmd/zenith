@@ -6,6 +6,7 @@ import { profileRoutes } from './routes/profile'
 import { settingsRoutes } from './routes/settings'
 import { creatorRoutes } from './routes/creator'
 import { mediaRoutes, pollsRoutes, postsRoutes, repliesRoutes } from './routes/posts'
+import { articlesRoutes } from './routes/articles'
 import { paymentsRoutes } from './routes/payments'
 import { notFound, serverError } from './lib/http'
 
@@ -17,6 +18,7 @@ app.route('/api/profile', profileRoutes)
 app.route('/api/settings', settingsRoutes)
 app.route('/api/creator', creatorRoutes)
 app.route('/api/posts', postsRoutes)
+app.route('/api/articles', articlesRoutes)
 app.route('/api/replies', repliesRoutes)
 app.route('/api/polls', pollsRoutes)
 app.route('/api/media', mediaRoutes)

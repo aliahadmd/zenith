@@ -78,6 +78,10 @@ export function mediaUrl(attachmentId: string) {
   return `/api/media/${attachmentId}`
 }
 
+export function articleCoverUrl(postId: string) {
+  return `/api/articles/${postId}/cover`
+}
+
 export function imageExtension(contentType: string) {
   if (contentType === 'image/jpeg') return '.jpg'
   if (contentType === 'image/png') return '.png'

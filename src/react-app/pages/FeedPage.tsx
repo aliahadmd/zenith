@@ -1,4 +1,5 @@
 import { useQuery } from '@tanstack/react-query'
+import { ArticleCard } from '../components/ArticleCard'
 import { PostCard } from '../components/PostCard'
 import { LoadingBlock } from '../components/LoadingBlock'
 import { feedQueryOptions } from '../lib/posts'
@@ -19,10 +20,10 @@ export function FeedPage() {
     )
   }
 
-  const posts = feedQuery.data.posts
+  const items = feedQuery.data.items ?? feedQuery.data.posts
   const message = feedQuery.data.message
 
-  if (posts.length === 0) {
+  if (items.length === 0) {
     return (
       <div className="mx-auto flex min-h-screen max-w-[640px] flex-col items-center justify-center gap-2 border-x px-6 text-center text-muted-foreground">
         <p className="text-lg font-medium">{message ?? "You haven't subscribed to any creators yet"}</p>
@@ -38,8 +39,10 @@ export function FeedPage() {
         <p className="mt-1 text-sm text-muted-foreground">Latest posts from creators you follow.</p>
       </div>
       <div className="flex flex-col">
-        {posts.map((post) => (
-          <PostCard key={post.id} post={post} />
+        {items.map((item) => (
+          item.type === 'article'
+            ? <ArticleCard key={`article-${item.id}`} article={item} />
+            : <PostCard key={`post-${item.id}`} post={item} />
         ))}
       </div>
     </div>

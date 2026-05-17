@@ -2,11 +2,11 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { and, desc, eq, gt, or } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { posts, follows, users, subscriptionMemberships, membershipPlans } from '../db/schema'
+import { articles, posts, follows, users, subscriptionMemberships, membershipPlans } from '../db/schema'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
 import { subscribeSchema } from '../lib/schemas'
 import { conflict, notFound, zodHook } from '../lib/http'
-import { buildPostExtras, toUnixSeconds } from '../lib/post-data'
+import { articleCoverUrl, buildPostExtras, toUnixSeconds } from '../lib/post-data'
 
 export const feedRoutes = new Hono<HonoEnv>()
 
@@ -19,6 +19,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
   const rows = await db
     .select({
       id: posts.id,
+      kind: posts.kind,
       slug: posts.slug,
       body: posts.body,
       createdAt: posts.createdAt,
@@ -31,6 +32,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .innerJoin(subscriptionMemberships, eq(subscriptionMemberships.creatorId, posts.authorId))
     .innerJoin(users, eq(users.id, posts.authorId))
     .where(and(
+      eq(posts.kind, 'post'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
       or(
         eq(subscriptionMemberships.status, 'active'),
@@ -41,16 +43,54 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .limit(50)
     .all()
 
-  if (rows.length === 0) {
-    return c.json({ posts: [], message: "You haven't subscribed to any creators yet" })
+  const articleRows = await db
+    .select({
+      id: posts.id,
+      kind: posts.kind,
+      slug: posts.slug,
+      body: posts.body,
+      createdAt: posts.createdAt,
+      authorId: posts.authorId,
+      authorDisplayName: users.displayName,
+      authorUsername: users.username,
+      authorAvatarUrl: users.avatarUrl,
+      title: articles.title,
+      excerpt: articles.excerpt,
+      markdown: articles.markdown,
+      status: articles.status,
+      coverR2Key: articles.coverR2Key,
+      publishedAt: articles.publishedAt,
+      updatedAt: articles.updatedAt,
+    })
+    .from(articles)
+    .innerJoin(posts, eq(posts.id, articles.postId))
+    .innerJoin(subscriptionMemberships, eq(subscriptionMemberships.creatorId, posts.authorId))
+    .innerJoin(users, eq(users.id, posts.authorId))
+    .where(and(
+      eq(posts.kind, 'article'),
+      eq(articles.status, 'published'),
+      eq(subscriptionMemberships.subscriberId, c.var.user.id),
+      or(
+        eq(subscriptionMemberships.status, 'active'),
+        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
+      ),
+    ))
+    .orderBy(desc(articles.publishedAt))
+    .limit(50)
+    .all()
+
+  if (rows.length === 0 && articleRows.length === 0) {
+    return c.json({ posts: [], items: [], message: "You haven't subscribed to any creators yet" })
   }
 
-  const extras = await buildPostExtras(db, c.var.user.id, rows.map((row) => row.id))
+  const allIds = [...rows.map((row) => row.id), ...articleRows.map((row) => row.id)]
+  const extras = await buildPostExtras(db, c.var.user.id, allIds)
 
   const mappedPosts = rows.map((row) => {
     const createdAt = toUnixSeconds(row.createdAt)
     return {
       id: row.id,
+      type: 'post' as const,
       slug: row.slug,
       body: row.body,
       createdAt,
@@ -68,7 +108,39 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     }
   })
 
-  return c.json({ posts: mappedPosts })
+  const mappedArticles = articleRows.map((row) => ({
+    id: row.id,
+    postId: row.id,
+    type: 'article' as const,
+    slug: row.slug,
+    title: row.title,
+    excerpt: row.excerpt || row.body,
+    markdown: '',
+    status: row.status,
+    coverUrl: row.coverR2Key ? articleCoverUrl(row.id) : null,
+    createdAt: toUnixSeconds(row.createdAt),
+    publishedAt: toUnixSeconds(row.publishedAt),
+    updatedAt: toUnixSeconds(row.updatedAt),
+    author: {
+      id: row.authorId,
+      displayName: row.authorDisplayName,
+      username: row.authorUsername,
+      avatarUrl: row.authorAvatarUrl,
+    },
+    likeCount: extras.postLikeCounts.get(row.id) ?? 0,
+    replyCount: extras.postReplyCounts.get(row.id) ?? 0,
+    viewerLiked: extras.viewerLikedPostIds.has(row.id),
+  }))
+
+  const items = [...mappedPosts, ...mappedArticles]
+    .sort((a, b) => {
+      const aTime = a.type === 'article' ? (a.publishedAt ?? a.createdAt ?? 0) : (a.createdAt ?? 0)
+      const bTime = b.type === 'article' ? (b.publishedAt ?? b.createdAt ?? 0) : (b.createdAt ?? 0)
+      return bTime - aTime
+    })
+    .slice(0, 50)
+
+  return c.json({ posts: mappedPosts, items })
 })
 
 // ── POST /subscribe ────────────────────────────────────────────────────────

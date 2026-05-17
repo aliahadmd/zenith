@@ -89,6 +89,7 @@ export const verification = sqliteTable('verification', {
 export const posts = sqliteTable('posts', {
   id:        text('id').primaryKey(),
   authorId:  text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind:      text('kind', { enum: ['post', 'article'] }).notNull().default('post'),
   slug:      text('slug').notNull(),
   body:      text('body').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' })
@@ -96,7 +97,31 @@ export const posts = sqliteTable('posts', {
                .default(sql`(unixepoch())`),
 }, (t) => [
   uniqueIndex('posts_author_slug_unique').on(t.authorId, t.slug),
+  index('posts_kind_created_idx').on(t.kind, t.createdAt),
   index('posts_author_created_idx').on(t.authorId, t.createdAt),
+])
+
+// ── Articles ───────────────────────────────────────────────────────────────
+export const articles = sqliteTable('articles', {
+  postId:           text('post_id').primaryKey().references(() => posts.id, { onDelete: 'cascade' }),
+  title:            text('title').notNull(),
+  excerpt:          text('excerpt'),
+  markdown:         text('markdown').notNull(),
+  status:           text('status', { enum: ['draft', 'published'] }).notNull().default('draft'),
+  coverR2Key:       text('cover_r2_key'),
+  coverFileName:    text('cover_file_name'),
+  coverContentType: text('cover_content_type'),
+  coverSizeBytes:   integer('cover_size_bytes'),
+  publishedAt:      integer('published_at', { mode: 'timestamp' }),
+  createdAt:        integer('created_at', { mode: 'timestamp' })
+                      .notNull()
+                      .default(sql`(unixepoch())`),
+  updatedAt:        integer('updated_at', { mode: 'timestamp_ms' })
+                      .notNull()
+                      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                      .$onUpdate(() => new Date()),
+}, (t) => [
+  index('articles_status_published_idx').on(t.status, t.publishedAt),
 ])
 
 // ── Post Media Attachments ─────────────────────────────────────────────────
@@ -406,6 +431,7 @@ export type Session              = typeof session.$inferSelect
 export type Account              = typeof account.$inferSelect
 export type Verification         = typeof verification.$inferSelect
 export type Post                 = typeof posts.$inferSelect
+export type Article              = typeof articles.$inferSelect
 export type PostAttachment       = typeof postAttachments.$inferSelect
 export type PostReply            = typeof postReplies.$inferSelect
 export type ReplyAttachment      = typeof replyAttachments.$inferSelect

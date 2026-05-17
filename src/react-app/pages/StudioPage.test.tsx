@@ -6,10 +6,13 @@ import type { ReactNode } from 'react'
 import { StudioPage } from './StudioPage'
 import * as AuthContext from '../context/AuthContext'
 
+const navigateMock = vi.fn()
+
 vi.mock('@tanstack/react-router', () => ({
   Link: ({ to, className, children }: { to: string; className?: string; children: ReactNode }) => (
     <a href={to} className={className}>{children}</a>
   ),
+  useNavigate: () => navigateMock,
   useRouterState: () => '/studio',
 }))
 
@@ -59,8 +62,8 @@ describe('StudioPage', () => {
   it('renders all three content-type cards', () => {
     renderStudioPage()
 
-    expect(screen.getByText('Short Post')).toBeInTheDocument()
-    expect(screen.getByText('Long Post')).toBeInTheDocument()
+    expect(screen.getByText('Post')).toBeInTheDocument()
+    expect(screen.getByText('Article')).toBeInTheDocument()
     expect(screen.getByText('Course')).toBeInTheDocument()
   })
 
@@ -69,6 +72,7 @@ describe('StudioPage', () => {
 
     expect(screen.getAllByRole('navigation', { name: /studio sections/i })).toHaveLength(2)
     expect(screen.getAllByRole('link', { name: /create/i })[0]).toHaveAttribute('href', '/studio')
+    expect(screen.getAllByRole('link', { name: /articles/i })[0]).toHaveAttribute('href', '/studio/articles/new')
     expect(screen.getAllByRole('link', { name: /subscriptions/i })[0]).toHaveAttribute('href', '/studio/subscriptions')
     expect(screen.getAllByRole('link', { name: /money/i })[0]).toHaveAttribute('href', '/studio/payouts')
   })
@@ -83,16 +87,13 @@ describe('StudioPage', () => {
   })
 
   // Validates: Requirements 6.2
-  it('"Long Post" card is in disabled/coming-soon state', () => {
+  it('"Article" card opens the article editor route', async () => {
+    const user = userEvent.setup()
     renderStudioPage()
 
-    // The "Coming Soon" badge should appear for Long Post
-    const comingSoonBadges = screen.getAllByText('Coming Soon')
-    expect(comingSoonBadges.length).toBeGreaterThanOrEqual(1)
+    await user.click(screen.getByRole('button', { name: /article/i }))
 
-    // The Long Post card should have aria-disabled
-    const longPostCard = screen.getByText('Long Post').closest('[aria-disabled]')
-    expect(longPostCard).toHaveAttribute('aria-disabled', 'true')
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/studio/articles/new' })
   })
 
   // Validates: Requirements 6.2
@@ -102,9 +103,9 @@ describe('StudioPage', () => {
     const courseCard = screen.getByText('Course').closest('[aria-disabled]')
     expect(courseCard).toHaveAttribute('aria-disabled', 'true')
 
-    // Two "Coming Soon" badges — one for Long Post, one for Course
+    // One "Coming Soon" badge — Course only
     const comingSoonBadges = screen.getAllByText('Coming Soon')
-    expect(comingSoonBadges).toHaveLength(2)
+    expect(comingSoonBadges).toHaveLength(1)
   })
 
   // Validates: Requirements 6.3
@@ -116,8 +117,7 @@ describe('StudioPage', () => {
     expect(screen.queryByRole('dialog', { name: /short post composer/i })).not.toBeInTheDocument()
 
     // Click the Short Post card (it has role="button")
-    const shortPostCard = screen.getByRole('button', { name: /short post/i })
-    await user.click(shortPostCard)
+    await user.click(screen.getByRole('button', { name: /^post/i }))
 
     // Composer modal should now be open
     expect(screen.getByRole('dialog', { name: /short post composer/i })).toBeInTheDocument()
@@ -129,7 +129,7 @@ describe('StudioPage', () => {
     renderStudioPage()
 
     // Open the composer
-    await user.click(screen.getByRole('button', { name: /short post/i }))
+    await user.click(screen.getByRole('button', { name: /^post/i }))
     expect(screen.getByRole('dialog', { name: /short post composer/i })).toBeInTheDocument()
 
     // Close via the Cancel button
@@ -137,19 +137,11 @@ describe('StudioPage', () => {
     expect(screen.queryByRole('dialog', { name: /short post composer/i })).not.toBeInTheDocument()
   })
 
-  // Validates: Requirements 6.2 — disabled cards do not open the composer
-  it('clicking "Long Post" card does not open the composer', async () => {
+  it('clicking "Article" card does not open the post composer', async () => {
     const user = userEvent.setup()
     renderStudioPage()
 
-    // Long Post card is disabled — it has no role="button"
-    const longPostCard = screen.getByText('Long Post').closest('.relative')
-    expect(longPostCard).toBeInTheDocument()
-
-    // Attempt to click the card element directly
-    if (longPostCard) {
-      await user.click(longPostCard)
-    }
+    await user.click(screen.getByRole('button', { name: /article/i }))
 
     // Composer should remain closed
     expect(screen.queryByRole('dialog', { name: /short post composer/i })).not.toBeInTheDocument()

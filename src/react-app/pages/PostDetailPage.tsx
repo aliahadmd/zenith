@@ -68,7 +68,7 @@ export function PostDetailPage({ username, slug }: PostDetailPageProps) {
   )
 }
 
-function ReplyComposer({
+export function ReplyComposer({
   post,
   parentReply,
   detailKey,
@@ -211,7 +211,7 @@ function ReplyComposer({
   )
 }
 
-function ReplyThread({
+export function ReplyThread({
   post,
   replies,
   detailKey,

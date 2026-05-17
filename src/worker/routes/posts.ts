@@ -4,6 +4,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import { createDb, type Db } from '../db/client'
 import {
+  articles,
   pollOptions,
   pollVotes,
   postAttachments,
@@ -58,6 +59,7 @@ type PollInput = {
 
 type PostRow = {
   id: string
+  kind: 'post' | 'article'
   slug: string
   body: string
   createdAt: Date | number | null
@@ -65,12 +67,13 @@ type PostRow = {
   authorDisplayName: string
   authorUsername: string
   authorAvatarUrl: string | null
+  articleStatus?: 'draft' | 'published' | null
 }
 
 const replyAuthors = alias(users, 'reply_authors')
 const mentionedUsers = alias(users, 'mentioned_users')
 
-function slugify(input: string) {
+export function slugify(input: string) {
   const slug = input
     .normalize('NFKD')
     .toLowerCase()
@@ -82,7 +85,7 @@ function slugify(input: string) {
   return slug || 'post'
 }
 
-async function generatePostSlug(db: Db, authorId: string, seed: string) {
+export async function generatePostSlug(db: Db, authorId: string, seed: string) {
   const base = slugify(seed)
 
   for (let index = 0; index < 25; index += 1) {
@@ -202,6 +205,7 @@ async function getPostRowById(db: Db, postId: string) {
   return db
     .select({
       id: posts.id,
+      kind: posts.kind,
       slug: posts.slug,
       body: posts.body,
       createdAt: posts.createdAt,
@@ -209,9 +213,11 @@ async function getPostRowById(db: Db, postId: string) {
       authorDisplayName: users.displayName,
       authorUsername: users.username,
       authorAvatarUrl: users.avatarUrl,
+      articleStatus: articles.status,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
+    .leftJoin(articles, eq(articles.postId, posts.id))
     .where(eq(posts.id, postId))
     .get()
 }
@@ -219,12 +225,16 @@ async function getPostRowById(db: Db, postId: string) {
 async function getAccessiblePostById(db: Db, viewerId: string, postId: string) {
   const post = await getPostRowById(db, postId)
   if (!post) return { post: null, allowed: false }
+  if (post.kind === 'article' && post.articleStatus !== 'published' && viewerId !== post.authorId) {
+    return { post, allowed: false }
+  }
   return { post, allowed: await hasCreatorAccess(db, viewerId, post.authorId) }
 }
 
 function serializePost(post: PostRow, extras: Awaited<ReturnType<typeof buildPostExtras>>) {
   return {
     id: post.id,
+    type: post.kind,
     slug: post.slug,
     body: post.body,
     createdAt: toUnixSeconds(post.createdAt),
@@ -242,7 +252,7 @@ function serializePost(post: PostRow, extras: Awaited<ReturnType<typeof buildPos
   }
 }
 
-async function serializeReplies(db: Db, viewerId: string, postId: string) {
+export async function serializeReplies(db: Db, viewerId: string, postId: string) {
   const replies = await db
     .select({
       id: postReplies.id,
@@ -417,6 +427,7 @@ postsRoutes.get('/by-slug/:username/:slug', authMiddleware, zValidator('param', 
   const post = await db
     .select({
       id: posts.id,
+      kind: posts.kind,
       slug: posts.slug,
       body: posts.body,
       createdAt: posts.createdAt,
@@ -427,7 +438,7 @@ postsRoutes.get('/by-slug/:username/:slug', authMiddleware, zValidator('param', 
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
-    .where(and(eq(users.username, username), eq(posts.slug, slug)))
+    .where(and(eq(users.username, username), eq(posts.slug, slug), eq(posts.kind, 'post')))
     .get()
 
   if (!post) return notFound(c, 'Post not found')

@@ -106,6 +106,13 @@ export function apiPut<T>(url: string, body?: unknown): Promise<ApiResponse<T>> 
   })
 }
 
+export function apiPatch<T>(url: string, body?: unknown): Promise<ApiResponse<T>> {
+  return apiFetch<T>(url, {
+    method: 'PATCH',
+    body: body instanceof FormData ? body : JSON.stringify(body),
+  })
+}
+
 export function apiDelete<T>(url: string): Promise<ApiResponse<T>> {
   return apiFetch<T>(url, { method: 'DELETE' })
 }
@@ -137,6 +144,13 @@ export function apiPostRequired<T>(url: string, body?: unknown): Promise<T> {
 export function apiPutRequired<T>(url: string, body?: unknown): Promise<T> {
   return apiRequest<T>(url, {
     method: 'PUT',
+    body: body instanceof FormData ? body : JSON.stringify(body),
+  })
+}
+
+export function apiPatchRequired<T>(url: string, body?: unknown): Promise<T> {
+  return apiRequest<T>(url, {
+    method: 'PATCH',
     body: body instanceof FormData ? body : JSON.stringify(body),
   })
 }

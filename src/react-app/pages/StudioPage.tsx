@@ -1,10 +1,12 @@
 import { useState } from 'react'
+import { useNavigate } from '@tanstack/react-router'
 import { FileText, BookOpen, GraduationCap } from 'lucide-react'
 import { ContentTypeCard } from '../components/ContentTypeCard'
 import { ShortPostComposer } from '../components/ShortPostComposer'
 import { StudioLayout } from '../components/StudioLayout'
 
 export function StudioPage() {
+  const navigate = useNavigate()
   const [composerOpen, setComposerOpen] = useState(false)
 
   return (
@@ -16,17 +18,16 @@ export function StudioPage() {
       <div className="grid gap-4">
         <ContentTypeCard
           icon={<FileText />}
-          title="Short Post"
+          title="Post"
           description="Share a quick thought or update with your followers. Up to 500 characters."
           onClick={() => setComposerOpen(true)}
         />
 
         <ContentTypeCard
           icon={<BookOpen />}
-          title="Long Post"
+          title="Article"
           description="Write an in-depth article or essay with rich formatting and media."
-          disabled
-          comingSoon
+          onClick={() => navigate({ to: '/studio/articles/new' })}
         />
 
         <ContentTypeCard

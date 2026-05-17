@@ -20,7 +20,10 @@ import { Route as AuthenticatedBecomeCreatorRouteImport } from './routes/_authen
 import { Route as AuthenticatedUUsernameRouteImport } from './routes/_authenticated/u.$username'
 import { Route as AuthenticatedStudioSubscriptionsRouteImport } from './routes/_authenticated/studio_.subscriptions'
 import { Route as AuthenticatedStudioPayoutsRouteImport } from './routes/_authenticated/studio_.payouts'
+import { Route as AuthenticatedStudioArticlesNewRouteImport } from './routes/_authenticated/studio_.articles.new'
 import { Route as AuthenticatedUUsernamePostSlugRouteImport } from './routes/_authenticated/u.$username_.post.$slug'
+import { Route as AuthenticatedUUsernameArticleSlugRouteImport } from './routes/_authenticated/u.$username_.article.$slug'
+import { Route as AuthenticatedStudioArticlesPostIdEditRouteImport } from './routes/_authenticated/studio_.articles.$postId.edit'
 
 const RegisterRoute = RegisterRouteImport.update({
   id: '/register',
@@ -79,10 +82,28 @@ const AuthenticatedStudioPayoutsRoute =
     path: '/studio/payouts',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedStudioArticlesNewRoute =
+  AuthenticatedStudioArticlesNewRouteImport.update({
+    id: '/studio_/articles/new',
+    path: '/studio/articles/new',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedUUsernamePostSlugRoute =
   AuthenticatedUUsernamePostSlugRouteImport.update({
     id: '/u/$username_/post/$slug',
     path: '/u/$username/post/$slug',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedUUsernameArticleSlugRoute =
+  AuthenticatedUUsernameArticleSlugRouteImport.update({
+    id: '/u/$username_/article/$slug',
+    path: '/u/$username/article/$slug',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedStudioArticlesPostIdEditRoute =
+  AuthenticatedStudioArticlesPostIdEditRouteImport.update({
+    id: '/studio_/articles/$postId/edit',
+    path: '/studio/articles/$postId/edit',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 
@@ -97,6 +118,9 @@ export interface FileRoutesByFullPath {
   '/studio/payouts': typeof AuthenticatedStudioPayoutsRoute
   '/studio/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/u/$username': typeof AuthenticatedUUsernameRoute
+  '/studio/articles/new': typeof AuthenticatedStudioArticlesNewRoute
+  '/studio/articles/$postId/edit': typeof AuthenticatedStudioArticlesPostIdEditRoute
+  '/u/$username/article/$slug': typeof AuthenticatedUUsernameArticleSlugRoute
   '/u/$username/post/$slug': typeof AuthenticatedUUsernamePostSlugRoute
 }
 export interface FileRoutesByTo {
@@ -110,6 +134,9 @@ export interface FileRoutesByTo {
   '/studio/payouts': typeof AuthenticatedStudioPayoutsRoute
   '/studio/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/u/$username': typeof AuthenticatedUUsernameRoute
+  '/studio/articles/new': typeof AuthenticatedStudioArticlesNewRoute
+  '/studio/articles/$postId/edit': typeof AuthenticatedStudioArticlesPostIdEditRoute
+  '/u/$username/article/$slug': typeof AuthenticatedUUsernameArticleSlugRoute
   '/u/$username/post/$slug': typeof AuthenticatedUUsernamePostSlugRoute
 }
 export interface FileRoutesById {
@@ -125,6 +152,9 @@ export interface FileRoutesById {
   '/_authenticated/studio_/payouts': typeof AuthenticatedStudioPayoutsRoute
   '/_authenticated/studio_/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/_authenticated/u/$username': typeof AuthenticatedUUsernameRoute
+  '/_authenticated/studio_/articles/new': typeof AuthenticatedStudioArticlesNewRoute
+  '/_authenticated/studio_/articles/$postId/edit': typeof AuthenticatedStudioArticlesPostIdEditRoute
+  '/_authenticated/u/$username_/article/$slug': typeof AuthenticatedUUsernameArticleSlugRoute
   '/_authenticated/u/$username_/post/$slug': typeof AuthenticatedUUsernamePostSlugRoute
 }
 export interface FileRouteTypes {
@@ -140,6 +170,9 @@ export interface FileRouteTypes {
     | '/studio/payouts'
     | '/studio/subscriptions'
     | '/u/$username'
+    | '/studio/articles/new'
+    | '/studio/articles/$postId/edit'
+    | '/u/$username/article/$slug'
     | '/u/$username/post/$slug'
   fileRoutesByTo: FileRoutesByTo
   to:
@@ -153,6 +186,9 @@ export interface FileRouteTypes {
     | '/studio/payouts'
     | '/studio/subscriptions'
     | '/u/$username'
+    | '/studio/articles/new'
+    | '/studio/articles/$postId/edit'
+    | '/u/$username/article/$slug'
     | '/u/$username/post/$slug'
   id:
     | '__root__'
@@ -167,6 +203,9 @@ export interface FileRouteTypes {
     | '/_authenticated/studio_/payouts'
     | '/_authenticated/studio_/subscriptions'
     | '/_authenticated/u/$username'
+    | '/_authenticated/studio_/articles/new'
+    | '/_authenticated/studio_/articles/$postId/edit'
+    | '/_authenticated/u/$username_/article/$slug'
     | '/_authenticated/u/$username_/post/$slug'
   fileRoutesById: FileRoutesById
 }
@@ -256,11 +295,32 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStudioPayoutsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/studio_/articles/new': {
+      id: '/_authenticated/studio_/articles/new'
+      path: '/studio/articles/new'
+      fullPath: '/studio/articles/new'
+      preLoaderRoute: typeof AuthenticatedStudioArticlesNewRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/u/$username_/post/$slug': {
       id: '/_authenticated/u/$username_/post/$slug'
       path: '/u/$username/post/$slug'
       fullPath: '/u/$username/post/$slug'
       preLoaderRoute: typeof AuthenticatedUUsernamePostSlugRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/u/$username_/article/$slug': {
+      id: '/_authenticated/u/$username_/article/$slug'
+      path: '/u/$username/article/$slug'
+      fullPath: '/u/$username/article/$slug'
+      preLoaderRoute: typeof AuthenticatedUUsernameArticleSlugRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/studio_/articles/$postId/edit': {
+      id: '/_authenticated/studio_/articles/$postId/edit'
+      path: '/studio/articles/$postId/edit'
+      fullPath: '/studio/articles/$postId/edit'
+      preLoaderRoute: typeof AuthenticatedStudioArticlesPostIdEditRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
   }
@@ -274,6 +334,9 @@ interface AuthenticatedRouteChildren {
   AuthenticatedStudioPayoutsRoute: typeof AuthenticatedStudioPayoutsRoute
   AuthenticatedStudioSubscriptionsRoute: typeof AuthenticatedStudioSubscriptionsRoute
   AuthenticatedUUsernameRoute: typeof AuthenticatedUUsernameRoute
+  AuthenticatedStudioArticlesNewRoute: typeof AuthenticatedStudioArticlesNewRoute
+  AuthenticatedStudioArticlesPostIdEditRoute: typeof AuthenticatedStudioArticlesPostIdEditRoute
+  AuthenticatedUUsernameArticleSlugRoute: typeof AuthenticatedUUsernameArticleSlugRoute
   AuthenticatedUUsernamePostSlugRoute: typeof AuthenticatedUUsernamePostSlugRoute
 }
 
@@ -285,6 +348,11 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedStudioPayoutsRoute: AuthenticatedStudioPayoutsRoute,
   AuthenticatedStudioSubscriptionsRoute: AuthenticatedStudioSubscriptionsRoute,
   AuthenticatedUUsernameRoute: AuthenticatedUUsernameRoute,
+  AuthenticatedStudioArticlesNewRoute: AuthenticatedStudioArticlesNewRoute,
+  AuthenticatedStudioArticlesPostIdEditRoute:
+    AuthenticatedStudioArticlesPostIdEditRoute,
+  AuthenticatedUUsernameArticleSlugRoute:
+    AuthenticatedUUsernameArticleSlugRoute,
   AuthenticatedUUsernamePostSlugRoute: AuthenticatedUUsernamePostSlugRoute,
 }
 

@@ -5,6 +5,7 @@ import migration1 from '../../../drizzle/0001_add-creator-applications.sql?raw'
 import migration2 from '../../../drizzle/0002_better_auth.sql?raw'
 import migration3 from '../../../drizzle/0003_creator_subscriptions.sql?raw'
 import migration4 from '../../../drizzle/0004_feed_interactions.sql?raw'
+import migration5 from '../../../drizzle/0005_articles.sql?raw'
 
 async function applyMigration(sql: string) {
   const statements = sql
@@ -34,6 +35,7 @@ describe('Better Auth integration', () => {
     await applyMigration(migration2)
     await applyMigration(migration3)
     await applyMigration(migration4)
+    await applyMigration(migration5)
   })
 
   it('keeps the session usable after subscriber upgrades to creator', async () => {

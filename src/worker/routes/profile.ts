@@ -7,6 +7,7 @@ import { authMiddleware, type HonoEnv } from '../middleware/auth'
 import { userIdParamSchema, usernameParamSchema } from '../lib/schemas'
 import { notFound, zodHook } from '../lib/http'
 import { buildPostExtras, hasCreatorAccess, toUnixSeconds } from '../lib/post-data'
+import { listPublishedArticlesForCreator } from './articles'
 
 export const profileRoutes = new Hono<HonoEnv>()
 
@@ -179,7 +180,7 @@ profileRoutes.get('/:username/posts', authMiddleware, zValidator('param', userna
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
-    .where(eq(posts.authorId, creator.id))
+    .where(and(eq(posts.authorId, creator.id), eq(posts.kind, 'post')))
     .orderBy(desc(posts.createdAt))
     .limit(50)
     .all()
@@ -204,4 +205,30 @@ profileRoutes.get('/:username/posts', authMiddleware, zValidator('param', userna
   }))
 
   return c.json({ posts: mappedPosts, hasAccess: true })
+})
+
+// ── GET /:username/articles ───────────────────────────────────────────────
+
+profileRoutes.get('/:username/articles', authMiddleware, zValidator('param', usernameParamSchema, zodHook), async (c) => {
+  const { username } = c.req.valid('param')
+  const db = createDb(c.env.DB)
+
+  const creator = await db
+    .select({
+      id: users.id,
+      role: users.role,
+    })
+    .from(users)
+    .where(eq(users.username, username))
+    .get()
+
+  if (!creator || creator.role !== 'creator') return notFound(c, 'Creator not found')
+
+  const hasAccess = await hasCreatorAccess(db, c.var.user.id, creator.id)
+  if (!hasAccess) return c.json({ articles: [], hasAccess: false })
+
+  return c.json({
+    articles: await listPublishedArticlesForCreator(db, c.var.user.id, creator.id),
+    hasAccess: true,
+  })
 })

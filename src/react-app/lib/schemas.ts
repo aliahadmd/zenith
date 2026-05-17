@@ -160,6 +160,41 @@ export const replySchema = z.object({
   images: imageListSchema,
 })
 
+const articleCoverSchema = z
+  .instanceof(File)
+  .refine((file) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type), {
+    message: 'Use JPEG, PNG, or WebP.',
+  })
+  .refine((file) => file.size <= 5 * 1024 * 1024, {
+    message: 'Cover must be 5 MB or smaller.',
+  })
+
+export const articleSchema = z.object({
+  title: z.string().trim().max(140, 'Title must be 140 characters or fewer.'),
+  excerpt: z.string().trim().max(280, 'Excerpt must be 280 characters or fewer.'),
+  markdown: z.string().trim().max(50_000, 'Article body must be 50,000 characters or fewer.'),
+  cover: articleCoverSchema.nullable(),
+  hasExistingCover: z.boolean(),
+  status: z.enum(['draft', 'published']),
+}).superRefine((values, ctx) => {
+  if (values.status === 'draft') {
+    if (!values.title && !values.markdown) {
+      ctx.addIssue({ code: 'custom', path: ['title'], message: 'Drafts need at least a title or article body.' })
+    }
+    return
+  }
+
+  if (!values.title) {
+    ctx.addIssue({ code: 'custom', path: ['title'], message: 'Published articles need a title.' })
+  }
+  if (!values.markdown) {
+    ctx.addIssue({ code: 'custom', path: ['markdown'], message: 'Published articles need an article body.' })
+  }
+  if (!values.cover && !values.hasExistingCover) {
+    ctx.addIssue({ code: 'custom', path: ['cover'], message: 'Published articles need a cover photo.' })
+  }
+})
+
 const priceInputSchema = z
   .string()
   .trim()
@@ -211,5 +246,6 @@ export const creatorSubscriptionPlanSchema = z.object({
 })
 
 export type CreatorSubscriptionPlanFormValues = z.infer<typeof creatorSubscriptionPlanSchema>
+export type ArticleFormValues = z.infer<typeof articleSchema>
 export type RichPostFormValues = z.infer<typeof richPostSchema>
 export type ReplyFormValues = z.infer<typeof replySchema>

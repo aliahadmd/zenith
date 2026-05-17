@@ -29,9 +29,13 @@ export const postSlugParamSchema = z.object({
   slug: z.string().min(1, 'slug is required'),
 })
 
+export const articleSlugParamSchema = postSlugParamSchema
+
 export const postIdParamSchema = z.object({
   postId: z.string().min(1, 'postId is required'),
 })
+
+export const articleIdParamSchema = postIdParamSchema
 
 export const replyIdParamSchema = z.object({
   replyId: z.string().min(1, 'replyId is required'),

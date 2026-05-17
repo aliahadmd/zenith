@@ -7,6 +7,7 @@ import { SiGithub, SiInstagram, SiX, SiYoutube } from 'react-icons/si'
 import { toast } from 'sonner'
 import { useAuth } from '../context/AuthContext'
 import { apiGetRequired } from '../lib/api'
+import { articleKeys, type ArticleSummary, type CreatorArticlesResponse } from '../lib/articles'
 import { postKeys, type FeedPost } from '../lib/posts'
 import {
   formatCurrency,
@@ -32,6 +33,7 @@ import {
 } from '../components/ui/dialog'
 import { Skeleton } from '../components/ui/skeleton'
 import { LoadingBlock } from '../components/LoadingBlock'
+import { ArticleCard } from '../components/ArticleCard'
 import { PostCard } from '../components/PostCard'
 
 type ProfileData = {
@@ -97,6 +99,11 @@ export function ProfilePage({ username }: { username: string }) {
   const creatorPostsQuery = useQuery({
     queryKey: postKeys.creator(username),
     queryFn: () => apiGetRequired<CreatorPostsResponse>(`/api/profile/${username}/posts`),
+    enabled: Boolean(isCreatorProfile),
+  })
+  const creatorArticlesQuery = useQuery({
+    queryKey: articleKeys.creator(username),
+    queryFn: () => apiGetRequired<CreatorArticlesResponse>(`/api/profile/${username}/articles`),
     enabled: Boolean(isCreatorProfile),
   })
   const creatorSubscribersQuery = useQuery({
@@ -195,6 +202,7 @@ export function ProfilePage({ username }: { username: string }) {
           <TabsList variant="line" className="h-auto w-full flex-wrap justify-start rounded-none border-b px-4 py-0">
             <TabsTrigger value="about">About</TabsTrigger>
             {profile.role === 'creator' && <TabsTrigger value="posts">Posts</TabsTrigger>}
+            {profile.role === 'creator' && <TabsTrigger value="articles">Articles</TabsTrigger>}
             {profile.role === 'creator' && <TabsTrigger value="subscribers">Subscribers</TabsTrigger>}
             <TabsTrigger value="subscribed">Subscribed to</TabsTrigger>
           </TabsList>
@@ -252,6 +260,17 @@ export function ProfilePage({ username }: { username: string }) {
                 hasAccess={creatorPostsQuery.data?.hasAccess}
                 isLoading={creatorPostsQuery.isPending}
                 error={creatorPostsQuery.isError ? creatorPostsQuery.error.message : null}
+                isOwnProfile={isOwnProfile}
+              />
+            </TabsContent>
+          )}
+          {profile.role === 'creator' && (
+            <TabsContent value="articles">
+              <CreatorArticlesTab
+                articles={creatorArticlesQuery.data?.articles ?? []}
+                hasAccess={creatorArticlesQuery.data?.hasAccess}
+                isLoading={creatorArticlesQuery.isPending}
+                error={creatorArticlesQuery.isError ? creatorArticlesQuery.error.message : null}
                 isOwnProfile={isOwnProfile}
               />
             </TabsContent>
@@ -372,6 +391,69 @@ function CreatorPostsTab({
     <div className="flex flex-col">
       {posts.map((post) => (
         <PostCard key={post.id} post={post} />
+      ))}
+    </div>
+  )
+}
+
+function CreatorArticlesTab({
+  articles,
+  hasAccess,
+  isLoading,
+  error,
+  isOwnProfile,
+}: {
+  articles: ArticleSummary[]
+  hasAccess: boolean | undefined
+  isLoading: boolean
+  error: string | null
+  isOwnProfile: boolean
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-col">
+        <div className="border-b p-5">
+          <Skeleton className="h-48 w-full rounded-lg" />
+        </div>
+        <div className="border-b p-5">
+          <Skeleton className="h-40 w-full rounded-lg" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="border-b p-5">
+        <p className="text-sm text-muted-foreground">{error}</p>
+      </div>
+    )
+  }
+
+  if (hasAccess === false) {
+    return (
+      <div className="border-b p-5">
+        <p className="text-sm text-muted-foreground">
+          Subscribe to this creator to see member articles.
+        </p>
+      </div>
+    )
+  }
+
+  if (articles.length === 0) {
+    return (
+      <div className="border-b p-5">
+        <p className="text-sm text-muted-foreground">
+          {isOwnProfile ? 'You have not published any articles yet.' : 'No articles published yet.'}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col">
+      {articles.map((article) => (
+        <ArticleCard key={article.id} article={article} />
       ))}
     </div>
   )
