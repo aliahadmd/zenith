@@ -1,5 +1,6 @@
 import { useQuery } from '@tanstack/react-query'
 import { ArticleCard } from '../components/ArticleCard'
+import { AudioCard } from '../components/AudioCard'
 import { PostCard } from '../components/PostCard'
 import { LoadingBlock } from '../components/LoadingBlock'
 import { feedQueryOptions } from '../lib/posts'
@@ -42,7 +43,9 @@ export function FeedPage() {
         {items.map((item) => (
           item.type === 'article'
             ? <ArticleCard key={`article-${item.id}`} article={item} />
-            : <PostCard key={`post-${item.id}`} post={item} />
+            : item.type === 'audio'
+              ? <AudioCard key={`audio-${item.id}`} item={item} queue={items.filter((candidate) => candidate.type === 'audio')} />
+              : <PostCard key={`post-${item.id}`} post={item} />
         ))}
       </div>
     </div>

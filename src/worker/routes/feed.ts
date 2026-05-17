@@ -2,11 +2,11 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { and, desc, eq, gt, or } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { articles, posts, follows, users, subscriptionMemberships, membershipPlans } from '../db/schema'
+import { articles, audioCollections, audioItems, posts, follows, users, subscriptionMemberships, membershipPlans } from '../db/schema'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
 import { subscribeSchema } from '../lib/schemas'
 import { conflict, notFound, zodHook } from '../lib/http'
-import { articleCoverUrl, buildPostExtras, toUnixSeconds } from '../lib/post-data'
+import { articleCoverUrl, audioCollectionCoverUrl, audioItemCoverUrl, audioStreamUrl, buildPostExtras, toUnixSeconds } from '../lib/post-data'
 
 export const feedRoutes = new Hono<HonoEnv>()
 
@@ -79,11 +79,53 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .limit(50)
     .all()
 
-  if (rows.length === 0 && articleRows.length === 0) {
+  const audioRows = await db
+    .select({
+      id: audioItems.id,
+      postId: audioItems.postId,
+      slug: audioItems.slug,
+      itemKind: audioItems.kind,
+      title: audioItems.title,
+      description: audioItems.description,
+      status: audioItems.status,
+      audioR2Key: audioItems.audioR2Key,
+      coverR2Key: audioItems.coverR2Key,
+      durationSeconds: audioItems.durationSeconds,
+      publishedAt: audioItems.publishedAt,
+      createdAt: audioItems.createdAt,
+      updatedAt: audioItems.updatedAt,
+      authorId: audioItems.creatorId,
+      authorDisplayName: users.displayName,
+      authorUsername: users.username,
+      authorAvatarUrl: users.avatarUrl,
+      collectionId: audioCollections.id,
+      collectionKind: audioCollections.kind,
+      collectionSlug: audioCollections.slug,
+      collectionTitle: audioCollections.title,
+      collectionCoverR2Key: audioCollections.coverR2Key,
+    })
+    .from(audioItems)
+    .innerJoin(audioCollections, eq(audioCollections.id, audioItems.collectionId))
+    .innerJoin(subscriptionMemberships, eq(subscriptionMemberships.creatorId, audioItems.creatorId))
+    .innerJoin(users, eq(users.id, audioItems.creatorId))
+    .where(and(
+      eq(audioItems.status, 'published'),
+      eq(audioCollections.status, 'published'),
+      eq(subscriptionMemberships.subscriberId, c.var.user.id),
+      or(
+        eq(subscriptionMemberships.status, 'active'),
+        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
+      ),
+    ))
+    .orderBy(desc(audioItems.publishedAt))
+    .limit(50)
+    .all()
+
+  if (rows.length === 0 && articleRows.length === 0 && audioRows.length === 0) {
     return c.json({ posts: [], items: [], message: "You haven't subscribed to any creators yet" })
   }
 
-  const allIds = [...rows.map((row) => row.id), ...articleRows.map((row) => row.id)]
+  const allIds = [...rows.map((row) => row.id), ...articleRows.map((row) => row.id), ...audioRows.map((row) => row.postId)]
   const extras = await buildPostExtras(db, c.var.user.id, allIds)
 
   const mappedPosts = rows.map((row) => {
@@ -132,10 +174,43 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     viewerLiked: extras.viewerLikedPostIds.has(row.id),
   }))
 
-  const items = [...mappedPosts, ...mappedArticles]
+  const mappedAudio = audioRows.map((row) => ({
+    id: row.id,
+    postId: row.postId,
+    type: 'audio' as const,
+    kind: row.itemKind,
+    slug: row.slug,
+    title: row.title,
+    description: row.description || '',
+    status: row.status,
+    streamUrl: row.audioR2Key ? audioStreamUrl(row.id) : null,
+    coverUrl: row.coverR2Key ? audioItemCoverUrl(row.id) : row.collectionCoverR2Key ? audioCollectionCoverUrl(row.collectionId) : null,
+    durationSeconds: row.durationSeconds,
+    createdAt: toUnixSeconds(row.createdAt),
+    publishedAt: toUnixSeconds(row.publishedAt),
+    updatedAt: toUnixSeconds(row.updatedAt),
+    collection: {
+      id: row.collectionId,
+      kind: row.collectionKind,
+      slug: row.collectionSlug,
+      title: row.collectionTitle,
+      coverUrl: row.collectionCoverR2Key ? audioCollectionCoverUrl(row.collectionId) : null,
+    },
+    author: {
+      id: row.authorId,
+      displayName: row.authorDisplayName,
+      username: row.authorUsername,
+      avatarUrl: row.authorAvatarUrl,
+    },
+    likeCount: extras.postLikeCounts.get(row.postId) ?? 0,
+    replyCount: extras.postReplyCounts.get(row.postId) ?? 0,
+    viewerLiked: extras.viewerLikedPostIds.has(row.postId),
+  }))
+
+  const items = [...mappedPosts, ...mappedArticles, ...mappedAudio]
     .sort((a, b) => {
-      const aTime = a.type === 'article' ? (a.publishedAt ?? a.createdAt ?? 0) : (a.createdAt ?? 0)
-      const bTime = b.type === 'article' ? (b.publishedAt ?? b.createdAt ?? 0) : (b.createdAt ?? 0)
+      const aTime = a.type === 'article' || a.type === 'audio' ? (a.publishedAt ?? a.createdAt ?? 0) : (a.createdAt ?? 0)
+      const bTime = b.type === 'article' || b.type === 'audio' ? (b.publishedAt ?? b.createdAt ?? 0) : (b.createdAt ?? 0)
       return bTime - aTime
     })
     .slice(0, 50)

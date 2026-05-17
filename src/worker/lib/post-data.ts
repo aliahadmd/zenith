@@ -13,8 +13,10 @@ import {
 } from '../db/schema'
 
 export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
+export const AUDIO_TYPES = ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/wave', 'audio/ogg', 'audio/webm'] as const
 export const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 export const MAX_IMAGES = 4
+export const MAX_AUDIO_SIZE = 90 * 1024 * 1024
 
 export type AttachmentSummary = {
   id: string
@@ -82,10 +84,31 @@ export function articleCoverUrl(postId: string) {
   return `/api/articles/${postId}/cover`
 }
 
+export function audioCollectionCoverUrl(collectionId: string) {
+  return `/api/audio/collections/${collectionId}/cover`
+}
+
+export function audioItemCoverUrl(itemId: string) {
+  return `/api/audio/items/${itemId}/cover`
+}
+
+export function audioStreamUrl(itemId: string) {
+  return `/api/audio/items/${itemId}/stream`
+}
+
 export function imageExtension(contentType: string) {
   if (contentType === 'image/jpeg') return '.jpg'
   if (contentType === 'image/png') return '.png'
   if (contentType === 'image/webp') return '.webp'
+  return ''
+}
+
+export function audioExtension(contentType: string) {
+  if (contentType === 'audio/mpeg') return '.mp3'
+  if (contentType === 'audio/mp4' || contentType === 'audio/x-m4a') return '.m4a'
+  if (contentType === 'audio/wav' || contentType === 'audio/wave') return '.wav'
+  if (contentType === 'audio/ogg') return '.ogg'
+  if (contentType === 'audio/webm') return '.webm'
   return ''
 }
 

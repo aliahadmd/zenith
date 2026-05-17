@@ -8,6 +8,7 @@ import { toast } from 'sonner'
 import { useAuth } from '../context/AuthContext'
 import { apiGetRequired } from '../lib/api'
 import { articleKeys, type ArticleSummary, type CreatorArticlesResponse } from '../lib/articles'
+import { audioKeys, creatorAudioQueryOptions, type AudioCollectionSummary, type CreatorAudioResponse } from '../lib/audio'
 import { postKeys, type FeedPost } from '../lib/posts'
 import { cn } from '../lib/utils'
 import { defaultProfileTabs, type ProfileTabKey, type ProfileTabSetting } from '../lib/profile-tabs'
@@ -43,6 +44,8 @@ import {
 import { Skeleton } from '../components/ui/skeleton'
 import { LoadingBlock } from '../components/LoadingBlock'
 import { ArticleCard } from '../components/ArticleCard'
+import { AudioCard } from '../components/AudioCard'
+import { AudioCollectionCard } from '../components/AudioCollectionCard'
 import { PostCard } from '../components/PostCard'
 
 type ProfileData = {
@@ -125,6 +128,10 @@ export function ProfilePage({ username }: { username: string }) {
     queryFn: () => apiGetRequired<CreatorArticlesResponse>(`/api/profile/${username}/articles`),
     enabled: Boolean(isCreatorProfile && isTabVisible('articles')),
   })
+  const creatorAudioQuery = useQuery(creatorAudioQueryOptions(
+    username,
+    Boolean(isCreatorProfile && isTabVisible('audio')),
+  ))
   const creatorSubscribersQuery = useQuery({
     queryKey: ['profile', username, 'subscribers'],
     queryFn: () => apiGetRequired<CreatorSubscribersResponse>(`/api/profile/${username}/subscribers`),
@@ -138,9 +145,10 @@ export function ProfilePage({ username }: { username: string }) {
     mutationFn: subscribeFree,
     onSuccess: async () => {
       await Promise.all([
-        queryClient.invalidateQueries({ queryKey: paymentKeys.subscriptionOptions(username) }),
-        queryClient.invalidateQueries({ queryKey: ['feed'] }),
-        queryClient.invalidateQueries({ queryKey: ['subscriptions'] }),
+                queryClient.invalidateQueries({ queryKey: paymentKeys.subscriptionOptions(username) }),
+                queryClient.invalidateQueries({ queryKey: ['feed'] }),
+                queryClient.invalidateQueries({ queryKey: ['subscriptions'] }),
+                queryClient.invalidateQueries({ queryKey: audioKeys.profile(username) }),
       ])
       setPendingFreeKind(null)
       toast.success('Subscription activated.')
@@ -331,6 +339,16 @@ export function ProfilePage({ username }: { username: string }) {
                 hasAccess={creatorArticlesQuery.data?.hasAccess}
                 isLoading={creatorArticlesQuery.isPending}
                 error={creatorArticlesQuery.isError ? creatorArticlesQuery.error.message : null}
+                isOwnProfile={isOwnProfile}
+              />
+            </TabsContent>
+          )}
+          {profile.role === 'creator' && isTabVisible('audio') && (
+            <TabsContent value="audio">
+              <CreatorAudioTab
+                audio={creatorAudioQuery.data}
+                isLoading={creatorAudioQuery.isPending}
+                error={creatorAudioQuery.isError ? creatorAudioQuery.error.message : null}
                 isOwnProfile={isOwnProfile}
               />
             </TabsContent>
@@ -539,6 +557,125 @@ function CreatorArticlesTab({
       {articles.map((article) => (
         <ArticleCard key={article.id} article={article} />
       ))}
+    </div>
+  )
+}
+
+function CreatorAudioTab({
+  audio,
+  isLoading,
+  error,
+  isOwnProfile,
+}: {
+  audio: CreatorAudioResponse | undefined
+  isLoading: boolean
+  error: string | null
+  isOwnProfile: boolean
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-col">
+        <div className="border-b p-5">
+          <Skeleton className="h-44 w-full rounded-lg" />
+        </div>
+        <div className="border-b p-5">
+          <Skeleton className="h-28 w-full rounded-lg" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="border-b p-5">
+        <p className="text-sm text-muted-foreground">{error}</p>
+      </div>
+    )
+  }
+
+  if (audio?.hasAccess === false) {
+    return (
+      <div className="border-b p-5">
+        <p className="text-sm text-muted-foreground">
+          Subscribe to this creator to see member audio.
+        </p>
+      </div>
+    )
+  }
+
+  const items = audio?.items ?? []
+  const albums = audio?.albums ?? []
+  const episodes = audio?.episodes ?? []
+  const podcasts = audio?.podcasts ?? []
+  const hasAudio = items.length > 0 || albums.length > 0 || podcasts.length > 0
+
+  if (!hasAudio) {
+    return (
+      <div className="border-b p-5">
+        <p className="text-sm text-muted-foreground">
+          {isOwnProfile ? 'You have not published audio yet.' : 'No audio published yet.'}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <Tabs defaultValue="all" className="gap-0">
+      <TabsList variant="line" className="h-auto w-full flex-wrap justify-start rounded-none border-b px-4 py-0">
+        <TabsTrigger value="all">All Audio</TabsTrigger>
+        <TabsTrigger value="albums">Albums</TabsTrigger>
+        <TabsTrigger value="episodes">Episodes</TabsTrigger>
+        <TabsTrigger value="podcasts">Podcasts</TabsTrigger>
+      </TabsList>
+      <TabsContent value="all">
+        {items.length === 0 ? (
+          <EmptyTab label="No audio published yet." />
+        ) : (
+          <div className="flex flex-col">
+            {items.map((item) => <AudioCard key={item.id} item={item} queue={items} />)}
+          </div>
+        )}
+      </TabsContent>
+      <TabsContent value="albums">
+        <CollectionList collections={albums} emptyLabel="No albums published yet." />
+      </TabsContent>
+      <TabsContent value="episodes">
+        {episodes.length === 0 ? (
+          <EmptyTab label="No podcast episodes published yet." />
+        ) : (
+          <div className="flex flex-col">
+            {episodes.map((item) => <AudioCard key={item.id} item={item} queue={episodes} />)}
+          </div>
+        )}
+      </TabsContent>
+      <TabsContent value="podcasts">
+        <CollectionList collections={podcasts} emptyLabel="No podcasts published yet." />
+      </TabsContent>
+    </Tabs>
+  )
+}
+
+function CollectionList({
+  collections,
+  emptyLabel,
+}: {
+  collections: AudioCollectionSummary[]
+  emptyLabel: string
+}) {
+  if (collections.length === 0) return <EmptyTab label={emptyLabel} />
+  return (
+    <div className="flex flex-col">
+      {collections.map((collection) => (
+        <AudioCollectionCard key={collection.id} collection={collection} />
+      ))}
+    </div>
+  )
+}
+
+function EmptyTab({ label }: { label: string }) {
+  return (
+    <div className="border-b p-5">
+      <p className="text-sm text-muted-foreground">{label}</p>
     </div>
   )
 }

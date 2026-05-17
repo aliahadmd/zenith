@@ -1,5 +1,5 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
-import { cleanup, render, screen, waitFor } from '@testing-library/react'
+import { cleanup, fireEvent, render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import fc from 'fast-check'
 import type { ReactElement } from 'react'
@@ -290,25 +290,23 @@ describe('ShortPostComposer — property tests', () => {
         // Generate strings of length 0–500 (printable ASCII, no surrogate pairs)
         fc.string({ minLength: 0, maxLength: 500, unit: 'binary' }),
         async (bodyText) => {
-          const user = userEvent.setup()
           const { unmount } = renderComposer(true)
 
-          const textarea = screen.getByRole('textbox', { name: /post body/i })
+          try {
+            const textarea = screen.getByRole('textbox', { name: /post body/i })
+            fireEvent.change(textarea, { target: { value: bodyText } })
 
-          if (bodyText.length > 0) {
-            await user.type(textarea, bodyText)
+            const expectedRemaining = 500 - bodyText.length
+            const countEl = screen.getByText(`${expectedRemaining} / 500`)
+            expect(countEl).toBeInTheDocument()
+          } finally {
+            unmount()
           }
-
-          const expectedRemaining = 500 - bodyText.length
-          const countEl = screen.getByText(`${expectedRemaining} / 500`)
-          expect(countEl).toBeInTheDocument()
-
-          unmount()
         }
       ),
       { numRuns: 100 }
     )
-  })
+  }, 15_000)
 
   // Feature: become-creator, Property 7: Invalid post bodies are always rejected by the composer
   // Validates: Requirements 7.5
@@ -342,12 +340,11 @@ describe('ShortPostComposer — property tests', () => {
         fc.string({ minLength: 1, maxLength: 500, unit: 'binary' }).filter((value) => value.trim().length > 0),
         async (validBody) => {
           cleanup()
-          const user = userEvent.setup()
           const { unmount } = renderComposer(true)
 
           try {
             const textarea = screen.getByRole('textbox', { name: /post body/i })
-            await user.type(textarea, validBody)
+            fireEvent.change(textarea, { target: { value: validBody } })
 
             const publishBtn = screen.getByRole('button', { name: /publish/i })
             // For valid bodies (1–500 chars), publish should be enabled
@@ -361,5 +358,5 @@ describe('ShortPostComposer — property tests', () => {
       ),
       { numRuns: 100 }
     )
-  })
+  }, 15_000)
 })

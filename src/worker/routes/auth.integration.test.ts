@@ -6,6 +6,8 @@ import migration2 from '../../../drizzle/0002_better_auth.sql?raw'
 import migration3 from '../../../drizzle/0003_creator_subscriptions.sql?raw'
 import migration4 from '../../../drizzle/0004_feed_interactions.sql?raw'
 import migration5 from '../../../drizzle/0005_articles.sql?raw'
+import migration6 from '../../../drizzle/0006_creator_profile_tabs.sql?raw'
+import migration7 from '../../../drizzle/0007_audio.sql?raw'
 
 async function applyMigration(sql: string) {
   const statements = sql
@@ -36,6 +38,8 @@ describe('Better Auth integration', () => {
     await applyMigration(migration3)
     await applyMigration(migration4)
     await applyMigration(migration5)
+    await applyMigration(migration6)
+    await applyMigration(migration7)
   })
 
   it('keeps the session usable after subscriber upgrades to creator', async () => {
@@ -233,5 +237,81 @@ describe('Better Auth integration', () => {
         totalVotes: 1,
       },
     })
+
+    const albumForm = new FormData()
+    albumForm.append('kind', 'album')
+    albumForm.append('title', 'Integration Sessions')
+    albumForm.append('description', 'Private test album')
+    albumForm.append('status', 'published')
+    albumForm.append('cover', new File(['cover image'], 'cover.jpg', { type: 'image/jpeg' }))
+
+    const albumResponse = await SELF.fetch('https://example.com/api/audio/collections', {
+      method: 'POST',
+      headers: { Cookie: cookie },
+      body: albumForm,
+    })
+    expect(albumResponse.status).toBe(201)
+    const albumJson = await albumResponse.json() as { collection: { id: string; slug: string; kind: string } }
+    expect(albumJson.collection).toMatchObject({ kind: 'album', slug: 'integration-sessions' })
+
+    const trackForm = new FormData()
+    trackForm.append('collectionId', albumJson.collection.id)
+    trackForm.append('title', 'Range Request Track')
+    trackForm.append('description', 'Audio streaming test')
+    trackForm.append('status', 'published')
+    trackForm.append('durationSeconds', '42')
+    trackForm.append('audio', new File(['0123456789'], 'track.mp3', { type: 'audio/mpeg' }))
+
+    const trackResponse = await SELF.fetch('https://example.com/api/audio/items', {
+      method: 'POST',
+      headers: { Cookie: cookie },
+      body: trackForm,
+    })
+    expect(trackResponse.status).toBe(201)
+    const trackJson = await trackResponse.json() as {
+      item: {
+        id: string
+        postId: string
+        slug: string
+        title: string
+        streamUrl: string
+      }
+    }
+    expect(trackJson.item).toMatchObject({
+      slug: 'range-request-track',
+      title: 'Range Request Track',
+    })
+
+    const trackDetailResponse = await SELF.fetch(`https://example.com/api/audio/items/by-slug/${initialUser.username}/${trackJson.item.slug}`, {
+      headers: { Cookie: cookie },
+    })
+    expect(trackDetailResponse.status).toBe(200)
+    await expect(trackDetailResponse.json()).resolves.toMatchObject({
+      item: {
+        postId: trackJson.item.postId,
+        likeCount: 0,
+        replyCount: 0,
+      },
+      replies: [],
+    })
+
+    const trackLikeResponse = await SELF.fetch(`https://example.com/api/posts/${trackJson.item.postId}/like`, {
+      method: 'POST',
+      headers: { Cookie: cookie },
+    })
+    expect(trackLikeResponse.status).toBe(200)
+    await expect(trackLikeResponse.json()).resolves.toEqual({ likeCount: 1, viewerLiked: true })
+
+    const streamResponse = await SELF.fetch(`https://example.com/api/audio/items/${trackJson.item.id}/stream`, {
+      headers: {
+        Cookie: cookie,
+        Range: 'bytes=0-3',
+      },
+    })
+    expect(streamResponse.status).toBe(206)
+    expect(streamResponse.headers.get('content-range')).toBe('bytes 0-3/10')
+    expect(streamResponse.headers.get('content-type')).toBe('audio/mpeg')
+    const streamedBytes = await streamResponse.arrayBuffer()
+    expect(new TextDecoder().decode(streamedBytes)).toBe('0123')
   })
 })

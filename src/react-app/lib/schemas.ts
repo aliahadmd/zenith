@@ -195,6 +195,58 @@ export const articleSchema = z.object({
   }
 })
 
+const audioCoverSchema = z
+  .instanceof(File)
+  .refine((file) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type), {
+    message: 'Use JPEG, PNG, or WebP.',
+  })
+  .refine((file) => file.size <= 5 * 1024 * 1024, {
+    message: 'Cover must be 5 MB or smaller.',
+  })
+
+const audioFileSchema = z
+  .instanceof(File)
+  .refine((file) => ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/wave', 'audio/ogg', 'audio/webm'].includes(file.type), {
+    message: 'Use MP3, M4A, WAV, OGG, or WebM.',
+  })
+  .refine((file) => file.size <= 90 * 1024 * 1024, {
+    message: 'Audio must be 90 MB or smaller.',
+  })
+
+export const audioCollectionSchema = z.object({
+  kind: z.enum(['album', 'podcast']),
+  title: z.string().trim().min(1, 'Title is required.').max(140, 'Title must be 140 characters or fewer.'),
+  description: z.string().trim().max(1_000, 'Description must be 1,000 characters or fewer.'),
+  status: z.enum(['draft', 'published']),
+  releaseDate: z.string().optional(),
+  cover: audioCoverSchema.nullable(),
+  hasExistingCover: z.boolean(),
+}).superRefine((values, ctx) => {
+  if (values.status === 'published' && !values.cover && !values.hasExistingCover) {
+    ctx.addIssue({ code: 'custom', path: ['cover'], message: 'Published collections need a cover photo.' })
+  }
+})
+
+export const audioItemSchema = z.object({
+  collectionId: z.string().min(1, 'Choose a collection.'),
+  title: z.string().trim().min(1, 'Title is required.').max(160, 'Title must be 160 characters or fewer.'),
+  description: z.string().trim().max(1_000, 'Description must be 1,000 characters or fewer.'),
+  status: z.enum(['draft', 'published']),
+  durationSeconds: z.number().int().min(0).optional().nullable(),
+  audio: audioFileSchema.nullable(),
+  cover: audioCoverSchema.nullable(),
+  hasExistingAudio: z.boolean(),
+  hasExistingCover: z.boolean(),
+  hasCollectionCover: z.boolean(),
+}).superRefine((values, ctx) => {
+  if (values.status === 'published' && !values.audio && !values.hasExistingAudio) {
+    ctx.addIssue({ code: 'custom', path: ['audio'], message: 'Published audio needs an audio file.' })
+  }
+  if (values.status === 'published' && !values.cover && !values.hasExistingCover && !values.hasCollectionCover) {
+    ctx.addIssue({ code: 'custom', path: ['cover'], message: 'Published audio needs an item cover or collection cover.' })
+  }
+})
+
 const priceInputSchema = z
   .string()
   .trim()
@@ -247,5 +299,7 @@ export const creatorSubscriptionPlanSchema = z.object({
 
 export type CreatorSubscriptionPlanFormValues = z.infer<typeof creatorSubscriptionPlanSchema>
 export type ArticleFormValues = z.infer<typeof articleSchema>
+export type AudioCollectionFormValues = z.infer<typeof audioCollectionSchema>
+export type AudioItemFormValues = z.infer<typeof audioItemSchema>
 export type RichPostFormValues = z.infer<typeof richPostSchema>
 export type ReplyFormValues = z.infer<typeof replySchema>

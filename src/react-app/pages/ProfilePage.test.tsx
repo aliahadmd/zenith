@@ -118,6 +118,16 @@ describe('ProfilePage', () => {
         }
       }
 
+      if (String(url).endsWith('/audio')) {
+        return {
+          hasAccess: true,
+          items: [],
+          albums: [],
+          episodes: [],
+          podcasts: [],
+        }
+      }
+
       return {
         id: 'creator-1',
         displayName: 'Creator One',
@@ -156,33 +166,37 @@ describe('ProfilePage', () => {
     expect(screen.queryByRole('link', { name: 'github' })).not.toBeInTheDocument()
   })
 
-  it('adds creator posts and subscribers tabs', async () => {
+  it('adds creator posts, audio, and subscribers tabs', async () => {
     const user = userEvent.setup()
     renderProfilePage()
 
     expect(await screen.findByRole('tab', { name: 'Posts' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Subscribers' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Audio' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Subscribers' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('tab', { name: 'Posts' }))
     expect(await screen.findByText('First member update')).toBeInTheDocument()
 
-    await user.click(screen.getByRole('tab', { name: 'Subscribers' }))
+    await user.click(screen.getByRole('button', { name: /more/i }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Subscribers' }))
     expect(await screen.findByText('Member One')).toBeInTheDocument()
     expect(screen.getByText('@memberone')).toBeInTheDocument()
   })
 
-  it('keeps the fifth visible creator tab inside the More menu', async () => {
+  it('keeps overflow creator tabs inside the More menu', async () => {
     const user = userEvent.setup()
     renderProfilePage()
 
     expect(await screen.findByRole('tab', { name: 'About' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Posts' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Audio' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Articles' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Subscribers' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Subscribers' })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Subscribed to' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /more/i }))
-    expect(await screen.findByRole('menuitem', { name: 'Subscribed to' })).toBeInTheDocument()
+    expect(await screen.findByRole('menuitem', { name: 'Subscribers' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'Subscribed to' })).toBeInTheDocument()
   })
 })
 

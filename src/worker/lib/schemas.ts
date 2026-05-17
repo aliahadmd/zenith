@@ -154,13 +154,13 @@ export const profileSettingsSchema = z.object({
   }
 })
 
-const profileTabKeySchema = z.enum(['about', 'posts', 'articles', 'subscribers', 'subscribed'])
+const profileTabKeySchema = z.enum(['about', 'posts', 'audio', 'articles', 'subscribers', 'subscribed'])
 
 export const profileTabsSettingsSchema = z.object({
   tabs: z.array(z.object({
     key: profileTabKeySchema,
     visible: z.boolean(),
-  })).length(5, 'All profile tabs are required'),
+  })).length(6, 'All profile tabs are required'),
 }).superRefine((value, ctx) => {
   const keys = new Set<string>()
   for (const [index, tab] of value.tabs.entries()) {

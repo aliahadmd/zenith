@@ -4,6 +4,7 @@ import { apiGetRequired, apiPutRequired } from './api'
 export const profileTabDefinitions = [
   { key: 'about', label: 'About', description: 'Bio and social links' },
   { key: 'posts', label: 'Posts', description: 'Short updates and media posts' },
+  { key: 'audio', label: 'Audio', description: 'Albums, tracks, podcasts, and episodes' },
   { key: 'articles', label: 'Articles', description: 'Long-form creator articles' },
   { key: 'subscribers', label: 'Subscribers', description: 'People subscribed to this creator' },
   { key: 'subscribed', label: 'Subscribed to', description: 'Creators this profile follows' },

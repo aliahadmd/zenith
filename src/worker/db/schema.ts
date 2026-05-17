@@ -28,7 +28,7 @@ export const users = sqliteTable('users', {
 // ── Creator Profile Tabs ──────────────────────────────────────────────────
 export const creatorProfileTabs = sqliteTable('creator_profile_tabs', {
   creatorId:    text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  tabKey:       text('tab_key', { enum: ['about', 'posts', 'articles', 'subscribers', 'subscribed'] }).notNull(),
+  tabKey:       text('tab_key', { enum: ['about', 'posts', 'audio', 'articles', 'subscribers', 'subscribed'] }).notNull(),
   visible:      integer('visible', { mode: 'boolean' }).notNull().default(true),
   displayOrder: integer('display_order').notNull(),
   createdAt:    integer('created_at')
@@ -107,7 +107,7 @@ export const verification = sqliteTable('verification', {
 export const posts = sqliteTable('posts', {
   id:        text('id').primaryKey(),
   authorId:  text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  kind:      text('kind', { enum: ['post', 'article'] }).notNull().default('post'),
+  kind:      text('kind', { enum: ['post', 'article', 'audio'] }).notNull().default('post'),
   slug:      text('slug').notNull(),
   body:      text('body').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' })
@@ -140,6 +140,66 @@ export const articles = sqliteTable('articles', {
                       .$onUpdate(() => new Date()),
 }, (t) => [
   index('articles_status_published_idx').on(t.status, t.publishedAt),
+])
+
+// ── Audio Collections And Items ────────────────────────────────────────────
+export const audioCollections = sqliteTable('audio_collections', {
+  id:               text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  creatorId:        text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind:             text('kind', { enum: ['album', 'podcast'] }).notNull(),
+  slug:             text('slug').notNull(),
+  title:            text('title').notNull(),
+  description:      text('description'),
+  status:           text('status', { enum: ['draft', 'published'] }).notNull().default('draft'),
+  coverR2Key:       text('cover_r2_key'),
+  coverFileName:    text('cover_file_name'),
+  coverContentType: text('cover_content_type'),
+  coverSizeBytes:   integer('cover_size_bytes'),
+  releaseDate:      integer('release_date', { mode: 'timestamp' }),
+  createdAt:        integer('created_at', { mode: 'timestamp' })
+                      .notNull()
+                      .default(sql`(unixepoch())`),
+  updatedAt:        integer('updated_at', { mode: 'timestamp_ms' })
+                      .notNull()
+                      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                      .$onUpdate(() => new Date()),
+}, (t) => [
+  uniqueIndex('audio_collections_creator_slug_unique').on(t.creatorId, t.slug),
+  index('audio_collections_creator_kind_idx').on(t.creatorId, t.kind, t.status),
+])
+
+export const audioItems = sqliteTable('audio_items', {
+  id:               text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  collectionId:     text('collection_id').notNull().references(() => audioCollections.id, { onDelete: 'cascade' }),
+  postId:           text('post_id').notNull().unique().references(() => posts.id, { onDelete: 'cascade' }),
+  creatorId:        text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind:             text('kind', { enum: ['music', 'podcast_episode'] }).notNull(),
+  slug:             text('slug').notNull(),
+  title:            text('title').notNull(),
+  description:      text('description'),
+  status:           text('status', { enum: ['draft', 'published'] }).notNull().default('draft'),
+  audioR2Key:       text('audio_r2_key'),
+  audioFileName:    text('audio_file_name'),
+  audioContentType: text('audio_content_type'),
+  audioSizeBytes:   integer('audio_size_bytes'),
+  coverR2Key:       text('cover_r2_key'),
+  coverFileName:    text('cover_file_name'),
+  coverContentType: text('cover_content_type'),
+  coverSizeBytes:   integer('cover_size_bytes'),
+  durationSeconds:  integer('duration_seconds'),
+  displayOrder:     integer('display_order').notNull().default(0),
+  publishedAt:      integer('published_at', { mode: 'timestamp' }),
+  createdAt:        integer('created_at', { mode: 'timestamp' })
+                      .notNull()
+                      .default(sql`(unixepoch())`),
+  updatedAt:        integer('updated_at', { mode: 'timestamp_ms' })
+                      .notNull()
+                      .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                      .$onUpdate(() => new Date()),
+}, (t) => [
+  uniqueIndex('audio_items_creator_slug_unique').on(t.creatorId, t.slug),
+  index('audio_items_collection_order_idx').on(t.collectionId, t.displayOrder),
+  index('audio_items_creator_published_idx').on(t.creatorId, t.status, t.publishedAt),
 ])
 
 // ── Post Media Attachments ─────────────────────────────────────────────────
@@ -451,6 +511,8 @@ export type Account              = typeof account.$inferSelect
 export type Verification         = typeof verification.$inferSelect
 export type Post                 = typeof posts.$inferSelect
 export type Article              = typeof articles.$inferSelect
+export type AudioCollection      = typeof audioCollections.$inferSelect
+export type AudioItem            = typeof audioItems.$inferSelect
 export type PostAttachment       = typeof postAttachments.$inferSelect
 export type PostReply            = typeof postReplies.$inferSelect
 export type ReplyAttachment      = typeof replyAttachments.$inferSelect

@@ -4,6 +4,7 @@ import { and, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import { createDb, type Db } from '../db/client'
 import {
+  audioItems,
   articles,
   pollOptions,
   pollVotes,
@@ -59,7 +60,7 @@ type PollInput = {
 
 type PostRow = {
   id: string
-  kind: 'post' | 'article'
+  kind: 'post' | 'article' | 'audio'
   slug: string
   body: string
   createdAt: Date | number | null
@@ -68,6 +69,7 @@ type PostRow = {
   authorUsername: string
   authorAvatarUrl: string | null
   articleStatus?: 'draft' | 'published' | null
+  audioStatus?: 'draft' | 'published' | null
 }
 
 const replyAuthors = alias(users, 'reply_authors')
@@ -214,10 +216,12 @@ async function getPostRowById(db: Db, postId: string) {
       authorUsername: users.username,
       authorAvatarUrl: users.avatarUrl,
       articleStatus: articles.status,
+      audioStatus: audioItems.status,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
     .leftJoin(articles, eq(articles.postId, posts.id))
+    .leftJoin(audioItems, eq(audioItems.postId, posts.id))
     .where(eq(posts.id, postId))
     .get()
 }
@@ -226,6 +230,9 @@ async function getAccessiblePostById(db: Db, viewerId: string, postId: string) {
   const post = await getPostRowById(db, postId)
   if (!post) return { post: null, allowed: false }
   if (post.kind === 'article' && post.articleStatus !== 'published' && viewerId !== post.authorId) {
+    return { post, allowed: false }
+  }
+  if (post.kind === 'audio' && post.audioStatus !== 'published' && viewerId !== post.authorId) {
     return { post, allowed: false }
   }
   return { post, allowed: await hasCreatorAccess(db, viewerId, post.authorId) }
