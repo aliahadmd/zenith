@@ -213,6 +213,30 @@ const audioFileSchema = z
     message: 'Audio must be 90 MB or smaller.',
   })
 
+const photographyPreviewSchema = z
+  .instanceof(File)
+  .refine((file) => ['image/jpeg', 'image/png', 'image/webp'].includes(file.type), {
+    message: 'Use JPEG, PNG, or WebP.',
+  })
+  .refine((file) => file.size <= 10 * 1024 * 1024, {
+    message: 'Preview must be 10 MB or smaller.',
+  })
+
+const rawPhotoExtensions = ['jpg', 'jpeg', 'png', 'webp', 'tif', 'tiff', 'dng', 'cr2', 'cr3', 'nef', 'arw', 'raf', 'orf', 'rw2']
+
+const photographyOriginalSchema = z
+  .instanceof(File)
+  .refine((file) => {
+    const extension = file.name.split('.').pop()?.toLowerCase()
+    return ['image/jpeg', 'image/png', 'image/webp', 'image/tiff', 'image/x-tiff', 'application/octet-stream'].includes(file.type)
+      || Boolean(extension && rawPhotoExtensions.includes(extension))
+  }, {
+    message: 'Use JPEG, PNG, WebP, TIFF, or common RAW files.',
+  })
+  .refine((file) => file.size <= 90 * 1024 * 1024, {
+    message: 'Original must be 90 MB or smaller.',
+  })
+
 export const audioCollectionSchema = z.object({
   kind: z.enum(['album', 'podcast']),
   title: z.string().trim().min(1, 'Title is required.').max(140, 'Title must be 140 characters or fewer.'),
@@ -245,6 +269,46 @@ export const audioItemSchema = z.object({
   if (values.status === 'published' && !values.cover && !values.hasExistingCover && !values.hasCollectionCover) {
     ctx.addIssue({ code: 'custom', path: ['cover'], message: 'Published audio needs an item cover or collection cover.' })
   }
+})
+
+export const photographyAlbumSchema = z.object({
+  title: z.string().trim().min(1, 'Title is required.').max(140, 'Title must be 140 characters or fewer.'),
+  description: z.string().trim().max(1_000, 'Description must be 1,000 characters or fewer.'),
+  status: z.enum(['draft', 'published']),
+  shootDate: z.string().optional(),
+  downloadsEnabled: z.boolean(),
+  coverPhotoId: z.string().nullable(),
+  hasPhotos: z.boolean(),
+}).superRefine((values, ctx) => {
+  if (values.status === 'published' && !values.hasPhotos) {
+    ctx.addIssue({ code: 'custom', path: ['status'], message: 'Published albums need at least one photo.' })
+  }
+  if (values.status === 'published' && !values.coverPhotoId) {
+    ctx.addIssue({ code: 'custom', path: ['coverPhotoId'], message: 'Choose a cover photo before publishing.' })
+  }
+})
+
+export const photographyPhotoUploadSchema = z.object({
+  previews: z.array(photographyPreviewSchema).min(1, 'Upload at least one preview.').max(30, 'Upload 30 photos or fewer at once.'),
+  originals: z.array(photographyOriginalSchema).max(30, 'Upload 30 originals or fewer at once.'),
+  title: z.string().trim().max(140, 'Title must be 140 characters or fewer.'),
+  caption: z.string().trim().max(1_000, 'Caption must be 1,000 characters or fewer.'),
+  altText: z.string().trim().max(280, 'Alt text must be 280 characters or fewer.'),
+  originalDownloadEnabled: z.boolean(),
+}).superRefine((values, ctx) => {
+  if (values.originals.length > values.previews.length) {
+    ctx.addIssue({ code: 'custom', path: ['originals'], message: 'Original files must match uploaded previews by position.' })
+  }
+})
+
+export const photographyPhotoEditSchema = z.object({
+  title: z.string().trim().max(140, 'Title must be 140 characters or fewer.'),
+  caption: z.string().trim().max(1_000, 'Caption must be 1,000 characters or fewer.'),
+  altText: z.string().trim().max(280, 'Alt text must be 280 characters or fewer.'),
+  status: z.enum(['draft', 'published']),
+  originalDownloadEnabled: z.boolean(),
+  preview: photographyPreviewSchema.nullable(),
+  original: photographyOriginalSchema.nullable(),
 })
 
 const priceInputSchema = z
@@ -301,5 +365,8 @@ export type CreatorSubscriptionPlanFormValues = z.infer<typeof creatorSubscripti
 export type ArticleFormValues = z.infer<typeof articleSchema>
 export type AudioCollectionFormValues = z.infer<typeof audioCollectionSchema>
 export type AudioItemFormValues = z.infer<typeof audioItemSchema>
+export type PhotographyAlbumFormValues = z.infer<typeof photographyAlbumSchema>
+export type PhotographyPhotoUploadFormValues = z.infer<typeof photographyPhotoUploadSchema>
+export type PhotographyPhotoEditFormValues = z.infer<typeof photographyPhotoEditSchema>
 export type RichPostFormValues = z.infer<typeof richPostSchema>
 export type ReplyFormValues = z.infer<typeof replySchema>

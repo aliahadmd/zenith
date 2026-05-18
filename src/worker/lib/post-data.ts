@@ -14,9 +14,29 @@ import {
 
 export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 export const AUDIO_TYPES = ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/wave', 'audio/ogg', 'audio/webm'] as const
+export const PHOTOGRAPHY_PREVIEW_TYPES = IMAGE_TYPES
+export const PHOTOGRAPHY_ORIGINAL_TYPES = [
+  'image/jpeg',
+  'image/png',
+  'image/webp',
+  'image/tiff',
+  'image/x-tiff',
+  'image/x-canon-cr2',
+  'image/x-canon-cr3',
+  'image/x-nikon-nef',
+  'image/x-adobe-dng',
+  'image/x-sony-arw',
+  'image/x-fuji-raf',
+  'image/x-olympus-orf',
+  'image/x-panasonic-rw2',
+  'application/octet-stream',
+] as const
+export const PHOTOGRAPHY_ORIGINAL_EXTENSIONS = ['.jpg', '.jpeg', '.png', '.webp', '.tif', '.tiff', '.dng', '.cr2', '.cr3', '.nef', '.arw', '.raf', '.orf', '.rw2'] as const
 export const MAX_IMAGE_SIZE = 5 * 1024 * 1024
 export const MAX_IMAGES = 4
 export const MAX_AUDIO_SIZE = 90 * 1024 * 1024
+export const MAX_PHOTOGRAPHY_PREVIEW_SIZE = 10 * 1024 * 1024
+export const MAX_PHOTOGRAPHY_ORIGINAL_SIZE = 90 * 1024 * 1024
 
 export type AttachmentSummary = {
   id: string
@@ -94,6 +114,14 @@ export function audioItemCoverUrl(itemId: string) {
 
 export function audioStreamUrl(itemId: string) {
   return `/api/audio/items/${itemId}/stream`
+}
+
+export function photographyPhotoPreviewUrl(photoId: string) {
+  return `/api/photography/photos/${photoId}/preview`
+}
+
+export function photographyPhotoOriginalUrl(photoId: string) {
+  return `/api/photography/photos/${photoId}/original`
 }
 
 export function imageExtension(contentType: string) {

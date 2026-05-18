@@ -9,6 +9,7 @@ import { useAuth } from '../context/AuthContext'
 import { apiGetRequired } from '../lib/api'
 import { articleKeys, type ArticleSummary, type CreatorArticlesResponse } from '../lib/articles'
 import { audioKeys, creatorAudioQueryOptions, type AudioCollectionSummary, type CreatorAudioResponse } from '../lib/audio'
+import { creatorPhotographyQueryOptions, photographyKeys, type CreatorPhotographyResponse } from '../lib/photography'
 import { postKeys, type FeedPost } from '../lib/posts'
 import { cn } from '../lib/utils'
 import { defaultProfileTabs, type ProfileTabKey, type ProfileTabSetting } from '../lib/profile-tabs'
@@ -46,6 +47,7 @@ import { LoadingBlock } from '../components/LoadingBlock'
 import { ArticleCard } from '../components/ArticleCard'
 import { AudioCard } from '../components/AudioCard'
 import { AudioCollectionCard } from '../components/AudioCollectionCard'
+import { PhotographyCard } from '../components/PhotographyCard'
 import { PostCard } from '../components/PostCard'
 
 type ProfileData = {
@@ -128,6 +130,10 @@ export function ProfilePage({ username }: { username: string }) {
     queryFn: () => apiGetRequired<CreatorArticlesResponse>(`/api/profile/${username}/articles`),
     enabled: Boolean(isCreatorProfile && isTabVisible('articles')),
   })
+  const creatorPhotographyQuery = useQuery(creatorPhotographyQueryOptions(
+    username,
+    Boolean(isCreatorProfile && isTabVisible('photography')),
+  ))
   const creatorAudioQuery = useQuery(creatorAudioQueryOptions(
     username,
     Boolean(isCreatorProfile && isTabVisible('audio')),
@@ -148,6 +154,7 @@ export function ProfilePage({ username }: { username: string }) {
                 queryClient.invalidateQueries({ queryKey: paymentKeys.subscriptionOptions(username) }),
                 queryClient.invalidateQueries({ queryKey: ['feed'] }),
                 queryClient.invalidateQueries({ queryKey: ['subscriptions'] }),
+                queryClient.invalidateQueries({ queryKey: photographyKeys.profile(username) }),
                 queryClient.invalidateQueries({ queryKey: audioKeys.profile(username) }),
       ])
       setPendingFreeKind(null)
@@ -339,6 +346,16 @@ export function ProfilePage({ username }: { username: string }) {
                 hasAccess={creatorArticlesQuery.data?.hasAccess}
                 isLoading={creatorArticlesQuery.isPending}
                 error={creatorArticlesQuery.isError ? creatorArticlesQuery.error.message : null}
+                isOwnProfile={isOwnProfile}
+              />
+            </TabsContent>
+          )}
+          {profile.role === 'creator' && isTabVisible('photography') && (
+            <TabsContent value="photography">
+              <CreatorPhotographyTab
+                photography={creatorPhotographyQuery.data}
+                isLoading={creatorPhotographyQuery.isPending}
+                error={creatorPhotographyQuery.isError ? creatorPhotographyQuery.error.message : null}
                 isOwnProfile={isOwnProfile}
               />
             </TabsContent>
@@ -558,6 +575,92 @@ function CreatorArticlesTab({
         <ArticleCard key={article.id} article={article} />
       ))}
     </div>
+  )
+}
+
+function CreatorPhotographyTab({
+  photography,
+  isLoading,
+  error,
+  isOwnProfile,
+}: {
+  photography: CreatorPhotographyResponse | undefined
+  isLoading: boolean
+  error: string | null
+  isOwnProfile: boolean
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-col">
+        <div className="border-b p-5">
+          <Skeleton className="h-48 w-full rounded-lg" />
+        </div>
+        <div className="border-b p-5">
+          <Skeleton className="h-40 w-full rounded-lg" />
+        </div>
+      </div>
+    )
+  }
+
+  if (error) {
+    return (
+      <div className="border-b p-5">
+        <p className="text-sm text-muted-foreground">{error}</p>
+      </div>
+    )
+  }
+
+  if (photography?.hasAccess === false) {
+    return (
+      <div className="border-b p-5">
+        <p className="text-sm text-muted-foreground">
+          Subscribe to this creator to see member photography.
+        </p>
+      </div>
+    )
+  }
+
+  const albums = photography?.albums ?? []
+  const photos = photography?.photos ?? []
+  if (albums.length === 0) {
+    return (
+      <div className="border-b p-5">
+        <p className="text-sm text-muted-foreground">
+          {isOwnProfile ? 'You have not published photography albums yet.' : 'No photography albums published yet.'}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <Tabs defaultValue="albums" className="gap-0">
+      <TabsList variant="line" className="h-auto w-full flex-wrap justify-start rounded-none border-b px-4 py-0">
+        <TabsTrigger value="albums">Albums</TabsTrigger>
+        <TabsTrigger value="latest">Latest Photos</TabsTrigger>
+      </TabsList>
+      <TabsContent value="albums">
+        <div className="flex flex-col">
+          {albums.map((album) => <PhotographyCard key={album.id} album={album} />)}
+        </div>
+      </TabsContent>
+      <TabsContent value="latest">
+        {photos.length === 0 ? (
+          <EmptyTab label="No published photos yet." />
+        ) : (
+          <div className="grid grid-cols-2 gap-1 border-b p-1 sm:grid-cols-3">
+            {photos.slice(0, 24).map((photo) => (
+              <img
+                key={photo.id}
+                src={photo.previewUrl}
+                alt={photo.altText || photo.title || ''}
+                className="aspect-square w-full rounded-md object-cover"
+                loading="lazy"
+              />
+            ))}
+          </div>
+        )}
+      </TabsContent>
+    </Tabs>
   )
 }
 

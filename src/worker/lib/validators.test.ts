@@ -194,6 +194,7 @@ describe('creator profile tab settings schema', () => {
   const validTabs = [
     { key: 'about', visible: true },
     { key: 'posts', visible: true },
+    { key: 'photography', visible: true },
     { key: 'audio', visible: true },
     { key: 'articles', visible: true },
     { key: 'subscribers', visible: true },
@@ -209,6 +210,7 @@ describe('creator profile tab settings schema', () => {
       tabs: [
         { key: 'about', visible: true },
         { key: 'about', visible: true },
+        { key: 'photography', visible: true },
         { key: 'audio', visible: true },
         { key: 'articles', visible: true },
         { key: 'subscribers', visible: true },
@@ -222,6 +224,7 @@ describe('creator profile tab settings schema', () => {
       tabs: [
         { key: 'about', visible: false },
         { key: 'posts', visible: false },
+        { key: 'photography', visible: false },
         { key: 'audio', visible: false },
         { key: 'articles', visible: false },
         { key: 'subscribers', visible: false },
@@ -233,6 +236,7 @@ describe('creator profile tab settings schema', () => {
       tabs: [
         { key: 'about', visible: true },
         { key: 'posts', visible: true },
+        { key: 'photography', visible: true },
         { key: 'audio', visible: true },
         { key: 'articles', visible: true },
         { key: 'subscribers', visible: true },

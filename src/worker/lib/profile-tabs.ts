@@ -5,6 +5,7 @@ import { creatorProfileTabs } from '../db/schema'
 export const profileTabDefinitions = [
   { key: 'about', label: 'About' },
   { key: 'posts', label: 'Posts' },
+  { key: 'photography', label: 'Photography' },
   { key: 'audio', label: 'Audio' },
   { key: 'articles', label: 'Articles' },
   { key: 'subscribers', label: 'Subscribers' },

@@ -6,6 +6,7 @@ import { createDb, type Db } from '../db/client'
 import {
   audioItems,
   articles,
+  photographyAlbums,
   pollOptions,
   pollVotes,
   postAttachments,
@@ -60,7 +61,7 @@ type PollInput = {
 
 type PostRow = {
   id: string
-  kind: 'post' | 'article' | 'audio'
+  kind: 'post' | 'article' | 'audio' | 'photography'
   slug: string
   body: string
   createdAt: Date | number | null
@@ -70,6 +71,7 @@ type PostRow = {
   authorAvatarUrl: string | null
   articleStatus?: 'draft' | 'published' | null
   audioStatus?: 'draft' | 'published' | null
+  photographyStatus?: 'draft' | 'published' | null
 }
 
 const replyAuthors = alias(users, 'reply_authors')
@@ -217,11 +219,13 @@ async function getPostRowById(db: Db, postId: string) {
       authorAvatarUrl: users.avatarUrl,
       articleStatus: articles.status,
       audioStatus: audioItems.status,
+      photographyStatus: photographyAlbums.status,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
     .leftJoin(articles, eq(articles.postId, posts.id))
     .leftJoin(audioItems, eq(audioItems.postId, posts.id))
+    .leftJoin(photographyAlbums, eq(photographyAlbums.postId, posts.id))
     .where(eq(posts.id, postId))
     .get()
 }
@@ -233,6 +237,9 @@ async function getAccessiblePostById(db: Db, viewerId: string, postId: string) {
     return { post, allowed: false }
   }
   if (post.kind === 'audio' && post.audioStatus !== 'published' && viewerId !== post.authorId) {
+    return { post, allowed: false }
+  }
+  if (post.kind === 'photography' && post.photographyStatus !== 'published' && viewerId !== post.authorId) {
     return { post, allowed: false }
   }
   return { post, allowed: await hasCreatorAccess(db, viewerId, post.authorId) }

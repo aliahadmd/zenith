@@ -10,6 +10,7 @@ import { buildPostExtras, hasCreatorAccess, toUnixSeconds } from '../lib/post-da
 import { getCreatorProfileTabs } from '../lib/profile-tabs'
 import { listPublishedArticlesForCreator } from './articles'
 import { listPublishedAudioForCreator } from './audio'
+import { listPublishedPhotographyForCreator } from './photography'
 
 export const profileRoutes = new Hono<HonoEnv>()
 
@@ -232,6 +233,34 @@ profileRoutes.get('/:username/articles', authMiddleware, zValidator('param', use
 
   return c.json({
     articles: await listPublishedArticlesForCreator(db, c.var.user.id, creator.id),
+    hasAccess: true,
+  })
+})
+
+// ── GET /:username/photography ───────────────────────────────────────────
+
+profileRoutes.get('/:username/photography', authMiddleware, zValidator('param', usernameParamSchema, zodHook), async (c) => {
+  const { username } = c.req.valid('param')
+  const db = createDb(c.env.DB)
+
+  const creator = await db
+    .select({
+      id: users.id,
+      role: users.role,
+    })
+    .from(users)
+    .where(eq(users.username, username))
+    .get()
+
+  if (!creator || creator.role !== 'creator') return notFound(c, 'Creator not found')
+
+  const hasAccess = await hasCreatorAccess(db, c.var.user.id, creator.id)
+  if (!hasAccess) {
+    return c.json({ albums: [], photos: [], hasAccess: false })
+  }
+
+  return c.json({
+    ...await listPublishedPhotographyForCreator(db, c.var.user.id, creator.id),
     hasAccess: true,
   })
 })

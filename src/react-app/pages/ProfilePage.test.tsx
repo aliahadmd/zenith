@@ -118,6 +118,14 @@ describe('ProfilePage', () => {
         }
       }
 
+      if (String(url).endsWith('/photography')) {
+        return {
+          hasAccess: true,
+          albums: [],
+          photos: [],
+        }
+      }
+
       if (String(url).endsWith('/audio')) {
         return {
           hasAccess: true,
@@ -166,11 +174,12 @@ describe('ProfilePage', () => {
     expect(screen.queryByRole('link', { name: 'github' })).not.toBeInTheDocument()
   })
 
-  it('adds creator posts, audio, and subscribers tabs', async () => {
+  it('adds creator posts, photography, audio, and subscribers tabs', async () => {
     const user = userEvent.setup()
     renderProfilePage()
 
     expect(await screen.findByRole('tab', { name: 'Posts' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Photography' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Audio' })).toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Subscribers' })).not.toBeInTheDocument()
 
@@ -189,12 +198,14 @@ describe('ProfilePage', () => {
 
     expect(await screen.findByRole('tab', { name: 'About' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Posts' })).toBeInTheDocument()
+    expect(screen.getByRole('tab', { name: 'Photography' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Audio' })).toBeInTheDocument()
-    expect(screen.getByRole('tab', { name: 'Articles' })).toBeInTheDocument()
+    expect(screen.queryByRole('tab', { name: 'Articles' })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Subscribers' })).not.toBeInTheDocument()
     expect(screen.queryByRole('tab', { name: 'Subscribed to' })).not.toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: /more/i }))
+    expect(await screen.findByRole('menuitem', { name: 'Articles' })).toBeInTheDocument()
     expect(await screen.findByRole('menuitem', { name: 'Subscribers' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Subscribed to' })).toBeInTheDocument()
   })

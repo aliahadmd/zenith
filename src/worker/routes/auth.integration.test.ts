@@ -8,6 +8,7 @@ import migration4 from '../../../drizzle/0004_feed_interactions.sql?raw'
 import migration5 from '../../../drizzle/0005_articles.sql?raw'
 import migration6 from '../../../drizzle/0006_creator_profile_tabs.sql?raw'
 import migration7 from '../../../drizzle/0007_audio.sql?raw'
+import migration8 from '../../../drizzle/0008_photography.sql?raw'
 
 async function applyMigration(sql: string) {
   const statements = sql
@@ -30,6 +31,47 @@ function getCookieHeader(response: Response): string {
   return cookies.map((cookie) => cookie.split(';')[0]).join('; ')
 }
 
+async function registerAndUpgradeCreator() {
+  const email = `creator-${crypto.randomUUID()}@example.com`
+  const password = 'password123'
+
+  const registerResponse = await SELF.fetch('https://example.com/api/auth/register', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email, password }),
+  })
+  expect(registerResponse.status).toBe(201)
+  const cookie = getCookieHeader(registerResponse)
+
+  const meResponse = await SELF.fetch('https://example.com/api/auth/me', {
+    headers: { Cookie: cookie },
+  })
+  expect(meResponse.status).toBe(200)
+  const user = await meResponse.json() as { id: string; email: string; role: string; username: string }
+
+  const formData = new FormData()
+  formData.append('fullName', 'Creator Test')
+  formData.append('address', '123 Test Street')
+  formData.append('city', 'Testville')
+  formData.append('country', 'Testland')
+  formData.append('nidNumber', 'NID-123')
+  formData.append('socialLinks', JSON.stringify(['https://example.com/social']))
+  formData.append('contentLinks', JSON.stringify(['https://example.com/content']))
+  formData.append(
+    'nidDocument',
+    new File([new Blob(['image'], { type: 'image/jpeg' })], 'nid.jpg', { type: 'image/jpeg' }),
+  )
+
+  const applyResponse = await SELF.fetch('https://example.com/api/creator/apply', {
+    method: 'POST',
+    headers: { Cookie: cookie },
+    body: formData,
+  })
+  expect(applyResponse.status).toBe(201)
+
+  return { cookie, user }
+}
+
 describe('Better Auth integration', () => {
   beforeAll(async () => {
     await applyMigration(migration0)
@@ -40,6 +82,7 @@ describe('Better Auth integration', () => {
     await applyMigration(migration5)
     await applyMigration(migration6)
     await applyMigration(migration7)
+    await applyMigration(migration8)
   })
 
   it('keeps the session usable after subscriber upgrades to creator', async () => {
@@ -313,5 +356,92 @@ describe('Better Auth integration', () => {
     expect(streamResponse.headers.get('content-type')).toBe('audio/mpeg')
     const streamedBytes = await streamResponse.arrayBuffer()
     expect(new TextDecoder().decode(streamedBytes)).toBe('0123')
+  })
+
+  it('lets creators publish a private photography album with previews and originals', async () => {
+    const { cookie, user } = await registerAndUpgradeCreator()
+
+    const albumForm = new FormData()
+    albumForm.append('title', 'Field Notes')
+    albumForm.append('description', 'A private set for members.')
+    albumForm.append('status', 'draft')
+    albumForm.append('downloadsEnabled', 'true')
+
+    const createAlbumResponse = await SELF.fetch('https://example.com/api/photography/albums', {
+      method: 'POST',
+      headers: { Cookie: cookie },
+      body: albumForm,
+    })
+    expect(createAlbumResponse.status).toBe(201)
+    const createAlbumJson = await createAlbumResponse.json() as { album: { id: string; slug: string } }
+
+    const photosForm = new FormData()
+    photosForm.append('previews', new File(['preview'], 'preview.jpg', { type: 'image/jpeg' }))
+    photosForm.append('originals', new File(['raw'], 'capture.dng', { type: 'application/octet-stream' }))
+    photosForm.append('metadata', JSON.stringify([{
+      title: 'First frame',
+      caption: 'Golden hour study.',
+      altText: 'A golden hour landscape.',
+      originalDownloadEnabled: true,
+    }]))
+
+    const uploadResponse = await SELF.fetch(`https://example.com/api/photography/albums/${createAlbumJson.album.id}/photos`, {
+      method: 'POST',
+      headers: { Cookie: cookie },
+      body: photosForm,
+    })
+    expect(uploadResponse.status).toBe(201)
+    const uploadJson = await uploadResponse.json() as { photos: Array<{ id: string }> }
+    const photoId = uploadJson.photos[0].id
+
+    const publishForm = new FormData()
+    publishForm.append('title', 'Field Notes')
+    publishForm.append('description', 'A private set for members.')
+    publishForm.append('status', 'published')
+    publishForm.append('downloadsEnabled', 'true')
+    publishForm.append('coverPhotoId', photoId)
+
+    const publishResponse = await SELF.fetch(`https://example.com/api/photography/albums/${createAlbumJson.album.id}`, {
+      method: 'PATCH',
+      headers: { Cookie: cookie },
+      body: publishForm,
+    })
+    expect(publishResponse.status).toBe(200)
+    const publishJson = await publishResponse.json() as { album: { postId: string; status: string; coverUrl: string | null } }
+    expect(publishJson.album.status).toBe('published')
+    expect(publishJson.album.coverUrl).toBe(`/api/photography/photos/${photoId}/preview`)
+
+    const detailResponse = await SELF.fetch(`https://example.com/api/photography/albums/by-slug/${user.username}/${createAlbumJson.album.slug}`, {
+      headers: { Cookie: cookie },
+    })
+    expect(detailResponse.status).toBe(200)
+    await expect(detailResponse.json()).resolves.toMatchObject({
+      album: {
+        title: 'Field Notes',
+        photoCount: 1,
+        likeCount: 0,
+      },
+      photos: [{ id: photoId, originalUrl: `/api/photography/photos/${photoId}/original` }],
+      replies: [],
+    })
+
+    const previewResponse = await SELF.fetch(`https://example.com/api/photography/photos/${photoId}/preview`, {
+      headers: { Cookie: cookie },
+    })
+    expect(previewResponse.status).toBe(200)
+    expect(previewResponse.headers.get('content-type')).toBe('image/jpeg')
+
+    const originalResponse = await SELF.fetch(`https://example.com/api/photography/photos/${photoId}/original`, {
+      headers: { Cookie: cookie },
+    })
+    expect(originalResponse.status).toBe(200)
+    expect(originalResponse.headers.get('content-disposition')).toContain('attachment')
+
+    const likeResponse = await SELF.fetch(`https://example.com/api/posts/${publishJson.album.postId}/like`, {
+      method: 'POST',
+      headers: { Cookie: cookie },
+    })
+    expect(likeResponse.status).toBe(200)
+    await expect(likeResponse.json()).resolves.toEqual({ likeCount: 1, viewerLiked: true })
   })
 })

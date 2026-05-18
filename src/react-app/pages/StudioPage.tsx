@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { useNavigate } from '@tanstack/react-router'
-import { FileText, BookOpen, GraduationCap, Headphones } from 'lucide-react'
+import { FileText, BookOpen, Camera, GraduationCap, Headphones } from 'lucide-react'
 import { ContentTypeCard } from '../components/ContentTypeCard'
 import { ShortPostComposer } from '../components/ShortPostComposer'
 import { StudioLayout } from '../components/StudioLayout'
@@ -35,6 +35,13 @@ export function StudioPage() {
           title="Audio"
           description="Publish music albums, tracks, podcast playlists, and episodes for members."
           onClick={() => navigate({ to: '/studio/audio' })}
+        />
+
+        <ContentTypeCard
+          icon={<Camera />}
+          title="Photography"
+          description="Publish private photo albums with web previews and optional original downloads."
+          onClick={() => navigate({ to: '/studio/photography' })}
         />
 
         <ContentTypeCard

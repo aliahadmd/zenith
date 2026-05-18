@@ -1,12 +1,12 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { and, desc, eq, gt, or } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, or } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { articles, audioCollections, audioItems, posts, follows, users, subscriptionMemberships, membershipPlans } from '../db/schema'
+import { articles, audioCollections, audioItems, photographyAlbums, photographyPhotos, posts, follows, users, subscriptionMemberships, membershipPlans } from '../db/schema'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
 import { subscribeSchema } from '../lib/schemas'
 import { conflict, notFound, zodHook } from '../lib/http'
-import { articleCoverUrl, audioCollectionCoverUrl, audioItemCoverUrl, audioStreamUrl, buildPostExtras, toUnixSeconds } from '../lib/post-data'
+import { articleCoverUrl, audioCollectionCoverUrl, audioItemCoverUrl, audioStreamUrl, buildPostExtras, photographyPhotoPreviewUrl, toUnixSeconds } from '../lib/post-data'
 
 export const feedRoutes = new Hono<HonoEnv>()
 
@@ -121,11 +121,75 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .limit(50)
     .all()
 
-  if (rows.length === 0 && articleRows.length === 0 && audioRows.length === 0) {
+  const photographyRows = await db
+    .select({
+      id: photographyAlbums.id,
+      postId: photographyAlbums.postId,
+      slug: photographyAlbums.slug,
+      title: photographyAlbums.title,
+      description: photographyAlbums.description,
+      status: photographyAlbums.status,
+      downloadsEnabled: photographyAlbums.downloadsEnabled,
+      shootDate: photographyAlbums.shootDate,
+      coverPhotoId: photographyAlbums.coverPhotoId,
+      publishedAt: photographyAlbums.publishedAt,
+      createdAt: photographyAlbums.createdAt,
+      updatedAt: photographyAlbums.updatedAt,
+      authorId: photographyAlbums.creatorId,
+      authorDisplayName: users.displayName,
+      authorUsername: users.username,
+      authorAvatarUrl: users.avatarUrl,
+    })
+    .from(photographyAlbums)
+    .innerJoin(subscriptionMemberships, eq(subscriptionMemberships.creatorId, photographyAlbums.creatorId))
+    .innerJoin(users, eq(users.id, photographyAlbums.creatorId))
+    .where(and(
+      eq(photographyAlbums.status, 'published'),
+      eq(subscriptionMemberships.subscriberId, c.var.user.id),
+      or(
+        eq(subscriptionMemberships.status, 'active'),
+        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
+      ),
+    ))
+    .orderBy(desc(photographyAlbums.publishedAt))
+    .limit(50)
+    .all()
+
+  const photographyPhotosRows = photographyRows.length > 0
+    ? await db
+        .select({
+          id: photographyPhotos.id,
+          albumId: photographyPhotos.albumId,
+          title: photographyPhotos.title,
+          caption: photographyPhotos.caption,
+          altText: photographyPhotos.altText,
+          status: photographyPhotos.status,
+          originalDownloadEnabled: photographyPhotos.originalDownloadEnabled,
+          displayOrder: photographyPhotos.displayOrder,
+        })
+        .from(photographyPhotos)
+        .where(and(
+          inArray(photographyPhotos.albumId, photographyRows.map((row) => row.id)),
+          eq(photographyPhotos.status, 'published'),
+        ))
+        .orderBy(photographyPhotos.displayOrder)
+        .all()
+    : []
+  const photographyPhotosByAlbum = new Map<string, typeof photographyPhotosRows>()
+  for (const photo of photographyPhotosRows) {
+    photographyPhotosByAlbum.set(photo.albumId, [...(photographyPhotosByAlbum.get(photo.albumId) ?? []), photo])
+  }
+
+  if (rows.length === 0 && articleRows.length === 0 && audioRows.length === 0 && photographyRows.length === 0) {
     return c.json({ posts: [], items: [], message: "You haven't subscribed to any creators yet" })
   }
 
-  const allIds = [...rows.map((row) => row.id), ...articleRows.map((row) => row.id), ...audioRows.map((row) => row.postId)]
+  const allIds = [
+    ...rows.map((row) => row.id),
+    ...articleRows.map((row) => row.id),
+    ...audioRows.map((row) => row.postId),
+    ...photographyRows.map((row) => row.postId),
+  ]
   const extras = await buildPostExtras(db, c.var.user.id, allIds)
 
   const mappedPosts = rows.map((row) => {
@@ -207,10 +271,61 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     viewerLiked: extras.viewerLikedPostIds.has(row.postId),
   }))
 
-  const items = [...mappedPosts, ...mappedArticles, ...mappedAudio]
+  const mappedPhotography = photographyRows.map((row) => {
+    const photos = photographyPhotosByAlbum.get(row.id) ?? []
+    const coverPhoto = photos.find((photo) => photo.id === row.coverPhotoId) ?? photos[0]
+    return {
+      id: row.id,
+      postId: row.postId,
+      type: 'photography' as const,
+      slug: row.slug,
+      title: row.title,
+      description: row.description ?? '',
+      status: row.status,
+      downloadsEnabled: row.downloadsEnabled,
+      shootDate: toUnixSeconds(row.shootDate),
+      coverPhotoId: row.coverPhotoId,
+      coverUrl: coverPhoto ? photographyPhotoPreviewUrl(coverPhoto.id) : null,
+      photoCount: photos.length,
+      photos: photos.slice(0, 4).map((photo) => ({
+        id: photo.id,
+        albumId: photo.albumId,
+        title: photo.title ?? '',
+        caption: photo.caption ?? '',
+        altText: photo.altText ?? '',
+        status: photo.status,
+        previewUrl: photographyPhotoPreviewUrl(photo.id),
+        displayUrl: photographyPhotoPreviewUrl(photo.id),
+        originalUrl: null,
+        originalContentType: null,
+        originalFileName: null,
+        originalSizeBytes: null,
+        originalDownloadEnabled: photo.originalDownloadEnabled,
+        width: null,
+        height: null,
+        displayOrder: photo.displayOrder,
+        createdAt: null,
+        updatedAt: null,
+      })),
+      createdAt: toUnixSeconds(row.createdAt),
+      publishedAt: toUnixSeconds(row.publishedAt),
+      updatedAt: toUnixSeconds(row.updatedAt),
+      author: {
+        id: row.authorId,
+        displayName: row.authorDisplayName,
+        username: row.authorUsername,
+        avatarUrl: row.authorAvatarUrl,
+      },
+      likeCount: extras.postLikeCounts.get(row.postId) ?? 0,
+      replyCount: extras.postReplyCounts.get(row.postId) ?? 0,
+      viewerLiked: extras.viewerLikedPostIds.has(row.postId),
+    }
+  })
+
+  const items = [...mappedPosts, ...mappedArticles, ...mappedAudio, ...mappedPhotography]
     .sort((a, b) => {
-      const aTime = a.type === 'article' || a.type === 'audio' ? (a.publishedAt ?? a.createdAt ?? 0) : (a.createdAt ?? 0)
-      const bTime = b.type === 'article' || b.type === 'audio' ? (b.publishedAt ?? b.createdAt ?? 0) : (b.createdAt ?? 0)
+      const aTime = a.type === 'article' || a.type === 'audio' || a.type === 'photography' ? (a.publishedAt ?? a.createdAt ?? 0) : (a.createdAt ?? 0)
+      const bTime = b.type === 'article' || b.type === 'audio' || b.type === 'photography' ? (b.publishedAt ?? b.createdAt ?? 0) : (b.createdAt ?? 0)
       return bTime - aTime
     })
     .slice(0, 50)

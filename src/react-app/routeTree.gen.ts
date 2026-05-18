@@ -19,6 +19,7 @@ import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/f
 import { Route as AuthenticatedBecomeCreatorRouteImport } from './routes/_authenticated/become-creator'
 import { Route as AuthenticatedUUsernameRouteImport } from './routes/_authenticated/u.$username'
 import { Route as AuthenticatedStudioSubscriptionsRouteImport } from './routes/_authenticated/studio_.subscriptions'
+import { Route as AuthenticatedStudioPhotographyRouteImport } from './routes/_authenticated/studio_.photography'
 import { Route as AuthenticatedStudioPayoutsRouteImport } from './routes/_authenticated/studio_.payouts'
 import { Route as AuthenticatedStudioAudioRouteImport } from './routes/_authenticated/studio_.audio'
 import { Route as AuthenticatedSettingsSecurityRouteImport } from './routes/_authenticated/settings_.security'
@@ -28,6 +29,7 @@ import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_auth
 import { Route as AuthenticatedStudioArticlesNewRouteImport } from './routes/_authenticated/studio_.articles.new'
 import { Route as AuthenticatedUUsernamePostSlugRouteImport } from './routes/_authenticated/u.$username_.post.$slug'
 import { Route as AuthenticatedUUsernamePodcastSlugRouteImport } from './routes/_authenticated/u.$username_.podcast.$slug'
+import { Route as AuthenticatedUUsernamePhotographySlugRouteImport } from './routes/_authenticated/u.$username_.photography.$slug'
 import { Route as AuthenticatedUUsernameAudioSlugRouteImport } from './routes/_authenticated/u.$username_.audio.$slug'
 import { Route as AuthenticatedUUsernameArticleSlugRouteImport } from './routes/_authenticated/u.$username_.article.$slug'
 import { Route as AuthenticatedUUsernameAlbumSlugRouteImport } from './routes/_authenticated/u.$username_.album.$slug'
@@ -84,6 +86,12 @@ const AuthenticatedStudioSubscriptionsRoute =
     path: '/studio/subscriptions',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedStudioPhotographyRoute =
+  AuthenticatedStudioPhotographyRouteImport.update({
+    id: '/studio_/photography',
+    path: '/studio/photography',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedStudioPayoutsRoute =
   AuthenticatedStudioPayoutsRouteImport.update({
     id: '/studio_/payouts',
@@ -138,6 +146,12 @@ const AuthenticatedUUsernamePodcastSlugRoute =
     path: '/u/$username/podcast/$slug',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedUUsernamePhotographySlugRoute =
+  AuthenticatedUUsernamePhotographySlugRouteImport.update({
+    id: '/u/$username_/photography/$slug',
+    path: '/u/$username/photography/$slug',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedUUsernameAudioSlugRoute =
   AuthenticatedUUsernameAudioSlugRouteImport.update({
     id: '/u/$username_/audio/$slug',
@@ -177,6 +191,7 @@ export interface FileRoutesByFullPath {
   '/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/studio/audio': typeof AuthenticatedStudioAudioRoute
   '/studio/payouts': typeof AuthenticatedStudioPayoutsRoute
+  '/studio/photography': typeof AuthenticatedStudioPhotographyRoute
   '/studio/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/u/$username': typeof AuthenticatedUUsernameRoute
   '/studio/articles/new': typeof AuthenticatedStudioArticlesNewRoute
@@ -184,6 +199,7 @@ export interface FileRoutesByFullPath {
   '/u/$username/album/$slug': typeof AuthenticatedUUsernameAlbumSlugRoute
   '/u/$username/article/$slug': typeof AuthenticatedUUsernameArticleSlugRoute
   '/u/$username/audio/$slug': typeof AuthenticatedUUsernameAudioSlugRoute
+  '/u/$username/photography/$slug': typeof AuthenticatedUUsernamePhotographySlugRoute
   '/u/$username/podcast/$slug': typeof AuthenticatedUUsernamePodcastSlugRoute
   '/u/$username/post/$slug': typeof AuthenticatedUUsernamePostSlugRoute
 }
@@ -201,6 +217,7 @@ export interface FileRoutesByTo {
   '/settings/security': typeof AuthenticatedSettingsSecurityRoute
   '/studio/audio': typeof AuthenticatedStudioAudioRoute
   '/studio/payouts': typeof AuthenticatedStudioPayoutsRoute
+  '/studio/photography': typeof AuthenticatedStudioPhotographyRoute
   '/studio/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/u/$username': typeof AuthenticatedUUsernameRoute
   '/studio/articles/new': typeof AuthenticatedStudioArticlesNewRoute
@@ -208,6 +225,7 @@ export interface FileRoutesByTo {
   '/u/$username/album/$slug': typeof AuthenticatedUUsernameAlbumSlugRoute
   '/u/$username/article/$slug': typeof AuthenticatedUUsernameArticleSlugRoute
   '/u/$username/audio/$slug': typeof AuthenticatedUUsernameAudioSlugRoute
+  '/u/$username/photography/$slug': typeof AuthenticatedUUsernamePhotographySlugRoute
   '/u/$username/podcast/$slug': typeof AuthenticatedUUsernamePodcastSlugRoute
   '/u/$username/post/$slug': typeof AuthenticatedUUsernamePostSlugRoute
 }
@@ -227,6 +245,7 @@ export interface FileRoutesById {
   '/_authenticated/settings_/security': typeof AuthenticatedSettingsSecurityRoute
   '/_authenticated/studio_/audio': typeof AuthenticatedStudioAudioRoute
   '/_authenticated/studio_/payouts': typeof AuthenticatedStudioPayoutsRoute
+  '/_authenticated/studio_/photography': typeof AuthenticatedStudioPhotographyRoute
   '/_authenticated/studio_/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/_authenticated/u/$username': typeof AuthenticatedUUsernameRoute
   '/_authenticated/studio_/articles/new': typeof AuthenticatedStudioArticlesNewRoute
@@ -234,6 +253,7 @@ export interface FileRoutesById {
   '/_authenticated/u/$username_/album/$slug': typeof AuthenticatedUUsernameAlbumSlugRoute
   '/_authenticated/u/$username_/article/$slug': typeof AuthenticatedUUsernameArticleSlugRoute
   '/_authenticated/u/$username_/audio/$slug': typeof AuthenticatedUUsernameAudioSlugRoute
+  '/_authenticated/u/$username_/photography/$slug': typeof AuthenticatedUUsernamePhotographySlugRoute
   '/_authenticated/u/$username_/podcast/$slug': typeof AuthenticatedUUsernamePodcastSlugRoute
   '/_authenticated/u/$username_/post/$slug': typeof AuthenticatedUUsernamePostSlugRoute
 }
@@ -253,6 +273,7 @@ export interface FileRouteTypes {
     | '/settings/security'
     | '/studio/audio'
     | '/studio/payouts'
+    | '/studio/photography'
     | '/studio/subscriptions'
     | '/u/$username'
     | '/studio/articles/new'
@@ -260,6 +281,7 @@ export interface FileRouteTypes {
     | '/u/$username/album/$slug'
     | '/u/$username/article/$slug'
     | '/u/$username/audio/$slug'
+    | '/u/$username/photography/$slug'
     | '/u/$username/podcast/$slug'
     | '/u/$username/post/$slug'
   fileRoutesByTo: FileRoutesByTo
@@ -277,6 +299,7 @@ export interface FileRouteTypes {
     | '/settings/security'
     | '/studio/audio'
     | '/studio/payouts'
+    | '/studio/photography'
     | '/studio/subscriptions'
     | '/u/$username'
     | '/studio/articles/new'
@@ -284,6 +307,7 @@ export interface FileRouteTypes {
     | '/u/$username/album/$slug'
     | '/u/$username/article/$slug'
     | '/u/$username/audio/$slug'
+    | '/u/$username/photography/$slug'
     | '/u/$username/podcast/$slug'
     | '/u/$username/post/$slug'
   id:
@@ -302,6 +326,7 @@ export interface FileRouteTypes {
     | '/_authenticated/settings_/security'
     | '/_authenticated/studio_/audio'
     | '/_authenticated/studio_/payouts'
+    | '/_authenticated/studio_/photography'
     | '/_authenticated/studio_/subscriptions'
     | '/_authenticated/u/$username'
     | '/_authenticated/studio_/articles/new'
@@ -309,6 +334,7 @@ export interface FileRouteTypes {
     | '/_authenticated/u/$username_/album/$slug'
     | '/_authenticated/u/$username_/article/$slug'
     | '/_authenticated/u/$username_/audio/$slug'
+    | '/_authenticated/u/$username_/photography/$slug'
     | '/_authenticated/u/$username_/podcast/$slug'
     | '/_authenticated/u/$username_/post/$slug'
   fileRoutesById: FileRoutesById
@@ -392,6 +418,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedStudioSubscriptionsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/studio_/photography': {
+      id: '/_authenticated/studio_/photography'
+      path: '/studio/photography'
+      fullPath: '/studio/photography'
+      preLoaderRoute: typeof AuthenticatedStudioPhotographyRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/studio_/payouts': {
       id: '/_authenticated/studio_/payouts'
       path: '/studio/payouts'
@@ -455,6 +488,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedUUsernamePodcastSlugRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/u/$username_/photography/$slug': {
+      id: '/_authenticated/u/$username_/photography/$slug'
+      path: '/u/$username/photography/$slug'
+      fullPath: '/u/$username/photography/$slug'
+      preLoaderRoute: typeof AuthenticatedUUsernamePhotographySlugRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/u/$username_/audio/$slug': {
       id: '/_authenticated/u/$username_/audio/$slug'
       path: '/u/$username/audio/$slug'
@@ -497,6 +537,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedSettingsSecurityRoute: typeof AuthenticatedSettingsSecurityRoute
   AuthenticatedStudioAudioRoute: typeof AuthenticatedStudioAudioRoute
   AuthenticatedStudioPayoutsRoute: typeof AuthenticatedStudioPayoutsRoute
+  AuthenticatedStudioPhotographyRoute: typeof AuthenticatedStudioPhotographyRoute
   AuthenticatedStudioSubscriptionsRoute: typeof AuthenticatedStudioSubscriptionsRoute
   AuthenticatedUUsernameRoute: typeof AuthenticatedUUsernameRoute
   AuthenticatedStudioArticlesNewRoute: typeof AuthenticatedStudioArticlesNewRoute
@@ -504,6 +545,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedUUsernameAlbumSlugRoute: typeof AuthenticatedUUsernameAlbumSlugRoute
   AuthenticatedUUsernameArticleSlugRoute: typeof AuthenticatedUUsernameArticleSlugRoute
   AuthenticatedUUsernameAudioSlugRoute: typeof AuthenticatedUUsernameAudioSlugRoute
+  AuthenticatedUUsernamePhotographySlugRoute: typeof AuthenticatedUUsernamePhotographySlugRoute
   AuthenticatedUUsernamePodcastSlugRoute: typeof AuthenticatedUUsernamePodcastSlugRoute
   AuthenticatedUUsernamePostSlugRoute: typeof AuthenticatedUUsernamePostSlugRoute
 }
@@ -519,6 +561,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedSettingsSecurityRoute: AuthenticatedSettingsSecurityRoute,
   AuthenticatedStudioAudioRoute: AuthenticatedStudioAudioRoute,
   AuthenticatedStudioPayoutsRoute: AuthenticatedStudioPayoutsRoute,
+  AuthenticatedStudioPhotographyRoute: AuthenticatedStudioPhotographyRoute,
   AuthenticatedStudioSubscriptionsRoute: AuthenticatedStudioSubscriptionsRoute,
   AuthenticatedUUsernameRoute: AuthenticatedUUsernameRoute,
   AuthenticatedStudioArticlesNewRoute: AuthenticatedStudioArticlesNewRoute,
@@ -528,6 +571,8 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedUUsernameArticleSlugRoute:
     AuthenticatedUUsernameArticleSlugRoute,
   AuthenticatedUUsernameAudioSlugRoute: AuthenticatedUUsernameAudioSlugRoute,
+  AuthenticatedUUsernamePhotographySlugRoute:
+    AuthenticatedUUsernamePhotographySlugRoute,
   AuthenticatedUUsernamePodcastSlugRoute:
     AuthenticatedUUsernamePodcastSlugRoute,
   AuthenticatedUUsernamePostSlugRoute: AuthenticatedUUsernamePostSlugRoute,

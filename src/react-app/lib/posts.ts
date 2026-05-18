@@ -2,6 +2,7 @@ import { queryOptions } from '@tanstack/react-query'
 import { apiDeleteRequired, apiGetRequired, apiPostRequired } from './api'
 import type { ArticleSummary } from './articles'
 import type { AudioItemSummary } from './audio'
+import type { PhotographyAlbumSummary } from './photography'
 
 export type Attachment = {
   id: string
@@ -73,7 +74,7 @@ export type PostDetailResponse = {
 
 export type FeedResponse = {
   posts: FeedPost[]
-  items?: Array<FeedPost | ArticleSummary | AudioItemSummary>
+  items?: Array<FeedPost | ArticleSummary | AudioItemSummary | PhotographyAlbumSummary>
   message?: string
 }
 
