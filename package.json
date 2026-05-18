@@ -1,6 +1,6 @@
 {
-  "name": "ecommerce",
-  "description": "multi purposesingle-vendor ecommerce app",
+  "name": "creator-network",
+  "description": "full-stack creator network app built with Cloudflare Workers, Hono, Drizzle ORM, and React",
   "cloudflare": {
     "label": "Vite React Template",
     "products": [
