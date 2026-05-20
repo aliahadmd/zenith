@@ -33,6 +33,10 @@ import {
 } from '../lib/payments'
 import { constructStripeWebhookEvent } from '../lib/payments/stripe'
 import type { ConnectedAccountSnapshot } from '../lib/payments/types'
+import {
+  notifyMembershipActivated,
+  notifySubscriptionStatusChanged,
+} from '../lib/notifications'
 
 export const paymentsRoutes = new Hono<HonoEnv>()
 
@@ -565,6 +569,16 @@ paymentsRoutes.post('/subscribe/free', authMiddleware, zValidator('json', freeSu
     .run()
 
   const membership = await db.select().from(subscriptionMemberships).where(eq(subscriptionMemberships.id, membershipId)).get()
+  if (membership) {
+    await notifyMembershipActivated(db, c.env, {
+      creatorId,
+      subscriberId,
+      membershipId,
+      accessType: kind,
+      status,
+      dedupeKey: `membership:${membershipId}:${status}:${kind}`,
+    }, new URL(c.req.url).origin)
+  }
   return c.json({
     membership: membership
       ? {
@@ -877,7 +891,7 @@ paymentsRoutes.post('/webhook', async (c) => {
     .get()
   if (duplicate) return c.json({ received: true, duplicate: true })
 
-  await handleStripeEvent(db, event, getPlatformFeeBps(c.env))
+  await handleStripeEvent(db, c.env, event, getPlatformFeeBps(c.env), new URL(c.req.url).origin)
   await db
     .insert(paymentWebhookEvents)
     .values({ id: event.id, provider: 'stripe', eventType: event.type })
@@ -886,28 +900,28 @@ paymentsRoutes.post('/webhook', async (c) => {
   return c.json({ received: true })
 })
 
-async function handleStripeEvent(db: Db, event: Stripe.Event, platformFeeBps: number) {
+async function handleStripeEvent(db: Db, env: Env, event: Stripe.Event, platformFeeBps: number, origin?: string) {
   switch (event.type) {
     case 'checkout.session.completed':
-      await handleCheckoutCompleted(db, event.data.object as Stripe.Checkout.Session)
+      await handleCheckoutCompleted(db, env, event.data.object as Stripe.Checkout.Session, origin)
       break
     case 'customer.subscription.updated':
     case 'customer.subscription.deleted':
-      await handleSubscriptionChanged(db, event.data.object as Stripe.Subscription)
+      await handleSubscriptionChanged(db, env, event.data.object as Stripe.Subscription, origin)
       break
     case 'invoice.paid':
     case 'invoice.payment_succeeded':
       await handleInvoicePaid(db, event, event.data.object as Stripe.Invoice, platformFeeBps)
       break
     case 'invoice.payment_failed':
-      await handleInvoicePaymentFailed(db, event.data.object as Stripe.Invoice)
+      await handleInvoicePaymentFailed(db, env, event.data.object as Stripe.Invoice, origin)
       break
     default:
       break
   }
 }
 
-async function handleCheckoutCompleted(db: Db, session: Stripe.Checkout.Session) {
+async function handleCheckoutCompleted(db: Db, env: Env, session: Stripe.Checkout.Session, origin?: string) {
   const membershipId = session.metadata?.membershipId
   if (!membershipId) return
 
@@ -922,15 +936,32 @@ async function handleCheckoutCompleted(db: Db, session: Stripe.Checkout.Session)
     })
     .where(eq(subscriptionMemberships.id, membershipId))
     .run()
+
+  const membership = await db
+    .select()
+    .from(subscriptionMemberships)
+    .where(eq(subscriptionMemberships.id, membershipId))
+    .get()
+  if (!membership) return
+
+  await notifyMembershipActivated(db, env, {
+    creatorId: membership.creatorId,
+    subscriberId: membership.subscriberId,
+    membershipId: membership.id,
+    accessType: membership.accessType,
+    status: membership.status,
+    dedupeKey: `checkout:${session.id}:membership:${membership.id}`,
+  }, origin)
 }
 
-async function handleSubscriptionChanged(db: Db, subscription: Stripe.Subscription) {
+async function handleSubscriptionChanged(db: Db, env: Env, subscription: Stripe.Subscription, origin?: string) {
   const membershipId = subscription.metadata?.membershipId
   const period = subscriptionPeriod(subscription)
   const status = stripeStatusToMembershipStatus(subscription.status)
   const where = membershipId
     ? eq(subscriptionMemberships.id, membershipId)
     : eq(subscriptionMemberships.providerSubscriptionId, subscription.id)
+  const existing = await db.select().from(subscriptionMemberships).where(where).get()
 
   await db
     .update(subscriptionMemberships)
@@ -947,6 +978,17 @@ async function handleSubscriptionChanged(db: Db, subscription: Stripe.Subscripti
     })
     .where(where)
     .run()
+
+  if (!existing || existing.status === status) return
+  if (status === 'active' || status === 'trialing') return
+
+  await notifySubscriptionStatusChanged(db, env, {
+    creatorId: existing.creatorId,
+    subscriberId: existing.subscriberId,
+    membershipId: existing.id,
+    status,
+    dedupeKey: `subscription-status:${subscription.id}:${status}`,
+  }, origin)
 }
 
 async function handleInvoicePaid(db: Db, event: Stripe.Event, invoice: Stripe.Invoice, platformFeeBps: number) {
@@ -986,15 +1028,29 @@ async function handleInvoicePaid(db: Db, event: Stripe.Event, invoice: Stripe.In
     .run()
 }
 
-async function handleInvoicePaymentFailed(db: Db, invoice: Stripe.Invoice) {
+async function handleInvoicePaymentFailed(db: Db, env: Env, invoice: Stripe.Invoice, origin?: string) {
   const membershipId = invoice.parent?.subscription_details?.metadata?.membershipId
   if (!membershipId) return
+  const membership = await db
+    .select()
+    .from(subscriptionMemberships)
+    .where(eq(subscriptionMemberships.id, membershipId))
+    .get()
 
   await db
     .update(subscriptionMemberships)
     .set({ status: 'past_due', updatedAt: new Date() })
     .where(eq(subscriptionMemberships.id, membershipId))
     .run()
+
+  if (!membership) return
+  await notifySubscriptionStatusChanged(db, env, {
+    creatorId: membership.creatorId,
+    subscriberId: membership.subscriberId,
+    membershipId: membership.id,
+    status: 'past_due',
+    dedupeKey: `invoice-payment-failed:${invoice.id ?? membership.id}`,
+  }, origin)
 }
 
 // Exported for focused route tests.

@@ -1,41 +1,62 @@
+import { useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { Link, useNavigate } from '@tanstack/react-router'
+import { useMutation } from '@tanstack/react-query'
 import { useForm } from 'react-hook-form'
 import { z } from 'zod'
 import { useAuth } from '../context/AuthContext'
 import { AuthFooter, AuthPageShell } from '../components/AuthPageShell'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../components/ui/form'
-import { loginSchema } from '../lib/schemas'
+import { requestOtp } from '../lib/auth'
+import { ApiError } from '../lib/api'
+import { authEmailSchema, authOtpSchema } from '../lib/schemas'
 
-type LoginFormValues = z.infer<typeof loginSchema>
+type EmailFormValues = z.infer<typeof authEmailSchema>
+type OtpFormValues = z.infer<typeof authOtpSchema>
 
 export function LoginPage() {
-  const { login } = useAuth()
+  const { completeOtpSignIn } = useAuth()
   const navigate = useNavigate()
-  const form = useForm<LoginFormValues>({
-    resolver: zodResolver(loginSchema),
-    defaultValues: {
-      email: '',
-      password: '',
-    },
+  const [submittedEmail, setSubmittedEmail] = useState('')
+  const emailForm = useForm<EmailFormValues>({
+    resolver: zodResolver(authEmailSchema),
+    defaultValues: { email: '' },
   })
+  const otpForm = useForm<OtpFormValues>({
+    resolver: zodResolver(authOtpSchema),
+    defaultValues: { otp: '' },
+  })
+  const otpRequest = useMutation({ mutationFn: requestOtp })
 
-  async function handleSubmit(values: LoginFormValues) {
-    const { error, user: loggedInUser } = await login(values.email, values.password)
-    if (error) {
-      form.setError('root', { message: error })
-    } else {
-      await navigate({ to: loggedInUser ? '/feed' : '/login' })
+  async function handleEmailSubmit(values: EmailFormValues) {
+    try {
+      await otpRequest.mutateAsync({ email: values.email })
+      setSubmittedEmail(values.email)
+      otpForm.reset({ otp: '' })
+    } catch (error) {
+      emailForm.setError('root', { message: otpRequestError(error) })
     }
   }
+
+  async function handleOtpSubmit(values: OtpFormValues) {
+    const { error, user } = await completeOtpSignIn(submittedEmail, values.otp)
+    if (error) {
+      otpForm.setError('root', { message: error })
+      return
+    }
+    await navigate({ to: user ? '/feed' : '/login' })
+  }
+
+  const isOtpStep = Boolean(submittedEmail)
 
   return (
     <AuthPageShell
       mode="login"
       title="Sign in"
-      description="Enter your email and password to access your account."
+      description={isOtpStep ? `Enter the code sent to ${submittedEmail}.` : 'Enter your email and Zenith will send a sign-in code.'}
       footer={
         <AuthFooter>
           Don't have an account?{' '}
@@ -45,54 +66,88 @@ export function LoginPage() {
         </AuthFooter>
       }
     >
-      <Form {...form}>
-        <form className="flex flex-col gap-5" onSubmit={form.handleSubmit(handleSubmit)} noValidate>
-          <div className="flex flex-col gap-4">
+      {!isOtpStep ? (
+        <Form {...emailForm}>
+          <form className="flex flex-col gap-5" onSubmit={emailForm.handleSubmit(handleEmailSubmit)} noValidate>
             <FormField
-              control={form.control}
+              control={emailForm.control}
               name="email"
               render={({ field }) => (
                 <FormItem>
                   <FormLabel>Email</FormLabel>
                   <FormControl>
-                    <Input
-                      type="email"
-                      placeholder="you@example.com"
-                      autoComplete="email"
-                      {...field}
-                    />
+                    <Input type="email" placeholder="you@example.com" autoComplete="email" {...field} />
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
+            <RootError message={emailForm.formState.errors.root?.message} />
+            <Button type="submit" className="w-full tracking-normal normal-case" disabled={emailForm.formState.isSubmitting}>
+              {emailForm.formState.isSubmitting ? 'Sending code...' : 'Send sign-in code'}
+            </Button>
+          </form>
+        </Form>
+      ) : (
+        <Form {...otpForm}>
+          <form className="flex flex-col gap-5" onSubmit={otpForm.handleSubmit(handleOtpSubmit)} noValidate>
             <FormField
-              control={form.control}
-              name="password"
+              control={otpForm.control}
+              name="otp"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Password</FormLabel>
+                  <FormLabel>Verification code</FormLabel>
                   <FormControl>
-                    <Input
-                      type="password"
-                      placeholder="Password"
-                      autoComplete="current-password"
-                      {...field}
-                    />
+                    <InputOTP maxLength={6} value={field.value} onChange={field.onChange}>
+                      <InputOTPGroup>
+                        {Array.from({ length: 6 }).map((_, index) => (
+                          <InputOTPSlot key={index} index={index} />
+                        ))}
+                      </InputOTPGroup>
+                    </InputOTP>
                   </FormControl>
                   <FormMessage />
                 </FormItem>
               )}
             />
-            {form.formState.errors.root?.message && (
-              <p className="text-sm text-destructive">{form.formState.errors.root.message}</p>
-            )}
-          </div>
-          <Button type="submit" className="w-full tracking-normal normal-case" disabled={form.formState.isSubmitting}>
-            {form.formState.isSubmitting ? 'Signing in...' : 'Sign in'}
-          </Button>
-        </form>
-      </Form>
+            <RootError message={otpForm.formState.errors.root?.message} />
+            <Button type="submit" className="w-full tracking-normal normal-case" disabled={otpForm.formState.isSubmitting}>
+              {otpForm.formState.isSubmitting ? 'Signing in...' : 'Sign in'}
+            </Button>
+            <div className="flex items-center justify-between gap-3 text-sm">
+              <Button
+                type="button"
+                variant="ghost"
+                className="px-0 tracking-normal normal-case"
+                disabled={otpRequest.isPending}
+                onClick={() => {
+                  otpRequest.mutate({ email: submittedEmail }, {
+                    onSuccess: () => otpForm.reset({ otp: '' }),
+                    onError: (error) => otpForm.setError('root', { message: otpRequestError(error) }),
+                  })
+                }}
+              >
+                {otpRequest.isPending ? 'Resending...' : 'Resend code'}
+              </Button>
+              <Button type="button" variant="ghost" className="px-0 tracking-normal normal-case" onClick={() => setSubmittedEmail('')}>
+                Change email
+              </Button>
+            </div>
+          </form>
+        </Form>
+      )}
     </AuthPageShell>
   )
+}
+
+function otpRequestError(error: unknown) {
+  if (error instanceof ApiError && error.code === 'otp_email_unavailable') {
+    return 'Email delivery is unavailable for this address. Use a verified beta recipient.'
+  }
+  return error instanceof Error ? error.message : 'Could not send a sign-in code.'
+}
+
+function RootError({ message }: { message?: string }) {
+  if (!message) return null
+  return <p className="text-sm text-destructive">{message}</p>
 }

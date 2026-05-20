@@ -25,6 +25,7 @@ import {
   MAX_IMAGE_SIZE,
   toUnixSeconds,
 } from '../lib/post-data'
+import { notifySubscribersOfContent } from '../lib/notifications'
 import { generatePostSlug, serializeReplies, slugify } from './posts'
 
 export const audioRoutes = new Hono<HonoEnv>()
@@ -631,6 +632,15 @@ audioRoutes.post('/items', authMiddleware, requireRole('creator'), async (c) => 
 
   const item = await getItemById(db, itemId)
   const extras = item ? await buildPostExtras(db, c.var.user.id, [item.postId]) : undefined
+  if (parsed.status === 'published' && item) {
+    await notifySubscribersOfContent(db, c.env, {
+      creatorId: c.var.user.id,
+      contentType: 'audio',
+      entityId: item.id,
+      title: item.title,
+      targetUrl: `/u/${item.creatorUsername}/audio/${item.slug}`,
+    }, new URL(c.req.url).origin)
+  }
   return c.json({ item: item ? serializeItem(item, extras) : null }, 201)
 })
 
@@ -680,6 +690,15 @@ audioRoutes.patch('/items/:itemId', authMiddleware, requireRole('creator'), asyn
 
   const item = await getItemById(db, itemId)
   const extras = item ? await buildPostExtras(db, c.var.user.id, [item.postId]) : undefined
+  if (existing.status !== 'published' && parsed.status === 'published' && item) {
+    await notifySubscribersOfContent(db, c.env, {
+      creatorId: c.var.user.id,
+      contentType: 'audio',
+      entityId: item.id,
+      title: item.title,
+      targetUrl: `/u/${item.creatorUsername}/audio/${item.slug}`,
+    }, new URL(c.req.url).origin)
+  }
   return c.json({ item: item ? serializeItem(item, extras) : null })
 })
 

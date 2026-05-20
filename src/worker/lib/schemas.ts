@@ -10,14 +10,16 @@ export const passwordSchema = z
   .string()
   .min(8, 'Password must be at least 8 characters')
 
-export const authRegisterSchema = z.object({
+export const authOtpRequestSchema = z.object({
   email: emailSchema,
-  password: passwordSchema,
 })
 
-export const authLoginSchema = z.object({
+export const authOtpVerifySchema = z.object({
   email: emailSchema,
-  password: z.string().min(1, 'Password is required'),
+  otp: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'OTP must be 6 digits'),
 })
 
 export const postCreateSchema = z.object({
@@ -175,14 +177,27 @@ export const profileTabsSettingsSchema = z.object({
   }
 })
 
-export const passwordSettingsSchema = z.object({
-  currentPassword: z.string().min(1, 'currentPassword is required'),
-  newPassword: passwordSchema,
-})
-
 export const emailSettingsSchema = z.object({
   newEmail: emailSchema,
-  currentPassword: z.string().min(1, 'currentPassword is required'),
+})
+
+export const emailSettingsVerifySchema = z.object({
+  newEmail: emailSchema,
+  otp: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'OTP must be 6 digits'),
+})
+
+export const notificationIdParamSchema = z.object({
+  notificationId: z.string().min(1, 'notificationId is required'),
+})
+
+export const notificationPreferencesSchema = z.object({
+  emailEnabled: z.boolean(),
+  contentEmailEnabled: z.boolean(),
+  interactionEmailEnabled: z.boolean(),
+  subscriptionEmailEnabled: z.boolean(),
 })
 
 export const creatorApplicationFieldsSchema = z.object({

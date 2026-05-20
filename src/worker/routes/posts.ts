@@ -48,6 +48,11 @@ import {
   MAX_IMAGES,
   toUnixSeconds,
 } from '../lib/post-data'
+import {
+  notifyCreatorOfPostLike,
+  notifyCreatorOfReply,
+  notifySubscribersOfContent,
+} from '../lib/notifications'
 
 export const postsRoutes = new Hono<HonoEnv>()
 export const repliesRoutes = new Hono<HonoEnv>()
@@ -71,7 +76,9 @@ type PostRow = {
   authorAvatarUrl: string | null
   articleStatus?: 'draft' | 'published' | null
   audioStatus?: 'draft' | 'published' | null
+  audioSlug?: string | null
   photographyStatus?: 'draft' | 'published' | null
+  photographySlug?: string | null
 }
 
 const replyAuthors = alias(users, 'reply_authors')
@@ -219,7 +226,9 @@ async function getPostRowById(db: Db, postId: string) {
       authorAvatarUrl: users.avatarUrl,
       articleStatus: articles.status,
       audioStatus: audioItems.status,
+      audioSlug: audioItems.slug,
       photographyStatus: photographyAlbums.status,
+      photographySlug: photographyAlbums.slug,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
@@ -243,6 +252,13 @@ async function getAccessiblePostById(db: Db, viewerId: string, postId: string) {
     return { post, allowed: false }
   }
   return { post, allowed: await hasCreatorAccess(db, viewerId, post.authorId) }
+}
+
+function contentTargetUrl(post: Pick<PostRow, 'kind' | 'slug' | 'authorUsername' | 'audioSlug' | 'photographySlug'>) {
+  if (post.kind === 'article') return `/u/${post.authorUsername}/article/${post.slug}`
+  if (post.kind === 'audio') return `/u/${post.authorUsername}/audio/${post.audioSlug ?? post.slug}`
+  if (post.kind === 'photography') return `/u/${post.authorUsername}/photography/${post.photographySlug ?? post.slug}`
+  return `/u/${post.authorUsername}/post/${post.slug}`
 }
 
 function serializePost(post: PostRow, extras: Awaited<ReturnType<typeof buildPostExtras>>) {
@@ -421,6 +437,21 @@ postsRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
     }
   }
 
+  const author = await db
+    .select({ username: users.username })
+    .from(users)
+    .where(eq(users.id, authorId))
+    .get()
+  if (author) {
+    await notifySubscribersOfContent(db, c.env, {
+      creatorId: authorId,
+      contentType: 'post',
+      entityId: inserted.id,
+      title: inserted.body || poll?.question || 'Post',
+      targetUrl: `/u/${author.username}/post/${inserted.slug}`,
+    }, new URL(c.req.url).origin)
+  }
+
   return c.json(
     {
       id: inserted.id,
@@ -551,6 +582,14 @@ postsRoutes.post('/:postId/replies', authMiddleware, zValidator('param', postIdP
   const replies = await serializeReplies(db, c.var.user.id, postId)
   const reply = replies.find((candidate) => candidate.id === replyId)
 
+  await notifyCreatorOfReply(db, c.env, {
+    creatorId: post.authorId,
+    actorId: c.var.user.id,
+    postId,
+    replyId,
+    targetUrl: contentTargetUrl(post),
+  }, new URL(c.req.url).origin)
+
   return c.json({ reply }, 201)
 })
 
@@ -564,7 +603,21 @@ postsRoutes.post('/:postId/like', authMiddleware, zValidator('param', postIdPara
   if (!post) return notFound(c, 'Post not found')
   if (!allowed) return forbidden(c, 'You do not have access to this post')
 
+  const existingLike = await db
+    .select({ postId: postLikes.postId })
+    .from(postLikes)
+    .where(and(eq(postLikes.postId, postId), eq(postLikes.userId, c.var.user.id)))
+    .get()
+
   await db.insert(postLikes).values({ postId, userId: c.var.user.id }).onConflictDoNothing().run()
+  if (!existingLike) {
+    await notifyCreatorOfPostLike(db, c.env, {
+      creatorId: post.authorId,
+      actorId: c.var.user.id,
+      postId,
+      targetUrl: contentTargetUrl(post),
+    }, new URL(c.req.url).origin)
+  }
   return c.json(await postLikeState(db, c.var.user.id, postId))
 })
 

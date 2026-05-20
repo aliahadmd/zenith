@@ -52,7 +52,7 @@ describe('CreatorRoute', () => {
     mockUseAuth.mockReturnValue({
       currentUser: null,
       isLoading: true,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -69,7 +69,7 @@ describe('CreatorRoute', () => {
     mockUseAuth.mockReturnValue({
       currentUser: null,
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -84,7 +84,7 @@ describe('CreatorRoute', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('subscriber'),
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -99,7 +99,7 @@ describe('CreatorRoute', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('creator'),
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })

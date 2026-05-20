@@ -6,18 +6,15 @@ export const emailSchema = z
   .toLowerCase()
   .email('Enter a valid email address')
 
-export const passwordSchema = z
-  .string()
-  .min(8, 'Password must be at least 8 characters')
-
-export const loginSchema = z.object({
+export const authEmailSchema = z.object({
   email: emailSchema,
-  password: z.string().min(1, 'Password is required'),
 })
 
-export const registerSchema = z.object({
-  email: emailSchema,
-  password: passwordSchema,
+export const authOtpSchema = z.object({
+  otp: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Enter the 6-digit code'),
 })
 
 export const profileSettingsSchema = z.object({
@@ -66,18 +63,15 @@ export const avatarSettingsSchema = z.object({
     }),
 })
 
-export const passwordSettingsSchema = z.object({
-  currentPassword: z.string().min(1, 'Current password is required'),
-  newPassword: passwordSchema,
-  confirmPassword: z.string().min(1, 'Confirm your new password'),
-}).refine((values) => values.newPassword === values.confirmPassword, {
-  path: ['confirmPassword'],
-  message: 'New passwords do not match.',
-})
-
 export const emailSettingsSchema = z.object({
   newEmail: emailSchema,
-  currentPassword: z.string().min(1, 'Current password is required'),
+})
+
+export const emailOtpSettingsSchema = z.object({
+  otp: z
+    .string()
+    .trim()
+    .regex(/^\d{6}$/, 'Enter the 6-digit code'),
 })
 
 const httpsUrlSchema = z

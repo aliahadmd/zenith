@@ -3,8 +3,8 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   authKeys,
   authMeQueryOptions,
-  loginRequest,
   logoutRequest,
+  verifyOtp,
   type User,
 } from '../lib/auth'
 
@@ -13,7 +13,7 @@ export type { User } from '../lib/auth'
 type AuthContextValue = {
   currentUser: User | null
   isLoading: boolean
-  login: (email: string, password: string) => Promise<{ error: string | null; user: User | null }>
+  completeOtpSignIn: (email: string, otp: string) => Promise<{ error: string | null; user: User | null }>
   logout: () => Promise<void>
   refreshCurrentUser: () => Promise<void>
 }
@@ -23,8 +23,8 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const currentUserQuery = useQuery(authMeQueryOptions)
-  const loginMutation = useMutation({
-    mutationFn: ({ email, password }: { email: string; password: string }) => loginRequest({ email, password }),
+  const otpMutation = useMutation({
+    mutationFn: ({ email, otp }: { email: string; otp: string }) => verifyOtp({ email, otp }),
     onSuccess: (user) => {
       queryClient.setQueryData(authKeys.me, user)
     },
@@ -44,13 +44,13 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     return () => window.removeEventListener('unauthorized', handleUnauthorized)
   }, [queryClient])
 
-  async function login(email: string, password: string) {
+  async function completeOtpSignIn(email: string, otp: string) {
     try {
-      const user = await loginMutation.mutateAsync({ email, password })
+      const user = await otpMutation.mutateAsync({ email, otp })
       return { error: null, user }
     } catch (error) {
       return {
-        error: error instanceof Error ? error.message : 'Invalid email or password',
+        error: error instanceof Error ? error.message : 'Invalid or expired code',
         user: null,
       }
     }
@@ -72,7 +72,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isLoading = currentUserQuery.isPending
 
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading, login, logout, refreshCurrentUser }}>
+    <AuthContext.Provider value={{ currentUser, isLoading, completeOtpSignIn, logout, refreshCurrentUser }}>
       {children}
     </AuthContext.Provider>
   )

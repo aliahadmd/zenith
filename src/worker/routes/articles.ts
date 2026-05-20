@@ -22,6 +22,7 @@ import {
   MAX_IMAGE_SIZE,
   toUnixSeconds,
 } from '../lib/post-data'
+import { notifySubscribersOfContent } from '../lib/notifications'
 import { generatePostSlug, serializeReplies } from './posts'
 
 export const articlesRoutes = new Hono<HonoEnv>()
@@ -237,6 +238,15 @@ articlesRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
   }).run()
 
   const article = await getArticleByPostId(db, postId)
+  if (parsed.status === 'published' && article) {
+    await notifySubscribersOfContent(db, c.env, {
+      creatorId: authorId,
+      contentType: 'article',
+      entityId: postId,
+      title: parsed.title || 'Untitled article',
+      targetUrl: `/u/${article.authorUsername}/article/${article.slug}`,
+    }, new URL(c.req.url).origin)
+  }
   return c.json({ article: article ? serializeArticle(article) : null }, 201)
 })
 
@@ -279,6 +289,15 @@ articlesRoutes.patch('/:postId', authMiddleware, requireRole('creator'), zValida
     .run()
 
   const article = await getArticleByPostId(db, postId)
+  if (existing.status !== 'published' && parsed.status === 'published' && article) {
+    await notifySubscribersOfContent(db, c.env, {
+      creatorId: existing.authorId,
+      contentType: 'article',
+      entityId: postId,
+      title: article.title,
+      targetUrl: `/u/${article.authorUsername}/article/${article.slug}`,
+    }, new URL(c.req.url).origin)
+  }
   return c.json({ article: article ? serializeArticle(article) : null })
 })
 
@@ -302,6 +321,15 @@ articlesRoutes.post('/:postId/publish', authMiddleware, requireRole('creator'), 
     .run()
 
   const article = await getArticleByPostId(db, postId)
+  if (existing.status !== 'published' && article) {
+    await notifySubscribersOfContent(db, c.env, {
+      creatorId: existing.authorId,
+      contentType: 'article',
+      entityId: postId,
+      title: article.title,
+      targetUrl: `/u/${article.authorUsername}/article/${article.slug}`,
+    }, new URL(c.req.url).origin)
+  }
   return c.json({ article: article ? serializeArticle(article) : null })
 })
 

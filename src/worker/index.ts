@@ -10,6 +10,7 @@ import { articlesRoutes } from './routes/articles'
 import { audioRoutes } from './routes/audio'
 import { photographyRoutes } from './routes/photography'
 import { paymentsRoutes } from './routes/payments'
+import { notificationsRoutes } from './routes/notifications'
 import { notFound, serverError } from './lib/http'
 
 const app = new Hono<HonoEnv>()
@@ -27,12 +28,21 @@ app.route('/api/replies', repliesRoutes)
 app.route('/api/polls', pollsRoutes)
 app.route('/api/media', mediaRoutes)
 app.route('/api/payments', paymentsRoutes)
+app.route('/api/notifications', notificationsRoutes)
 
 app.onError((err, c) => {
   console.error(err)
   return serverError(c)
 })
 
-app.notFound((c) => notFound(c))
+app.notFound((c) => {
+  const url = new URL(c.req.url)
+  if (url.pathname.startsWith('/api/')) return notFound(c)
+
+  const assets = (c.env as Env & { ASSETS?: { fetch: typeof fetch } }).ASSETS
+  if (assets) return assets.fetch(c.req.raw)
+
+  return notFound(c)
+})
 
 export default app

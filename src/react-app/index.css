@@ -167,6 +167,15 @@
   }
 }
 
+@keyframes caret-blink {
+  0%, 70%, 100% {
+    opacity: 1;
+  }
+  20%, 50% {
+    opacity: 0;
+  }
+}
+
 @layer utilities {
   .auth-grid {
     background-image:
@@ -189,6 +198,10 @@
     stroke-dasharray: 640;
     stroke-dashoffset: 640;
     animation: auth-path-draw 2200ms ease-out both;
+  }
+
+  .animate-caret-blink {
+    animation: caret-blink 1.2s ease-out infinite;
   }
 }
 

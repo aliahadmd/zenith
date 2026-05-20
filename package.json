@@ -1,6 +1,6 @@
 {
-  "name": "creator-network",
-  "description": "full-stack creator network app built with Cloudflare Workers, Hono, Drizzle ORM, and React",
+  "name": "zenith",
+  "description": "Zenith full-stack creator network app built with Cloudflare Workers, Hono, Drizzle ORM, and React",
   "cloudflare": {
     "label": "Vite React Template",
     "products": [
@@ -23,6 +23,7 @@
     "@hookform/resolvers": "^5.2.2",
     "@hugeicons/core-free-icons": "^4.1.2",
     "@hugeicons/react": "^1.1.6",
+    "@opentelemetry/api": "^1.9.1",
     "@tailwindcss/vite": "^4.2.4",
     "@tanstack/react-query": "^5.100.7",
     "@tanstack/react-query-devtools": "^5.100.7",
@@ -34,7 +35,9 @@
     "clsx": "^2.1.1",
     "drizzle-orm": "^0.45.2",
     "hono": "^4.12.16",
+    "input-otp": "^1.4.2",
     "lucide-react": "^1.14.0",
+    "mimetext": "^3.0.28",
     "next-themes": "^0.4.6",
     "radix-ui": "^1.4.3",
     "react": "19.2.1",
@@ -80,10 +83,16 @@
   "private": true,
   "scripts": {
     "build": "tsc -b && vite build",
+    "build:production": "CLOUDFLARE_ENV=production npm run build",
+    "build:staging": "CLOUDFLARE_ENV=staging npm run build",
     "cf-typegen": "wrangler types",
     "check": "tsc && vite build && wrangler deploy --dry-run",
     "deploy": "wrangler deploy",
+    "deploy:production": "CLOUDFLARE_ENV=production npm run build && wrangler deploy",
+    "deploy:staging": "CLOUDFLARE_ENV=staging npm run build && wrangler deploy",
     "dev": "vite",
+    "dry-run:production": "CLOUDFLARE_ENV=production npm run build && wrangler deploy --dry-run",
+    "dry-run:staging": "CLOUDFLARE_ENV=staging npm run build && wrangler deploy --dry-run",
     "lint": "eslint .",
     "preview": "npm run build && vite preview",
     "test": "vitest --run"

@@ -559,6 +559,60 @@ export const paymentWebhookEvents = sqliteTable('payment_webhook_events', {
                  .default(sql`(unixepoch())`),
 })
 
+// ── Notifications ─────────────────────────────────────────────────────────
+export const notifications = sqliteTable('notifications', {
+  id:           text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  recipientId:  text('recipient_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  actorId:      text('actor_id').references(() => users.id, { onDelete: 'set null' }),
+  type:         text('type', {
+                  enum: [
+                    'content_published',
+                    'reply_created',
+                    'post_liked',
+                    'subscription_started',
+                    'subscription_active',
+                    'subscription_status_changed',
+                    'payment_failed',
+                  ],
+                }).notNull(),
+  category:     text('category', { enum: ['content', 'interaction', 'subscription'] }).notNull(),
+  title:        text('title').notNull(),
+  body:         text('body').notNull(),
+  targetUrl:    text('target_url'),
+  entityType:   text('entity_type'),
+  entityId:     text('entity_id'),
+  metadata:     text('metadata'),
+  dedupeKey:    text('dedupe_key').notNull().unique(),
+  readAt:       integer('read_at'),
+  emailStatus:  text('email_status', { enum: ['not_applicable', 'pending', 'sent', 'failed'] })
+                  .notNull()
+                  .default('not_applicable'),
+  emailError:   text('email_error'),
+  emailSentAt:  integer('email_sent_at'),
+  createdAt:    integer('created_at')
+                  .notNull()
+                  .default(sql`(unixepoch())`),
+}, (t) => [
+  index('notifications_recipient_read_created_idx').on(t.recipientId, t.readAt, t.createdAt),
+  index('notifications_recipient_created_idx').on(t.recipientId, t.createdAt),
+  index('notifications_actor_idx').on(t.actorId),
+])
+
+export const notificationPreferences = sqliteTable('notification_preferences', {
+  userId:                   text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  emailEnabled:             integer('email_enabled', { mode: 'boolean' }).notNull().default(true),
+  contentEmailEnabled:      integer('content_email_enabled', { mode: 'boolean' }).notNull().default(true),
+  interactionEmailEnabled:  integer('interaction_email_enabled', { mode: 'boolean' }).notNull().default(false),
+  subscriptionEmailEnabled: integer('subscription_email_enabled', { mode: 'boolean' }).notNull().default(true),
+  createdAt:                integer('created_at')
+                              .notNull()
+                              .default(sql`(unixepoch())`),
+  updatedAt:                integer('updated_at', { mode: 'timestamp_ms' })
+                              .notNull()
+                              .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                              .$onUpdate(() => new Date()),
+})
+
 // ── Inferred types ─────────────────────────────────────────────────────────
 export type User                 = typeof users.$inferSelect
 export type NewUser              = typeof users.$inferInsert
@@ -590,3 +644,6 @@ export type PaymentCustomer       = typeof paymentCustomers.$inferSelect
 export type SubscriptionMembership = typeof subscriptionMemberships.$inferSelect
 export type RevenueEvent          = typeof revenueEvents.$inferSelect
 export type PaymentWebhookEvent   = typeof paymentWebhookEvents.$inferSelect
+export type Notification          = typeof notifications.$inferSelect
+export type NewNotification       = typeof notifications.$inferInsert
+export type NotificationPreference = typeof notificationPreferences.$inferSelect

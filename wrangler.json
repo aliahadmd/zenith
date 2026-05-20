@@ -4,7 +4,7 @@
  */
 {
 	"$schema": "node_modules/wrangler/config-schema.json",
-	"name": "ecom",
+	"name": "zenith",
 	"main": "./src/worker/index.ts",
 	"compatibility_date": "2025-10-08",
 	"compatibility_flags": [
@@ -16,17 +16,31 @@
 	"upload_source_maps": true,
 	"assets": {
 		"directory": "./dist/client",
-		"not_found_handling": "single-page-application"
+		"not_found_handling": "single-page-application",
+		"binding": "ASSETS",
+		"run_worker_first": [
+			"/api/*"
+		]
 	},
 	"vars": {
-		"BETTER_AUTH_SECRET": "change-me-in-production",
 		"PAYMENT_PROVIDER": "stripe",
-		"PLATFORM_FEE_BPS": "1000"
+		"PLATFORM_FEE_BPS": "1000",
+		"NOTIFICATION_EMAIL_FROM": "no-reply@aliahad.com",
+		"NOTIFICATION_EMAIL_FROM_NAME": "Zenith",
+		"NOTIFICATION_EMAIL_BASE_URL": ""
 	},
+	"send_email": [
+		{
+			"name": "NOTIFICATION_EMAIL",
+			"allowed_sender_addresses": [
+				"no-reply@aliahad.com"
+			]
+		}
+	],
 	"d1_databases": [
 		{
 			"binding": "DB",
-			"database_name": "social-feed-db",
+			"database_name": "zenith-local-db",
 			"database_id": "local",
 			"migrations_dir": "drizzle"
 		}
@@ -34,13 +48,87 @@
 	"r2_buckets": [
 		{
 			"binding": "AVATARS",
-			"bucket_name": "social-feed-avatars"
+			"bucket_name": "zenith-local-avatars"
 		},
 		{
 			"binding": "MEDIA",
-			"bucket_name": "social-feed-media"
+			"bucket_name": "zenith-local-media"
 		}
-	]
+	],
+	"env": {
+		"staging": {
+			"name": "zenith-staging",
+			"vars": {
+				"PAYMENT_PROVIDER": "stripe",
+				"PLATFORM_FEE_BPS": "1000",
+				"NOTIFICATION_EMAIL_FROM": "no-reply@aliahad.com",
+				"NOTIFICATION_EMAIL_FROM_NAME": "Zenith",
+				"NOTIFICATION_EMAIL_BASE_URL": "https://zenith-staging.aliahad.workers.dev"
+			},
+			"send_email": [
+				{
+					"name": "NOTIFICATION_EMAIL",
+					"allowed_sender_addresses": [
+						"no-reply@aliahad.com"
+					]
+				}
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "zenith-staging-db",
+					"database_id": "eda255b1-afdc-42a6-a12c-ec44927f79d0",
+					"migrations_dir": "drizzle"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "AVATARS",
+					"bucket_name": "zenith-staging-avatars"
+				},
+				{
+					"binding": "MEDIA",
+					"bucket_name": "zenith-staging-media"
+				}
+			]
+		},
+		"production": {
+			"name": "zenith-production",
+			"vars": {
+				"PAYMENT_PROVIDER": "stripe",
+				"PLATFORM_FEE_BPS": "1000",
+				"NOTIFICATION_EMAIL_FROM": "no-reply@aliahad.com",
+				"NOTIFICATION_EMAIL_FROM_NAME": "Zenith",
+				"NOTIFICATION_EMAIL_BASE_URL": "https://zenith-production.aliahad.workers.dev"
+			},
+			"send_email": [
+				{
+					"name": "NOTIFICATION_EMAIL",
+					"allowed_sender_addresses": [
+						"no-reply@aliahad.com"
+					]
+				}
+			],
+			"d1_databases": [
+				{
+					"binding": "DB",
+					"database_name": "zenith-production-db",
+					"database_id": "7432aa58-515d-4d03-b72e-9d4e5336f6a2",
+					"migrations_dir": "drizzle"
+				}
+			],
+			"r2_buckets": [
+				{
+					"binding": "AVATARS",
+					"bucket_name": "zenith-production-avatars"
+				},
+				{
+					"binding": "MEDIA",
+					"bucket_name": "zenith-production-media"
+				}
+			]
+		}
+	}
 	/**
 	 * Smart Placement
 	 * https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement

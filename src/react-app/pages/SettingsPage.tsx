@@ -19,17 +19,17 @@ import { CSS } from '@dnd-kit/utilities'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { GripVertical, KeyRound, Loader2, PanelsTopLeft, ShieldCheck, UserRound } from 'lucide-react'
+import { Bell, GripVertical, KeyRound, Loader2, PanelsTopLeft, ShieldCheck, UserRound } from 'lucide-react'
 import { useForm, useWatch, type FieldValues, type Path, type UseFormReturn } from 'react-hook-form'
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { apiPutRequired } from '../lib/api'
-import { authKeys } from '../lib/auth'
+import { authKeys, requestEmailChangeOtp, verifyEmailChangeOtp } from '../lib/auth'
 import { useAuth } from '../context/AuthContext'
 import {
   avatarSettingsSchema,
+  emailOtpSettingsSchema,
   emailSettingsSchema,
-  passwordSettingsSchema,
   profileSettingsSchema,
   usernameSettingsSchema,
 } from '../lib/schemas'
@@ -40,9 +40,16 @@ import {
   updateProfileTabs,
   type ProfileTabSetting,
 } from '../lib/profile-tabs'
+import {
+  notificationKeys,
+  notificationPreferencesQueryOptions,
+  updateNotificationPreferences as saveNotificationPreferences,
+  type NotificationPreferences,
+} from '../lib/notifications'
 import { cn } from '../lib/utils'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
+import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../components/ui/form'
 import { Switch } from '../components/ui/switch'
@@ -52,16 +59,16 @@ import { Skeleton } from '../components/ui/skeleton'
 type ProfileSettingsValues = z.infer<typeof profileSettingsSchema>
 type UsernameSettingsValues = z.infer<typeof usernameSettingsSchema>
 type AvatarSettingsValues = z.infer<typeof avatarSettingsSchema>
-type PasswordSettingsValues = z.infer<typeof passwordSettingsSchema>
 type EmailSettingsValues = z.infer<typeof emailSettingsSchema>
+type EmailOtpSettingsValues = z.infer<typeof emailOtpSettingsSchema>
 
-export type SettingsSection = 'profile' | 'profile-tabs' | 'account' | 'security'
+export type SettingsSection = 'profile' | 'profile-tabs' | 'account' | 'notifications' | 'security'
 
 const settingsNavItems: Array<{
   section: SettingsSection
   label: string
   description: string
-  to: '/settings/profile' | '/settings/profile-tabs' | '/settings/account' | '/settings/security'
+  to: '/settings/profile' | '/settings/profile-tabs' | '/settings/account' | '/settings/notifications' | '/settings/security'
   icon: typeof UserRound
 }> = [
   {
@@ -86,9 +93,16 @@ const settingsNavItems: Array<{
     icon: ShieldCheck,
   },
   {
+    section: 'notifications',
+    label: 'Notifications',
+    description: 'Email preferences',
+    to: '/settings/notifications',
+    icon: Bell,
+  },
+  {
     section: 'security',
     label: 'Security',
-    description: 'Password',
+    description: 'Email codes',
     to: '/settings/security',
     icon: KeyRound,
   },
@@ -107,9 +121,13 @@ const sectionCopy: Record<SettingsSection, { title: string; description: string 
     title: 'Account',
     description: 'Manage your username and email address.',
   },
+  notifications: {
+    title: 'Notifications',
+    description: 'Choose which updates can also arrive by email.',
+  },
   security: {
     title: 'Security',
-    description: 'Keep your password current.',
+    description: 'Zenith uses email codes instead of account passwords.',
   },
 }
 
@@ -135,21 +153,17 @@ export function SettingsPage({ section = 'profile' }: { section?: SettingsSectio
   const avatarForm = useForm<AvatarSettingsValues>({
     resolver: zodResolver(avatarSettingsSchema),
   })
-  const passwordForm = useForm<PasswordSettingsValues>({
-    resolver: zodResolver(passwordSettingsSchema),
-    defaultValues: {
-      currentPassword: '',
-      newPassword: '',
-      confirmPassword: '',
-    },
-  })
   const emailForm = useForm<EmailSettingsValues>({
     resolver: zodResolver(emailSettingsSchema),
     defaultValues: {
       newEmail: '',
-      currentPassword: '',
     },
   })
+  const emailOtpForm = useForm<EmailOtpSettingsValues>({
+    resolver: zodResolver(emailOtpSettingsSchema),
+    defaultValues: { otp: '' },
+  })
+  const [pendingEmail, setPendingEmail] = useState('')
 
   useEffect(() => {
     profileForm.reset({
@@ -209,27 +223,24 @@ export function SettingsPage({ section = 'profile' }: { section?: SettingsSectio
     },
   })
 
-  const passwordMutation = useMutation({
-    mutationFn: (values: PasswordSettingsValues) =>
-      apiPutRequired('/api/settings/password', {
-        currentPassword: values.currentPassword,
-        newPassword: values.newPassword,
-      }),
-    onSuccess: () => {
-      toast.success('Password updated successfully.')
-      passwordForm.reset()
+  const emailRequestMutation = useMutation({
+    mutationFn: (values: EmailSettingsValues) =>
+      requestEmailChangeOtp({ newEmail: values.newEmail }),
+    onSuccess: (_data, values) => {
+      setPendingEmail(values.newEmail)
+      emailOtpForm.reset({ otp: '' })
+      toast.success('Email code sent.')
     },
   })
 
-  const emailMutation = useMutation({
-    mutationFn: (values: EmailSettingsValues) =>
-      apiPutRequired('/api/settings/email', {
-        newEmail: values.newEmail,
-        currentPassword: values.currentPassword,
-      }),
+  const emailVerifyMutation = useMutation({
+    mutationFn: (values: EmailOtpSettingsValues) =>
+      verifyEmailChangeOtp({ newEmail: pendingEmail, otp: values.otp }),
     onSuccess: async () => {
       toast.success('Email updated successfully.')
       emailForm.reset()
+      emailOtpForm.reset()
+      setPendingEmail('')
       await queryClient.invalidateQueries({ queryKey: authKeys.me })
     },
   })
@@ -407,59 +418,215 @@ export function SettingsPage({ section = 'profile' }: { section?: SettingsSectio
               <Card>
                 <CardHeader>
                   <CardTitle className="tracking-normal normal-case">Change email</CardTitle>
-                  <CardDescription>Update the email address linked to your account</CardDescription>
+                  <CardDescription>Confirm a new email with a 6-digit code</CardDescription>
                 </CardHeader>
                 <CardContent>
-                  <Form {...emailForm}>
-                    <form
-                      onSubmit={emailForm.handleSubmit((values) => emailMutation.mutateAsync(values).catch((error: Error) => {
-                        emailForm.setError('root', { message: error.message })
-                      }))}
-                      className="flex flex-col gap-4"
-                      noValidate
-                    >
-                      <InputField form={emailForm} name="newEmail" label="New email address" type="email" autoComplete="email" />
-                      <InputField form={emailForm} name="currentPassword" label="Current password" type="password" autoComplete="current-password" />
-                      <RootError message={emailForm.formState.errors.root?.message} />
-                      <Button type="submit" className="self-start tracking-normal normal-case" disabled={emailForm.formState.isSubmitting}>
-                        {emailForm.formState.isSubmitting ? 'Updating…' : 'Update email'}
-                      </Button>
-                    </form>
-                  </Form>
+                  {!pendingEmail ? (
+                    <Form {...emailForm}>
+                      <form
+                        onSubmit={emailForm.handleSubmit((values) => emailRequestMutation.mutateAsync(values).catch((error: Error) => {
+                          emailForm.setError('root', { message: error.message })
+                        }))}
+                        className="flex flex-col gap-4"
+                        noValidate
+                      >
+                        <InputField form={emailForm} name="newEmail" label="New email address" type="email" autoComplete="email" />
+                        <RootError message={emailForm.formState.errors.root?.message} />
+                        <Button type="submit" className="self-start tracking-normal normal-case" disabled={emailForm.formState.isSubmitting}>
+                          {emailForm.formState.isSubmitting ? 'Sending…' : 'Send email code'}
+                        </Button>
+                      </form>
+                    </Form>
+                  ) : (
+                    <Form {...emailOtpForm}>
+                      <form
+                        onSubmit={emailOtpForm.handleSubmit((values) => emailVerifyMutation.mutateAsync(values).catch((error: Error) => {
+                          emailOtpForm.setError('root', { message: error.message })
+                        }))}
+                        className="flex flex-col gap-4"
+                        noValidate
+                      >
+                        <p className="text-sm text-muted-foreground">Enter the code sent to {pendingEmail}.</p>
+                        <FormField
+                          control={emailOtpForm.control}
+                          name="otp"
+                          render={({ field }) => (
+                            <FormItem>
+                              <FormLabel>Verification code</FormLabel>
+                              <FormControl>
+                                <InputOTP maxLength={6} value={field.value} onChange={field.onChange}>
+                                  <InputOTPGroup>
+                                    {Array.from({ length: 6 }).map((_, index) => (
+                                      <InputOTPSlot key={index} index={index} />
+                                    ))}
+                                  </InputOTPGroup>
+                                </InputOTP>
+                              </FormControl>
+                              <FormMessage />
+                            </FormItem>
+                          )}
+                        />
+                        <RootError message={emailOtpForm.formState.errors.root?.message} />
+                        <div className="flex flex-wrap gap-3">
+                          <Button type="submit" className="tracking-normal normal-case" disabled={emailOtpForm.formState.isSubmitting}>
+                            {emailOtpForm.formState.isSubmitting ? 'Updating…' : 'Confirm email'}
+                          </Button>
+                          <Button type="button" variant="outline" className="tracking-normal normal-case" onClick={() => setPendingEmail('')}>
+                            Change email
+                          </Button>
+                        </div>
+                      </form>
+                    </Form>
+                  )}
                 </CardContent>
               </Card>
             </>
           )}
 
+          {section === 'notifications' && (
+            <NotificationSettings />
+          )}
+
           {section === 'security' && (
             <Card>
               <CardHeader>
-                <CardTitle className="tracking-normal normal-case">Change password</CardTitle>
-                <CardDescription>Update your account password</CardDescription>
+                <CardTitle className="tracking-normal normal-case">Passwordless sign-in</CardTitle>
+                <CardDescription>Your account is protected by short-lived email codes.</CardDescription>
               </CardHeader>
-              <CardContent>
-                <Form {...passwordForm}>
-                  <form
-                    onSubmit={passwordForm.handleSubmit((values) => passwordMutation.mutateAsync(values).catch((error: Error) => {
-                      passwordForm.setError('root', { message: error.message })
-                    }))}
-                    className="flex flex-col gap-4"
-                    noValidate
-                  >
-                    <InputField form={passwordForm} name="currentPassword" label="Current password" type="password" autoComplete="current-password" />
-                    <InputField form={passwordForm} name="newPassword" label="New password" type="password" autoComplete="new-password" />
-                    <InputField form={passwordForm} name="confirmPassword" label="Confirm new password" type="password" autoComplete="new-password" />
-                    <RootError message={passwordForm.formState.errors.root?.message} />
-                    <Button type="submit" className="self-start tracking-normal normal-case" disabled={passwordForm.formState.isSubmitting}>
-                      {passwordForm.formState.isSubmitting ? 'Updating…' : 'Update password'}
-                    </Button>
-                  </form>
-                </Form>
+              <CardContent className="flex flex-col gap-3">
+                <div className="rounded-md border bg-card px-3 py-3">
+                  <p className="text-sm font-medium">No password to manage</p>
+                  <p className="text-xs text-muted-foreground">
+                    Sign-in codes expire after 5 minutes and are sent only through Zenith email delivery.
+                  </p>
+                </div>
               </CardContent>
             </Card>
           )}
         </div>
       </main>
+    </div>
+  )
+}
+
+function NotificationSettings() {
+  const queryClient = useQueryClient()
+  const preferencesQuery = useQuery(notificationPreferencesQueryOptions)
+  const [draft, setDraft] = useState<Partial<NotificationPreferences> | null>(null)
+  const serverPreferences = preferencesQuery.data?.preferences ?? null
+  const preferences = serverPreferences ? { ...serverPreferences, ...(draft ?? {}) } : null
+
+  const saveMutation = useMutation({
+    mutationFn: () => preferences ? saveNotificationPreferences(preferences) : Promise.reject(new Error('Preferences are not loaded')),
+    onSuccess: async () => {
+      setDraft(null)
+      toast.success('Notification preferences updated.')
+      await queryClient.invalidateQueries({ queryKey: notificationKeys.preferences })
+    },
+    onError: (error) => {
+      toast.error(error instanceof Error ? error.message : 'Notification preferences could not be saved.')
+    },
+  })
+
+  if (preferencesQuery.isError) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle className="tracking-normal normal-case">Notification preferences unavailable</CardTitle>
+          <CardDescription>{preferencesQuery.error.message}</CardDescription>
+        </CardHeader>
+      </Card>
+    )
+  }
+
+  if (preferencesQuery.isPending || !preferences) {
+    return (
+      <Card>
+        <CardHeader>
+          <Skeleton className="h-5 w-48" />
+          <Skeleton className="h-4 w-80" />
+        </CardHeader>
+        <CardContent className="flex flex-col gap-3">
+          <Skeleton className="h-14 w-full rounded-md" />
+          <Skeleton className="h-14 w-full rounded-md" />
+          <Skeleton className="h-14 w-full rounded-md" />
+        </CardContent>
+      </Card>
+    )
+  }
+
+  const updateDraft = (values: Partial<NotificationPreferences>) => {
+    setDraft((current) => ({ ...(current ?? {}), ...values }))
+  }
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="tracking-normal normal-case">Email notifications</CardTitle>
+        <CardDescription>In-app notifications always stay on. Email delivery depends on Cloudflare Email Routing.</CardDescription>
+      </CardHeader>
+      <CardContent className="flex flex-col gap-4">
+        <PreferenceSwitch
+          label="Email notifications"
+          description="Allow this account to receive notification emails."
+          checked={preferences.emailEnabled}
+          onCheckedChange={(checked) => updateDraft({ emailEnabled: checked })}
+        />
+        <PreferenceSwitch
+          label="Creator content"
+          description="New posts, articles, audio, and photography from creators you subscribe to."
+          checked={preferences.contentEmailEnabled}
+          disabled={!preferences.emailEnabled}
+          onCheckedChange={(checked) => updateDraft({ contentEmailEnabled: checked })}
+        />
+        <PreferenceSwitch
+          label="Interactions"
+          description="Replies and likes on your content."
+          checked={preferences.interactionEmailEnabled}
+          disabled={!preferences.emailEnabled}
+          onCheckedChange={(checked) => updateDraft({ interactionEmailEnabled: checked })}
+        />
+        <PreferenceSwitch
+          label="Subscriptions and payments"
+          description="Membership starts, active subscriptions, and payment issues."
+          checked={preferences.subscriptionEmailEnabled}
+          disabled={!preferences.emailEnabled}
+          onCheckedChange={(checked) => updateDraft({ subscriptionEmailEnabled: checked })}
+        />
+        <Button
+          type="button"
+          className="self-start tracking-normal normal-case"
+          disabled={saveMutation.isPending}
+          onClick={() => saveMutation.mutate()}
+        >
+          {saveMutation.isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
+          Save notification settings
+        </Button>
+      </CardContent>
+    </Card>
+  )
+}
+
+function PreferenceSwitch({
+  label,
+  description,
+  checked,
+  disabled,
+  onCheckedChange,
+}: {
+  label: string
+  description: string
+  checked: boolean
+  disabled?: boolean
+  onCheckedChange: (checked: boolean) => void
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4 rounded-md border bg-card px-3 py-3">
+      <div className="min-w-0">
+        <p className="text-sm font-medium">{label}</p>
+        <p className="text-xs text-muted-foreground">{description}</p>
+      </div>
+      <Switch size="sm" checked={checked} disabled={disabled} onCheckedChange={onCheckedChange} aria-label={label} />
     </div>
   )
 }

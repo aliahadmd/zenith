@@ -9,6 +9,9 @@ import migration5 from '../../../drizzle/0005_articles.sql?raw'
 import migration6 from '../../../drizzle/0006_creator_profile_tabs.sql?raw'
 import migration7 from '../../../drizzle/0007_audio.sql?raw'
 import migration8 from '../../../drizzle/0008_photography.sql?raw'
+import migration9 from '../../../drizzle/0009_notifications.sql?raw'
+import { createDb } from '../db/client'
+import { storeSignInOtp } from '../lib/auth-otp'
 
 async function applyMigration(sql: string) {
   const statements = sql
@@ -31,17 +34,21 @@ function getCookieHeader(response: Response): string {
   return cookies.map((cookie) => cookie.split(';')[0]).join('; ')
 }
 
-async function registerAndUpgradeCreator() {
-  const email = `creator-${crypto.randomUUID()}@example.com`
-  const password = 'password123'
-
-  const registerResponse = await SELF.fetch('https://example.com/api/auth/register', {
+async function signInWithOtp(email = `user-${crypto.randomUUID()}@example.com`) {
+  const otp = '123456'
+  await storeSignInOtp(createDb(env.DB), email, otp)
+  const response = await SELF.fetch('https://example.com/api/auth/otp/verify', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, password }),
+    body: JSON.stringify({ email, otp }),
   })
-  expect(registerResponse.status).toBe(201)
-  const cookie = getCookieHeader(registerResponse)
+  expect(response.status).toBe(200)
+  return { response, cookie: getCookieHeader(response) }
+}
+
+async function registerAndUpgradeCreator() {
+  const email = `creator-${crypto.randomUUID()}@example.com`
+  const { cookie } = await signInWithOtp(email)
 
   const meResponse = await SELF.fetch('https://example.com/api/auth/me', {
     headers: { Cookie: cookie },
@@ -83,20 +90,76 @@ describe('Better Auth integration', () => {
     await applyMigration(migration6)
     await applyMigration(migration7)
     await applyMigration(migration8)
+    await applyMigration(migration9)
+  })
+
+  it('rejects legacy password auth endpoints', async () => {
+    const registerResponse = await SELF.fetch('https://example.com/api/auth/register', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: `legacy-${crypto.randomUUID()}@example.com`, password: 'password123' }),
+    })
+    expect(registerResponse.status).toBe(400)
+    await expect(registerResponse.json()).resolves.toMatchObject({
+      error: { code: 'password_auth_disabled' },
+    })
+
+    const loginResponse = await SELF.fetch('https://example.com/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: 'nobody@example.com', password: 'password123' }),
+    })
+    expect(loginResponse.status).toBe(400)
+    await expect(loginResponse.json()).resolves.toMatchObject({
+      error: { code: 'password_auth_disabled' },
+    })
+  })
+
+  it('creates a subscriber session with OTP', async () => {
+    const email = `otp-${crypto.randomUUID()}@example.com`
+    const { response, cookie } = await signInWithOtp(email)
+    expect(cookie).toContain('better-auth')
+    await expect(response.clone().json()).resolves.toMatchObject({
+      email,
+      role: 'subscriber',
+    })
+  })
+
+  it('blocks native OTP sign-in from self-assigning creator role', async () => {
+    const email = `native-${crypto.randomUUID()}@example.com`
+    const otp = '123456'
+    await storeSignInOtp(createDb(env.DB), email, otp)
+
+    const nativeResponse = await SELF.fetch('https://example.com/api/auth/sign-in/email-otp', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        email,
+        otp,
+        name: 'Native Bypass',
+        role: 'creator',
+        username: `u${crypto.randomUUID().replaceAll('-', '').slice(0, 9)}`,
+      }),
+    })
+
+    expect(nativeResponse.status).toBe(404)
+
+    const wrappedResponse = await SELF.fetch('https://example.com/api/auth/otp/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, otp }),
+    })
+    expect(wrappedResponse.status).toBe(200)
+    await expect(wrappedResponse.json()).resolves.toMatchObject({
+      email,
+      role: 'subscriber',
+    })
   })
 
   it('keeps the session usable after subscriber upgrades to creator', async () => {
     const email = `creator-${crypto.randomUUID()}@example.com`
-    const password = 'password123'
 
-    const registerResponse = await SELF.fetch('https://example.com/api/auth/register', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, password }),
-    })
-
-    expect(registerResponse.status).toBe(201)
-    const cookie = getCookieHeader(registerResponse)
+    const { cookie } = await signInWithOtp(email)
     expect(cookie).toContain('better-auth')
 
     const initialMeResponse = await SELF.fetch('https://example.com/api/auth/me', {

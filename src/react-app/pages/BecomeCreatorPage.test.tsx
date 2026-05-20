@@ -70,7 +70,7 @@ describe('BecomeCreatorPage', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('subscriber'),
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -168,7 +168,7 @@ describe('BecomeCreatorPage', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('subscriber'),
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: mockRefreshCurrentUser,
     })

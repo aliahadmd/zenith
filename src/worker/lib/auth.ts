@@ -1,8 +1,10 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from '@better-auth/drizzle-adapter'
+import { emailOTP } from 'better-auth/plugins'
 import { createDb } from '../db/client'
 import * as schema from '../db/schema'
-import { hashPassword, verifyPassword } from './crypto'
+import { hashOtp, OTP_EXPIRES_SECONDS, OTP_LENGTH, OTP_MAX_ATTEMPTS } from './auth-otp'
+import { sendOtpEmail } from './email'
 
 export function createAuth(env: Env, baseURL: string) {
   const db = createDb(env.DB)
@@ -19,13 +21,21 @@ export function createAuth(env: Env, baseURL: string) {
       },
     }),
     emailAndPassword: {
-      enabled: true,
-      minPasswordLength: 8,
-      password: {
-        hash: hashPassword,
-        verify: ({ hash, password }) => verifyPassword(password, hash),
-      },
+      enabled: false,
     },
+    plugins: [
+      emailOTP({
+        otpLength: OTP_LENGTH,
+        expiresIn: OTP_EXPIRES_SECONDS,
+        allowedAttempts: OTP_MAX_ATTEMPTS,
+        storeOTP: {
+          hash: hashOtp,
+        },
+        sendVerificationOTP: async ({ email, otp }) => {
+          await sendOtpEmail(env, email, otp)
+        },
+      }),
+    ],
     user: {
       fields: {
         name: 'displayName',
@@ -40,6 +50,7 @@ export function createAuth(env: Env, baseURL: string) {
         },
         role: {
           type: 'string',
+          input: false,
           required: true,
           defaultValue: 'subscriber',
         },

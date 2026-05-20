@@ -24,6 +24,7 @@ import {
   PHOTOGRAPHY_PREVIEW_TYPES,
   toUnixSeconds,
 } from '../lib/post-data'
+import { notifySubscribersOfContent } from '../lib/notifications'
 import { generatePostSlug, serializeReplies, slugify } from './posts'
 
 export const photographyRoutes = new Hono<HonoEnv>()
@@ -517,6 +518,15 @@ photographyRoutes.patch('/albums/:albumId', authMiddleware, requireRole('creator
 
   const album = await getAlbumById(db, albumId)
   const photos = album ? await getAlbumPhotos(db, album.id, true) : []
+  if (existing.status !== 'published' && parsed.status === 'published' && album) {
+    await notifySubscribersOfContent(db, c.env, {
+      creatorId: c.var.user.id,
+      contentType: 'photography',
+      entityId: album.id,
+      title: album.title,
+      targetUrl: `/u/${album.creatorUsername}/photography/${album.slug}`,
+    }, new URL(c.req.url).origin)
+  }
   return c.json({ album: album ? serializeAlbum(album, photos) : null })
 })
 

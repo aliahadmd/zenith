@@ -5,9 +5,11 @@ import { createDb } from '../db/client'
 import { users } from '../db/schema'
 import { generateUsername } from '../lib/validators'
 import { createAuth, type AppAuth } from '../lib/auth'
+import { deleteSignInOtp, generateOtp, storeSignInOtp } from '../lib/auth-otp'
+import { sendOtpEmail } from '../lib/email'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
-import { authLoginSchema, authRegisterSchema } from '../lib/schemas'
-import { conflict, notFound, zodHook } from '../lib/http'
+import { authOtpRequestSchema, authOtpVerifySchema } from '../lib/schemas'
+import { errorResponse, notFound, zodHook } from '../lib/http'
 
 export const authRoutes = new Hono<HonoEnv>()
 
@@ -77,55 +79,117 @@ function toLegacyUser(user: BetterAuthUser) {
   }
 }
 
-// ── POST /register ─────────────────────────────────────────────────────────
+async function generateUniqueUsername(db: ReturnType<typeof createDb>, email: string) {
+  const localPart = email.split('@')[0]
+  for (let attempt = 0; attempt < 12; attempt += 1) {
+    const username = generateUsername(localPart)
+    const existing = await db.select({ id: users.id }).from(users).where(eq(users.username, username)).get()
+    if (!existing) return username
+  }
+  return `u-${crypto.randomUUID().replaceAll('-', '').slice(0, 8)}`
+}
 
-authRoutes.post('/register', zValidator('json', authRegisterSchema, zodHook), async (c) => {
-  const { email, password } = c.req.valid('json')
+function displayNameFromEmail(email: string) {
+  return email.split('@')[0].replace(/[._-]+/g, ' ').trim() || 'Zenith member'
+}
+
+function passwordAuthDisabled(c: Context<HonoEnv>) {
+  return errorResponse(
+    c,
+    400,
+    'password_auth_disabled',
+    'Password authentication has been replaced by email sign-in codes.',
+  )
+}
+
+const blockedNativeAuthPaths = new Set([
+  'sign-in/email',
+  'sign-up/email',
+  'sign-in/email-otp',
+  'email-otp/send-verification-otp',
+  'email-otp/create-verification-otp',
+  'email-otp/get-verification-otp',
+  'email-otp/check-verification-otp',
+  'email-otp/verify-email',
+  'email-otp/request-password-reset',
+  'email-otp/reset-password',
+  'forget-password/email-otp',
+  'email-otp/request-email-change',
+  'email-otp/change-email',
+])
+
+function isBlockedNativeAuthPath(requestUrl: string) {
+  const pathname = new URL(requestUrl).pathname
+  const path = pathname.replace(/^\/api\/auth\/?/, '').replace(/^\/+/, '')
+  return blockedNativeAuthPaths.has(path)
+}
+
+// ── POST /register and /login disabled ─────────────────────────────────────
+
+authRoutes.post('/register', passwordAuthDisabled)
+
+authRoutes.post('/login', passwordAuthDisabled)
+
+// ── POST /otp/request ──────────────────────────────────────────────────────
+
+authRoutes.post('/otp/request', zValidator('json', authOtpRequestSchema, zodHook), async (c) => {
+  const { email } = c.req.valid('json')
   const db = createDb(c.env.DB)
-  const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).get()
-  if (existing) {
-    return conflict(c, 'Email already in use')
+  const otp = generateOtp()
+
+  await storeSignInOtp(db, email, otp)
+
+  try {
+    await sendOtpEmail(c.env, email, otp)
+  } catch (error) {
+    await deleteSignInOtp(db, email)
+    console.error('OTP email delivery failed:', error)
+    return errorResponse(
+      c,
+      503,
+      'otp_email_unavailable',
+      'Sign-in email could not be sent. Try a verified Email Routing recipient.',
+    )
   }
 
+  return c.json({ success: true })
+})
+
+// ── POST /otp/verify ───────────────────────────────────────────────────────
+
+authRoutes.post('/otp/verify', zValidator('json', authOtpVerifySchema, zodHook), async (c) => {
+  const { email, otp } = c.req.valid('json')
+  const db = createDb(c.env.DB)
+  const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).get()
   const auth = createAuth(c.env, new URL(c.req.url).origin)
-  const localPart = email.split('@')[0]
-  const displayName = localPart
-  const username = generateUsername(localPart)
-  const authResponse = await callAuthEndpoint(c, auth, 'sign-up/email', {
-    email,
-    password,
-    name: displayName,
-    role: 'subscriber',
-    username,
-  })
+  let authResponse: Response
+  try {
+    authResponse = await callAuthEndpoint(c, auth, 'sign-in/email-otp', {
+      email,
+      otp,
+      name: displayNameFromEmail(email),
+      role: 'subscriber',
+      username: existing ? undefined : await generateUniqueUsername(db, email),
+    })
+  } catch (error) {
+    const statusCode = typeof error === 'object' && error !== null && 'statusCode' in error
+      ? Number((error as { statusCode?: number }).statusCode)
+      : 400
+    const code = statusCode === 403 ? 'too_many_otp_attempts' : 'invalid_otp'
+    const message = code === 'too_many_otp_attempts'
+      ? 'Too many incorrect codes. Request a new sign-in code.'
+      : 'The sign-in code is invalid or expired.'
+    return errorResponse(c, statusCode === 403 ? 403 : 400, code, message)
+  }
 
   const json = await readJson<{ user?: BetterAuthUser; message?: string }>(authResponse)
 
   if (!authResponse.ok || !json?.user) {
-    return jsonWithAuthCookies(
-      authResponse,
-      { error: { code: 'registration_failed', message: json?.message ?? 'Registration failed' } },
-      authResponse.status === 422 ? 409 : authResponse.status,
-    )
-  }
-
-  return jsonWithAuthCookies(authResponse, toLegacyUser(json.user), 201)
-})
-
-// ── POST /login ────────────────────────────────────────────────────────────
-
-authRoutes.post('/login', zValidator('json', authLoginSchema, zodHook), async (c) => {
-  const { email, password } = c.req.valid('json')
-  const auth = createAuth(c.env, new URL(c.req.url).origin)
-  const authResponse = await callAuthEndpoint(c, auth, 'sign-in/email', {
-    email,
-    password,
-  })
-
-  const json = await readJson<{ user?: BetterAuthUser }>(authResponse)
-
-  if (!authResponse.ok || !json?.user) {
-    return jsonWithAuthCookies(authResponse, { error: { code: 'invalid_credentials', message: 'Invalid email or password' } }, 401)
+    const code = authResponse.status === 403 ? 'too_many_otp_attempts' : 'invalid_otp'
+    const message = code === 'too_many_otp_attempts'
+      ? 'Too many incorrect codes. Request a new sign-in code.'
+      : 'The sign-in code is invalid or expired.'
+    return jsonWithAuthCookies(authResponse, { error: { code, message } }, authResponse.status === 403 ? 403 : 400)
   }
 
   return jsonWithAuthCookies(authResponse, toLegacyUser(json.user))
@@ -169,6 +233,8 @@ authRoutes.get('/me', authMiddleware, async (c) => {
 // ── Better Auth native endpoints ───────────────────────────────────────────
 
 authRoutes.on(['GET', 'POST'], '/*', (c) => {
+  if (isBlockedNativeAuthPath(c.req.url)) return notFound(c)
+
   const auth = createAuth(c.env, new URL(c.req.url).origin)
   return auth.handler(c.req.raw)
 })

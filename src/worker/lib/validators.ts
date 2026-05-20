@@ -85,6 +85,9 @@ export function generateUsername(emailLocalPart: string): string {
 
   base = base.slice(0, 5).replace(/-+$/, '')
 
-  const suffix = Math.random().toString(36).slice(2, 6).padEnd(4, '0')
+  const alphabet = 'abcdefghijklmnopqrstuvwxyz0123456789'
+  const bytes = new Uint8Array(4)
+  crypto.getRandomValues(bytes)
+  const suffix = Array.from(bytes, (byte) => alphabet[byte % alphabet.length]).join('')
   return `${base}-${suffix}`
 }

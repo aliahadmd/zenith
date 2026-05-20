@@ -61,7 +61,7 @@ describe('ProfilePage', () => {
     mockUseAuth.mockReturnValue({
       currentUser: { ...makeUser(), id: 'creator-1', role: 'creator', username: 'creatorone' },
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })

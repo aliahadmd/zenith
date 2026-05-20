@@ -1,6 +1,7 @@
 import { Link, useRouterState } from '@tanstack/react-router'
 import {
   BadgePlus,
+  Bell,
   LayoutDashboard,
   type LucideIcon,
   LogOut,
@@ -8,8 +9,10 @@ import {
   Settings,
   User,
 } from 'lucide-react'
+import { useQuery } from '@tanstack/react-query'
 import { cn } from '../lib/utils'
 import { useAuth } from '../context/AuthContext'
+import { unreadNotificationCountQueryOptions } from '../lib/notifications'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Button } from './ui/button'
 import { Separator } from './ui/separator'
@@ -21,14 +24,17 @@ type SidebarProps = {
 }
 
 type NavItem = {
-  to: '/feed' | '/settings' | '/become-creator' | '/studio'
+  to: '/feed' | '/notifications' | '/settings' | '/become-creator' | '/studio'
   label: string
   icon: LucideIcon
+  badge?: number
 }
 
 export function Sidebar({ className, onNavigate }: SidebarProps) {
   const { currentUser, logout } = useAuth()
   const pathname = useRouterState({ select: (state) => state.location.pathname })
+  const unreadQuery = useQuery(unreadNotificationCountQueryOptions)
+  const unreadCount = unreadQuery.data?.count ?? 0
 
   const navLinkClass = (href: string) =>
     cn(
@@ -42,11 +48,13 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
     currentUser?.role === 'subscriber'
       ? [
           { to: '/feed' as const, label: 'Feed', icon: Rss },
+          { to: '/notifications' as const, label: 'Notifications', icon: Bell, badge: unreadCount },
           { to: '/become-creator' as const, label: 'Become Creator', icon: BadgePlus },
         ]
       : currentUser?.role === 'creator'
         ? [
             { to: '/feed' as const, label: 'Feed', icon: Rss },
+            { to: '/notifications' as const, label: 'Notifications', icon: Bell, badge: unreadCount },
             { to: '/studio' as const, label: 'Studio', icon: LayoutDashboard },
           ]
         : []
@@ -100,7 +108,12 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           return (
             <Link key={item.to} to={item.to} className={navLinkClass(item.to)} onClick={onNavigate}>
               <Icon data-icon="inline-start" />
-              {item.label}
+              <span className="min-w-0 flex-1 truncate">{item.label}</span>
+              {item.badge ? (
+                <span className="rounded-full bg-primary px-2 py-0.5 text-xs font-semibold text-primary-foreground">
+                  {item.badge > 99 ? '99+' : item.badge}
+                </span>
+              ) : null}
             </Link>
           )
         })}

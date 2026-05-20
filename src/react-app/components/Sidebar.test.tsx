@@ -26,6 +26,14 @@ vi.mock('@tanstack/react-router', () => ({
   useRouterState: () => mockPathname,
 }))
 
+vi.mock('@tanstack/react-query', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('@tanstack/react-query')>()
+  return {
+    ...actual,
+    useQuery: vi.fn(() => ({ data: { count: 0 } })),
+  }
+})
+
 // Mock the useAuth hook
 vi.mock('../context/AuthContext', async (importOriginal) => {
   const actual = await importOriginal<typeof AuthContext>()
@@ -61,7 +69,7 @@ describe('Sidebar', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('subscriber'),
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -79,7 +87,7 @@ describe('Sidebar', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('subscriber'),
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -87,14 +95,14 @@ describe('Sidebar', () => {
     renderSidebar()
 
     const linkNames = screen.getAllByRole('link').map((link) => link.textContent)
-    expect(linkNames).toEqual(['Feed', 'Profile', 'Become Creator', 'Settings'])
+    expect(linkNames).toEqual(['Feed', 'Profile', 'Notifications', 'Become Creator', 'Settings'])
   })
 
   it('renders creator workspace entry for a creator', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('creator'),
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -112,7 +120,7 @@ describe('Sidebar', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('subscriber'),
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -129,7 +137,7 @@ describe('Sidebar', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('creator'),
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -147,7 +155,7 @@ describe('Sidebar', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('subscriber'),
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout,
       refreshCurrentUser: vi.fn(),
     })

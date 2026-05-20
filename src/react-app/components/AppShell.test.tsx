@@ -1,6 +1,7 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
 import { render, screen } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
+import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
 import { AppShell } from './AppShell'
 import * as AuthContext from '../context/AuthContext'
@@ -41,6 +42,20 @@ vi.mock('../context/AuthContext', async (importOriginal) => {
 
 const mockUseAuth = vi.mocked(AuthContext.useAuth)
 
+function renderAppShell() {
+  const queryClient = new QueryClient({
+    defaultOptions: {
+      queries: { retry: false },
+      mutations: { retry: false },
+    },
+  })
+  return render(
+    <QueryClientProvider client={queryClient}>
+      <AppShell />
+    </QueryClientProvider>,
+  )
+}
+
 function makeUser(): User {
   return {
     id: 'user-1',
@@ -58,7 +73,7 @@ describe('AppShell', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser(),
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -66,7 +81,7 @@ describe('AppShell', () => {
 
   it('renders mobile navigation in a Sheet', async () => {
     const user = userEvent.setup()
-    render(<AppShell />)
+    renderAppShell()
 
     expect(screen.getByRole('button', { name: /open navigation/i })).toBeInTheDocument()
 
@@ -80,12 +95,12 @@ describe('AppShell', () => {
     mockUseAuth.mockReturnValue({
       currentUser: null,
       isLoading: false,
-      login: vi.fn(),
+      completeOtpSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
 
-    render(<AppShell />)
+    renderAppShell()
 
     expect(mockNavigate).toHaveBeenCalledWith({ to: '/login', replace: true })
   })

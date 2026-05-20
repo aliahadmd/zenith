@@ -2,12 +2,18 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { eq, and, not } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { account, creatorProfileTabs, users } from '../db/schema'
-import { hashPassword, verifyPassword } from '../lib/crypto'
+import { creatorProfileTabs, users } from '../db/schema'
+import {
+  deleteEmailChangeOtp,
+  generateOtp,
+  storeEmailChangeOtp,
+  verifyEmailChangeOtp,
+} from '../lib/auth-otp'
+import { sendTransactionalEmail } from '../lib/email'
 import { authMiddleware, requireRole, type HonoEnv } from '../middleware/auth'
 import {
   emailSettingsSchema,
-  passwordSettingsSchema,
+  emailSettingsVerifySchema,
   profileTabsSettingsSchema,
   profileSettingsSchema,
   usernameSettingsSchema,
@@ -17,7 +23,6 @@ import {
   errorResponse,
   notFound,
   payloadTooLarge,
-  unauthorized,
   unsupportedMediaType,
   zodHook,
 } from '../lib/http'
@@ -129,52 +134,23 @@ settingsRoutes.put('/avatar', authMiddleware, async (c) => {
 
 // ── PUT /password ──────────────────────────────────────────────────────────
 
-settingsRoutes.put('/password', authMiddleware, zValidator('json', passwordSettingsSchema, zodHook), async (c) => {
-  const userId = c.var.user.id
-  const { currentPassword, newPassword } = c.req.valid('json')
-
-  const db = createDb(c.env.DB)
-
-  const credentialAccount = await db
-    .select({ id: account.id, password: account.password })
-    .from(account)
-    .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
-    .get()
-
-  if (!credentialAccount?.password) {
-    return notFound(c, 'Credential account not found')
-  }
-
-  // Verify current password
-  const currentOk = await verifyPassword(currentPassword, credentialAccount.password)
-  if (!currentOk) {
-    return unauthorized(c, 'Current password is incorrect')
-  }
-
-  // Validate new password is different from current
-  if (newPassword === currentPassword) {
-    return errorResponse(c, 422, 'validation_failed', 'New password must be different from current password')
-  }
-
-  const newHash = await hashPassword(newPassword)
-
-  await db.batch([
-    db.update(account).set({ password: newHash }).where(eq(account.id, credentialAccount.id)),
-    db.update(users).set({ passwordHash: newHash }).where(eq(users.id, userId)),
-  ])
-
-  return c.json({ message: 'Password updated' })
+settingsRoutes.put('/password', authMiddleware, async (c) => {
+  return errorResponse(
+    c,
+    400,
+    'password_auth_disabled',
+    'Zenith now uses email sign-in codes instead of account passwords.',
+  )
 })
 
-// ── PUT /email ─────────────────────────────────────────────────────────────
+// ── POST /email/otp/request ────────────────────────────────────────────────
 
-settingsRoutes.put('/email', authMiddleware, zValidator('json', emailSettingsSchema, zodHook), async (c) => {
+settingsRoutes.post('/email/otp/request', authMiddleware, zValidator('json', emailSettingsSchema, zodHook), async (c) => {
   const userId = c.var.user.id
-  const { newEmail, currentPassword } = c.req.valid('json')
+  const { newEmail } = c.req.valid('json')
 
   const db = createDb(c.env.DB)
 
-  // Fetch current user's email and credential password hash
   const currentUser = await db
     .select({ email: users.email })
     .from(users)
@@ -185,24 +161,10 @@ settingsRoutes.put('/email', authMiddleware, zValidator('json', emailSettingsSch
     return notFound(c, 'User not found')
   }
 
-  const credentialAccount = await db
-    .select({ password: account.password })
-    .from(account)
-    .where(and(eq(account.userId, userId), eq(account.providerId, 'credential')))
-    .get()
-
-  if (!credentialAccount?.password) {
-    return notFound(c, 'Credential account not found')
-  }
-
-  // Idempotency: same email -> verify password, return 200 without DB write
   if (newEmail === currentUser.email) {
-    const passwordOk = await verifyPassword(currentPassword, credentialAccount.password)
-    if (!passwordOk) return unauthorized(c, 'Current password is incorrect')
-    return c.json({ message: 'Email unchanged' })
+    return c.json({ success: true })
   }
 
-  // Only check uniqueness when the email is actually changing
   const emailTaken = await db
     .select({ id: users.id })
     .from(users)
@@ -213,18 +175,94 @@ settingsRoutes.put('/email', authMiddleware, zValidator('json', emailSettingsSch
     return conflict(c, 'Email already in use')
   }
 
-  const passwordOk = await verifyPassword(currentPassword, credentialAccount.password)
-  if (!passwordOk) {
-    return unauthorized(c, 'Current password is incorrect')
+  const otp = generateOtp()
+  await storeEmailChangeOtp(db, userId, newEmail, otp)
+
+  try {
+    await sendTransactionalEmail(c.env, {
+      to: newEmail,
+      subject: 'Confirm your Zenith email',
+      text: [
+        `Your Zenith email change code is ${otp}.`,
+        '',
+        'This code expires in 5 minutes. If you did not request it, keep your current email unchanged.',
+      ].join('\n'),
+    })
+  } catch (error) {
+    await deleteEmailChangeOtp(db, userId, newEmail)
+    console.error('Email change OTP delivery failed:', error)
+    return errorResponse(
+      c,
+      503,
+      'otp_email_unavailable',
+      'Email change code could not be sent. Try a verified Email Routing recipient.',
+    )
+  }
+
+  return c.json({ success: true })
+})
+
+// ── POST /email/otp/verify ─────────────────────────────────────────────────
+
+settingsRoutes.post('/email/otp/verify', authMiddleware, zValidator('json', emailSettingsVerifySchema, zodHook), async (c) => {
+  const userId = c.var.user.id
+  const { newEmail, otp } = c.req.valid('json')
+
+  const db = createDb(c.env.DB)
+
+  const currentUser = await db
+    .select({ email: users.email })
+    .from(users)
+    .where(eq(users.id, userId))
+    .get()
+
+  if (!currentUser) {
+    return notFound(c, 'User not found')
+  }
+
+  if (newEmail === currentUser.email) {
+    await deleteEmailChangeOtp(db, userId, newEmail)
+    return c.json({ message: 'Email unchanged', email: newEmail })
+  }
+
+  const emailTaken = await db
+    .select({ id: users.id })
+    .from(users)
+    .where(eq(users.email, newEmail))
+    .get()
+
+  if (emailTaken) {
+    return conflict(c, 'Email already in use')
+  }
+
+  const otpResult = await verifyEmailChangeOtp(db, userId, newEmail, otp)
+  if (!otpResult.ok) {
+    const message = otpResult.code === 'too_many_attempts'
+      ? 'Too many incorrect codes. Request a new email change code.'
+      : otpResult.code === 'otp_expired'
+        ? 'That code has expired. Request a new email change code.'
+        : 'That code is invalid.'
+    return errorResponse(c, otpResult.code === 'too_many_attempts' ? 403 : 400, otpResult.code, message)
   }
 
   await db
     .update(users)
-    .set({ email: newEmail })
+    .set({ email: newEmail, emailVerified: true })
     .where(eq(users.id, userId))
     .run()
 
-  return c.json({ message: 'Email updated' })
+  return c.json({ message: 'Email updated', email: newEmail })
+})
+
+// ── PUT /email disabled ───────────────────────────────────────────────────
+
+settingsRoutes.put('/email', authMiddleware, async (c) => {
+  return errorResponse(
+    c,
+    400,
+    'password_auth_disabled',
+    'Use the email code flow to update your email address.',
+  )
 })
 
 // ── PUT /username ──────────────────────────────────────────────────────────

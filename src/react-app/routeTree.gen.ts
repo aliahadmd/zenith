@@ -15,6 +15,7 @@ import { Route as AuthenticatedRouteImport } from './routes/_authenticated'
 import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedStudioRouteImport } from './routes/_authenticated/studio'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
+import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
 import { Route as AuthenticatedBecomeCreatorRouteImport } from './routes/_authenticated/become-creator'
 import { Route as AuthenticatedUUsernameRouteImport } from './routes/_authenticated/u.$username'
@@ -25,6 +26,7 @@ import { Route as AuthenticatedStudioAudioRouteImport } from './routes/_authenti
 import { Route as AuthenticatedSettingsSecurityRouteImport } from './routes/_authenticated/settings_.security'
 import { Route as AuthenticatedSettingsProfileTabsRouteImport } from './routes/_authenticated/settings_.profile-tabs'
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings_.profile'
+import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings_.notifications'
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings_.account'
 import { Route as AuthenticatedStudioArticlesNewRouteImport } from './routes/_authenticated/studio_.articles.new'
 import { Route as AuthenticatedUUsernamePostSlugRouteImport } from './routes/_authenticated/u.$username_.post.$slug'
@@ -64,6 +66,12 @@ const AuthenticatedSettingsRoute = AuthenticatedSettingsRouteImport.update({
   path: '/settings',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedNotificationsRoute =
+  AuthenticatedNotificationsRouteImport.update({
+    id: '/notifications',
+    path: '/notifications',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
 const AuthenticatedFeedRoute = AuthenticatedFeedRouteImport.update({
   id: '/feed',
   path: '/feed',
@@ -120,6 +128,12 @@ const AuthenticatedSettingsProfileRoute =
   AuthenticatedSettingsProfileRouteImport.update({
     id: '/settings_/profile',
     path: '/settings/profile',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSettingsNotificationsRoute =
+  AuthenticatedSettingsNotificationsRouteImport.update({
+    id: '/settings_/notifications',
+    path: '/settings/notifications',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedSettingsAccountRoute =
@@ -183,9 +197,11 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/become-creator': typeof AuthenticatedBecomeCreatorRoute
   '/feed': typeof AuthenticatedFeedRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/studio': typeof AuthenticatedStudioRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
+  '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/settings/profile-tabs': typeof AuthenticatedSettingsProfileTabsRoute
   '/settings/security': typeof AuthenticatedSettingsSecurityRoute
@@ -209,9 +225,11 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/become-creator': typeof AuthenticatedBecomeCreatorRoute
   '/feed': typeof AuthenticatedFeedRoute
+  '/notifications': typeof AuthenticatedNotificationsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/studio': typeof AuthenticatedStudioRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
+  '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/settings/profile-tabs': typeof AuthenticatedSettingsProfileTabsRoute
   '/settings/security': typeof AuthenticatedSettingsSecurityRoute
@@ -237,9 +255,11 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/_authenticated/become-creator': typeof AuthenticatedBecomeCreatorRoute
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
+  '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/studio': typeof AuthenticatedStudioRoute
   '/_authenticated/settings_/account': typeof AuthenticatedSettingsAccountRoute
+  '/_authenticated/settings_/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/settings_/profile': typeof AuthenticatedSettingsProfileRoute
   '/_authenticated/settings_/profile-tabs': typeof AuthenticatedSettingsProfileTabsRoute
   '/_authenticated/settings_/security': typeof AuthenticatedSettingsSecurityRoute
@@ -265,9 +285,11 @@ export interface FileRouteTypes {
     | '/register'
     | '/become-creator'
     | '/feed'
+    | '/notifications'
     | '/settings'
     | '/studio'
     | '/settings/account'
+    | '/settings/notifications'
     | '/settings/profile'
     | '/settings/profile-tabs'
     | '/settings/security'
@@ -291,9 +313,11 @@ export interface FileRouteTypes {
     | '/register'
     | '/become-creator'
     | '/feed'
+    | '/notifications'
     | '/settings'
     | '/studio'
     | '/settings/account'
+    | '/settings/notifications'
     | '/settings/profile'
     | '/settings/profile-tabs'
     | '/settings/security'
@@ -318,9 +342,11 @@ export interface FileRouteTypes {
     | '/register'
     | '/_authenticated/become-creator'
     | '/_authenticated/feed'
+    | '/_authenticated/notifications'
     | '/_authenticated/settings'
     | '/_authenticated/studio'
     | '/_authenticated/settings_/account'
+    | '/_authenticated/settings_/notifications'
     | '/_authenticated/settings_/profile'
     | '/_authenticated/settings_/profile-tabs'
     | '/_authenticated/settings_/security'
@@ -388,6 +414,13 @@ declare module '@tanstack/react-router' {
       path: '/settings'
       fullPath: '/settings'
       preLoaderRoute: typeof AuthenticatedSettingsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/notifications': {
+      id: '/_authenticated/notifications'
+      path: '/notifications'
+      fullPath: '/notifications'
+      preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/feed': {
@@ -460,6 +493,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedSettingsProfileRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/settings_/notifications': {
+      id: '/_authenticated/settings_/notifications'
+      path: '/settings/notifications'
+      fullPath: '/settings/notifications'
+      preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/settings_/account': {
       id: '/_authenticated/settings_/account'
       path: '/settings/account'
@@ -529,9 +569,11 @@ declare module '@tanstack/react-router' {
 interface AuthenticatedRouteChildren {
   AuthenticatedBecomeCreatorRoute: typeof AuthenticatedBecomeCreatorRoute
   AuthenticatedFeedRoute: typeof AuthenticatedFeedRoute
+  AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedStudioRoute: typeof AuthenticatedStudioRoute
   AuthenticatedSettingsAccountRoute: typeof AuthenticatedSettingsAccountRoute
+  AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
   AuthenticatedSettingsProfileTabsRoute: typeof AuthenticatedSettingsProfileTabsRoute
   AuthenticatedSettingsSecurityRoute: typeof AuthenticatedSettingsSecurityRoute
@@ -553,9 +595,12 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedBecomeCreatorRoute: AuthenticatedBecomeCreatorRoute,
   AuthenticatedFeedRoute: AuthenticatedFeedRoute,
+  AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedStudioRoute: AuthenticatedStudioRoute,
   AuthenticatedSettingsAccountRoute: AuthenticatedSettingsAccountRoute,
+  AuthenticatedSettingsNotificationsRoute:
+    AuthenticatedSettingsNotificationsRoute,
   AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
   AuthenticatedSettingsProfileTabsRoute: AuthenticatedSettingsProfileTabsRoute,
   AuthenticatedSettingsSecurityRoute: AuthenticatedSettingsSecurityRoute,
