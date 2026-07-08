@@ -20,7 +20,7 @@ export function StudioLayout({
   title,
 }: StudioLayoutProps) {
   return (
-    <div className={cn('mx-auto w-full max-w-7xl', className)}>
+    <div className={cn('w-full max-w-7xl py-2 lg:py-8', className)}>
       <div className="grid gap-6 lg:grid-cols-[14rem_minmax(0,1fr)] lg:items-start">
         <StudioNav className="hidden lg:block lg:sticky lg:top-8" orientation="vertical" />
 

@@ -260,7 +260,7 @@ export function SettingsPage({ section = 'profile' }: { section?: SettingsSectio
   const currentSection = sectionCopy[section]
 
   return (
-    <div className="mx-auto grid w-full max-w-5xl gap-6 lg:grid-cols-[15rem_minmax(0,1fr)]">
+    <div className="grid w-full max-w-5xl gap-6 py-2 lg:grid-cols-[15rem_minmax(0,1fr)] lg:py-8">
       <aside className="min-w-0">
         <div className="lg:sticky lg:top-6">
           <div className="mb-4">
@@ -454,7 +454,11 @@ export function SettingsPage({ section = 'profile' }: { section?: SettingsSectio
                             <FormItem>
                               <FormLabel>Verification code</FormLabel>
                               <FormControl>
-                                <InputOTP maxLength={6} value={field.value} onChange={field.onChange}>
+                                <InputOTP
+                                  maxLength={6}
+                                  value={field.value}
+                                  onChange={(value) => emailOtpForm.setValue('otp', value, { shouldDirty: true, shouldValidate: true })}
+                                >
                                   <InputOTPGroup>
                                     {Array.from({ length: 6 }).map((_, index) => (
                                       <InputOTPSlot key={index} index={index} />

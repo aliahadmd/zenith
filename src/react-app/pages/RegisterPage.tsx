@@ -98,7 +98,11 @@ export function RegisterPage() {
                 <FormItem>
                   <FormLabel>Verification code</FormLabel>
                   <FormControl>
-                    <InputOTP maxLength={6} value={field.value} onChange={field.onChange}>
+                    <InputOTP
+                      maxLength={6}
+                      value={field.value}
+                      onChange={(value) => otpForm.setValue('otp', value, { shouldDirty: true, shouldValidate: true })}
+                    >
                       <InputOTPGroup>
                         {Array.from({ length: 6 }).map((_, index) => (
                           <InputOTPSlot key={index} index={index} />

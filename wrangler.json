@@ -25,7 +25,7 @@
 	"vars": {
 		"PAYMENT_PROVIDER": "stripe",
 		"PLATFORM_FEE_BPS": "1000",
-		"NOTIFICATION_EMAIL_FROM": "no-reply@aliahad.com",
+		"NOTIFICATION_EMAIL_FROM": "hi@noreply.aliahad.com",
 		"NOTIFICATION_EMAIL_FROM_NAME": "Zenith",
 		"NOTIFICATION_EMAIL_BASE_URL": ""
 	},
@@ -33,7 +33,7 @@
 		{
 			"name": "NOTIFICATION_EMAIL",
 			"allowed_sender_addresses": [
-				"no-reply@aliahad.com"
+				"hi@noreply.aliahad.com"
 			]
 		}
 	],
@@ -56,56 +56,25 @@
 		}
 	],
 	"env": {
-		"staging": {
-			"name": "zenith-staging",
-			"vars": {
-				"PAYMENT_PROVIDER": "stripe",
-				"PLATFORM_FEE_BPS": "1000",
-				"NOTIFICATION_EMAIL_FROM": "no-reply@aliahad.com",
-				"NOTIFICATION_EMAIL_FROM_NAME": "Zenith",
-				"NOTIFICATION_EMAIL_BASE_URL": "https://zenith-staging.aliahad.workers.dev"
-			},
-			"send_email": [
-				{
-					"name": "NOTIFICATION_EMAIL",
-					"allowed_sender_addresses": [
-						"no-reply@aliahad.com"
-					]
-				}
-			],
-			"d1_databases": [
-				{
-					"binding": "DB",
-					"database_name": "zenith-staging-db",
-					"database_id": "eda255b1-afdc-42a6-a12c-ec44927f79d0",
-					"migrations_dir": "drizzle"
-				}
-			],
-			"r2_buckets": [
-				{
-					"binding": "AVATARS",
-					"bucket_name": "zenith-staging-avatars"
-				},
-				{
-					"binding": "MEDIA",
-					"bucket_name": "zenith-staging-media"
-				}
-			]
-		},
 		"production": {
 			"name": "zenith-production",
 			"vars": {
 				"PAYMENT_PROVIDER": "stripe",
 				"PLATFORM_FEE_BPS": "1000",
-				"NOTIFICATION_EMAIL_FROM": "no-reply@aliahad.com",
+				"NOTIFICATION_EMAIL_FROM": "hi@noreply.aliahad.com",
 				"NOTIFICATION_EMAIL_FROM_NAME": "Zenith",
-				"NOTIFICATION_EMAIL_BASE_URL": "https://zenith-production.aliahad.workers.dev"
+				"NOTIFICATION_EMAIL_BASE_URL": "https://zenith.aliahad.com"
+			},
+			"secrets": {
+				"required": [
+					"BETTER_AUTH_SECRET"
+				]
 			},
 			"send_email": [
 				{
 					"name": "NOTIFICATION_EMAIL",
 					"allowed_sender_addresses": [
-						"no-reply@aliahad.com"
+						"hi@noreply.aliahad.com"
 					]
 				}
 			],
@@ -113,7 +82,7 @@
 				{
 					"binding": "DB",
 					"database_name": "zenith-production-db",
-					"database_id": "7432aa58-515d-4d03-b72e-9d4e5336f6a2",
+					"database_id": "43268842-5d00-418b-8a7f-1dfe3fb1a123",
 					"migrations_dir": "drizzle"
 				}
 			],

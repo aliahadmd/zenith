@@ -107,7 +107,7 @@ export function BecomeCreatorPage() {
   // ── Already-applied state ─────────────────────────────────────────────────
   if (alreadyApplied) {
     return (
-      <div className="mx-auto max-w-3xl">
+      <div data-page-shell="become-creator" className="w-full max-w-3xl py-2 lg:py-8">
         <Card>
           <CardHeader>
             <CardTitle>Application Under Review</CardTitle>
@@ -128,7 +128,7 @@ export function BecomeCreatorPage() {
 
   // ── Form ──────────────────────────────────────────────────────────────────
   return (
-    <div className="mx-auto flex max-w-3xl flex-col gap-6">
+    <div data-page-shell="become-creator" className="flex w-full max-w-3xl flex-col gap-6 py-2 lg:py-8">
       <div>
         <h1 className="text-2xl font-semibold">Become a Creator</h1>
         <p className="mt-1 text-sm text-muted-foreground">

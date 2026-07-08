@@ -28,7 +28,7 @@ export async function sendTransactionalEmail(env: Env, input: TransactionalEmail
   const binding = env.NOTIFICATION_EMAIL
   if (!binding) throw new Error('Email binding is not configured')
 
-  const from = env.NOTIFICATION_EMAIL_FROM || 'no-reply@aliahad.com'
+  const from = env.NOTIFICATION_EMAIL_FROM || 'hi@noreply.aliahad.com'
   const fromName = env.NOTIFICATION_EMAIL_FROM_NAME || 'Zenith'
   const msg = createMimeMessage()
   msg.setSender({ name: fromName, addr: from })

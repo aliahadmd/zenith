@@ -1,5 +1,5 @@
 import { describe, expect, it, vi, beforeEach } from 'vitest'
-import { render, screen } from '@testing-library/react'
+import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
@@ -23,48 +23,6 @@ vi.mock('@tanstack/react-router', () => ({
   }) => <a href={to} className={className}>{children}</a>,
   useNavigate: () => navigateMock,
 }))
-
-vi.mock('input-otp', async () => {
-  const React = await import('react')
-  const OTPInputContext = React.createContext({
-    slots: Array.from({ length: 6 }, () => ({
-      char: '',
-      hasFakeCaret: false,
-      isActive: false,
-    })),
-  })
-
-  return {
-    OTPInputContext,
-    OTPInput: ({
-      children,
-      value,
-      onChange,
-      maxLength = 6,
-    }: {
-      children: ReactNode
-      value?: string
-      onChange?: (value: string) => void
-      maxLength?: number
-    }) => {
-      const slots = Array.from({ length: maxLength }, (_, index) => ({
-        char: value?.[index] ?? '',
-        hasFakeCaret: false,
-        isActive: false,
-      }))
-      return (
-        <OTPInputContext.Provider value={{ slots }}>
-          <input
-            aria-label="Verification code"
-            value={value ?? ''}
-            onChange={(event) => onChange?.(event.target.value)}
-          />
-          {children}
-        </OTPInputContext.Provider>
-      )
-    },
-  }
-})
 
 vi.mock('../context/AuthContext', async (importOriginal) => {
   const actual = await importOriginal<typeof AuthContext>()
@@ -136,7 +94,41 @@ describe('passwordless auth pages', () => {
     expect(screen.getByText(/verification code/i)).toBeInTheDocument()
     expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument()
   })
+
+  it('submits the typed register OTP code', async () => {
+    const user = userEvent.setup()
+    renderWithClient(<RegisterPage />)
+
+    await user.type(screen.getByLabelText(/email/i), 'reader@example.com')
+    await user.click(screen.getByRole('button', { name: /send verification code/i }))
+
+    await screen.findByText(/enter the code sent to reader@example.com/i)
+    const slots = otpSlots()
+    expect(slots).toHaveLength(6)
+
+    await user.click(slots[0])
+    expect(slots[0]).toHaveFocus()
+    await user.keyboard('123456')
+    await waitFor(() => {
+      expect(otpSlotValue()).toBe('123456')
+    })
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    await waitFor(() => {
+      expect(completeOtpSignInMock).toHaveBeenCalledWith('reader@example.com', '123456')
+    })
+  })
 })
+
+function otpSlotValue() {
+  return otpSlots()
+    .map((input) => input.value)
+    .join('')
+}
+
+function otpSlots() {
+  return Array.from(document.querySelectorAll<HTMLInputElement>('[data-input-otp]'))
+}
 
 function renderWithClient(ui: ReactNode) {
   const queryClient = new QueryClient({
