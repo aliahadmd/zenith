@@ -2,7 +2,7 @@ import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { and, desc, eq, gt, inArray, or } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { articles, audioCollections, audioItems, photographyAlbums, photographyPhotos, posts, follows, users, subscriptionMemberships, membershipPlans } from '../db/schema'
+import { articles, audioCollections, audioItems, courses, photographyAlbums, photographyPhotos, posts, follows, users, subscriptionMemberships, membershipPlans } from '../db/schema'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
 import { subscribeSchema } from '../lib/schemas'
 import { conflict, notFound, zodHook } from '../lib/http'
@@ -155,6 +155,37 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .limit(50)
     .all()
 
+  const courseRows = await db
+    .select({
+      id: courses.id,
+      postId: courses.postId,
+      slug: courses.slug,
+      title: courses.title,
+      description: courses.description,
+      status: courses.status,
+      publishedAt: courses.publishedAt,
+      createdAt: courses.createdAt,
+      updatedAt: courses.updatedAt,
+      authorId: courses.creatorId,
+      authorDisplayName: users.displayName,
+      authorUsername: users.username,
+      authorAvatarUrl: users.avatarUrl,
+    })
+    .from(courses)
+    .innerJoin(subscriptionMemberships, eq(subscriptionMemberships.creatorId, courses.creatorId))
+    .innerJoin(users, eq(users.id, courses.creatorId))
+    .where(and(
+      eq(courses.status, 'published'),
+      eq(subscriptionMemberships.subscriberId, c.var.user.id),
+      or(
+        eq(subscriptionMemberships.status, 'active'),
+        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
+      ),
+    ))
+    .orderBy(desc(courses.publishedAt))
+    .limit(50)
+    .all()
+
   const photographyPhotosRows = photographyRows.length > 0
     ? await db
         .select({
@@ -180,7 +211,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     photographyPhotosByAlbum.set(photo.albumId, [...(photographyPhotosByAlbum.get(photo.albumId) ?? []), photo])
   }
 
-  if (rows.length === 0 && articleRows.length === 0 && audioRows.length === 0 && photographyRows.length === 0) {
+  if (rows.length === 0 && articleRows.length === 0 && audioRows.length === 0 && photographyRows.length === 0 && courseRows.length === 0) {
     return c.json({ posts: [], items: [], message: "You haven't subscribed to any creators yet" })
   }
 
@@ -189,6 +220,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     ...articleRows.map((row) => row.id),
     ...audioRows.map((row) => row.postId),
     ...photographyRows.map((row) => row.postId),
+    ...courseRows.map((row) => row.postId),
   ]
   const extras = await buildPostExtras(db, c.var.user.id, allIds)
 
@@ -322,10 +354,32 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     }
   })
 
-  const items = [...mappedPosts, ...mappedArticles, ...mappedAudio, ...mappedPhotography]
+  const mappedCourses = courseRows.map((row) => ({
+    id: row.id,
+    postId: row.postId,
+    type: 'course' as const,
+    slug: row.slug,
+    title: row.title,
+    description: row.description ?? '',
+    status: row.status,
+    createdAt: toUnixSeconds(row.createdAt),
+    publishedAt: toUnixSeconds(row.publishedAt),
+    updatedAt: toUnixSeconds(row.updatedAt),
+    creator: {
+      id: row.authorId,
+      displayName: row.authorDisplayName,
+      username: row.authorUsername,
+      avatarUrl: row.authorAvatarUrl,
+    },
+    likeCount: extras.postLikeCounts.get(row.postId) ?? 0,
+    replyCount: extras.postReplyCounts.get(row.postId) ?? 0,
+    viewerLiked: extras.viewerLikedPostIds.has(row.postId),
+  }))
+
+  const items = [...mappedPosts, ...mappedArticles, ...mappedAudio, ...mappedPhotography, ...mappedCourses]
     .sort((a, b) => {
-      const aTime = a.type === 'article' || a.type === 'audio' || a.type === 'photography' ? (a.publishedAt ?? a.createdAt ?? 0) : (a.createdAt ?? 0)
-      const bTime = b.type === 'article' || b.type === 'audio' || b.type === 'photography' ? (b.publishedAt ?? b.createdAt ?? 0) : (b.createdAt ?? 0)
+      const aTime = a.type === 'article' || a.type === 'audio' || a.type === 'photography' || a.type === 'course' ? (a.publishedAt ?? a.createdAt ?? 0) : (a.createdAt ?? 0)
+      const bTime = b.type === 'article' || b.type === 'audio' || b.type === 'photography' || b.type === 'course' ? (b.publishedAt ?? b.createdAt ?? 0) : (b.createdAt ?? 0)
       return bTime - aTime
     })
     .slice(0, 50)

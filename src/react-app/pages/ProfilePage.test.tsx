@@ -136,6 +136,13 @@ describe('ProfilePage', () => {
         }
       }
 
+      if (String(url).endsWith('/courses')) {
+        return {
+          hasAccess: true,
+          courses: [],
+        }
+      }
+
       return {
         id: 'creator-1',
         displayName: 'Creator One',
@@ -157,7 +164,8 @@ describe('ProfilePage', () => {
     const user = userEvent.setup()
     renderProfilePage()
 
-    await user.click(await screen.findByRole('tab', { name: 'About' }))
+    await user.click(await screen.findByRole('button', { name: /more/i }))
+    await user.click(await screen.findByRole('menuitem', { name: 'About' }))
 
     expect(await screen.findByRole('link', { name: 'Open GitHub profile' })).toHaveAttribute(
       'href',
@@ -178,6 +186,7 @@ describe('ProfilePage', () => {
     const user = userEvent.setup()
     renderProfilePage()
 
+    expect(await screen.findByRole('tab', { name: 'All' })).toHaveAttribute('data-state', 'active')
     expect(await screen.findByRole('tab', { name: 'Posts' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Photography' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Audio' })).toBeInTheDocument()
@@ -196,7 +205,7 @@ describe('ProfilePage', () => {
     const user = userEvent.setup()
     renderProfilePage()
 
-    expect(await screen.findByRole('tab', { name: 'About' })).toBeInTheDocument()
+    expect(await screen.findByRole('tab', { name: 'All' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Posts' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Photography' })).toBeInTheDocument()
     expect(screen.getByRole('tab', { name: 'Audio' })).toBeInTheDocument()
@@ -208,6 +217,60 @@ describe('ProfilePage', () => {
     expect(await screen.findByRole('menuitem', { name: 'Articles' })).toBeInTheDocument()
     expect(await screen.findByRole('menuitem', { name: 'Subscribers' })).toBeInTheDocument()
     expect(screen.getByRole('menuitem', { name: 'Subscribed to' })).toBeInTheDocument()
+    expect(screen.getByRole('menuitem', { name: 'About' })).toBeInTheDocument()
+  })
+
+  it('shows the All tab with a subscription prompt when content is locked', async () => {
+    mockUseAuth.mockReturnValue({
+      currentUser: makeUser(),
+      isLoading: false,
+      completeOtpSignIn: vi.fn(),
+      logout: vi.fn(),
+      refreshCurrentUser: vi.fn(),
+    })
+    mockApiGetRequired.mockImplementation(async (url) => {
+      const path = String(url)
+      if (path === '/api/profile/creatorone') {
+        return {
+          id: 'creator-1',
+          displayName: 'Creator One',
+          username: 'creatorone',
+          role: 'creator',
+          tagline: 'Design notes and field guides.',
+          avatarUrl: null,
+          profileTabs: null,
+          socialLinks: null,
+        }
+      }
+      if (path.endsWith('/posts')) return { hasAccess: false, posts: [] }
+      if (path.endsWith('/articles')) return { hasAccess: false, articles: [] }
+      if (path.endsWith('/photography')) return { hasAccess: false, albums: [], photos: [] }
+      if (path.endsWith('/audio')) return { hasAccess: false, items: [], albums: [], episodes: [], podcasts: [] }
+      if (path.endsWith('/courses')) return { hasAccess: false, courses: [] }
+      if (path.endsWith('/subscribers')) return { subscribers: [] }
+      if (path.endsWith('/subscriptions')) return { subscriptions: [] }
+      if (path.endsWith('/options')) {
+        return {
+          plan: {
+            name: 'Membership',
+            description: '',
+            freePermanentEnabled: false,
+            freeTrialEnabled: false,
+            freeTrialDays: null,
+            paidEnabled: false,
+            prices: { monthly: null, yearly: null },
+            currency: 'USD',
+          },
+          viewerMembership: null,
+        }
+      }
+      throw new Error(`Unexpected request: ${path}`)
+    })
+
+    renderProfilePage()
+
+    expect(await screen.findByRole('tab', { name: 'All' })).toHaveAttribute('data-state', 'active')
+    expect(await screen.findByText('Subscribe to this creator to see all member content.')).toBeInTheDocument()
   })
 })
 

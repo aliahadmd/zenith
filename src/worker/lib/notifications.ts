@@ -44,7 +44,7 @@ type NotificationInput = {
 
 type ContentNotificationInput = {
   creatorId: string
-  contentType: 'post' | 'article' | 'audio' | 'photography'
+  contentType: 'post' | 'article' | 'audio' | 'photography' | 'course'
   entityId: string
   title: string
   targetUrl: string
@@ -269,6 +269,8 @@ export async function notifySubscribersOfContent(
     ? 'post'
     : input.contentType === 'photography'
       ? 'photo album'
+      : input.contentType === 'course'
+        ? 'course'
       : input.contentType
   const body = `${creator.displayName} published a new ${label}: ${input.title}`
 

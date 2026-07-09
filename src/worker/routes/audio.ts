@@ -243,7 +243,7 @@ async function parseItemForm(c: Context<HonoEnv>): Promise<ParsedItemForm | Resp
 
 async function uploadCollectionCover(c: Context<HonoEnv>, collectionId: string, file: File) {
   const r2Key = `audio/collections/${collectionId}/cover-${crypto.randomUUID()}${imageExtension(file.type)}`
-  await c.env.MEDIA.put(r2Key, await file.arrayBuffer(), {
+  await c.env.STORAGE.put(r2Key, await file.arrayBuffer(), {
     httpMetadata: { contentType: file.type },
   })
   return {
@@ -256,7 +256,7 @@ async function uploadCollectionCover(c: Context<HonoEnv>, collectionId: string, 
 
 async function uploadItemAudio(c: Context<HonoEnv>, itemId: string, file: File) {
   const r2Key = `audio/items/${itemId}/source-${crypto.randomUUID()}${audioExtension(file.type)}`
-  await c.env.MEDIA.put(r2Key, await file.arrayBuffer(), {
+  await c.env.STORAGE.put(r2Key, await file.arrayBuffer(), {
     httpMetadata: { contentType: file.type },
   })
   return {
@@ -269,7 +269,7 @@ async function uploadItemAudio(c: Context<HonoEnv>, itemId: string, file: File) 
 
 async function uploadItemCover(c: Context<HonoEnv>, itemId: string, file: File) {
   const r2Key = `audio/items/${itemId}/cover-${crypto.randomUUID()}${imageExtension(file.type)}`
-  await c.env.MEDIA.put(r2Key, await file.arrayBuffer(), {
+  await c.env.STORAGE.put(r2Key, await file.arrayBuffer(), {
     httpMetadata: { contentType: file.type },
   })
   return {
@@ -573,7 +573,7 @@ audioRoutes.delete('/collections/:collectionId', authMiddleware, requireRole('cr
   }
 
   await db.delete(audioCollections).where(eq(audioCollections.id, collectionId)).run()
-  if (existing.coverR2Key) await c.env.MEDIA.delete(existing.coverR2Key)
+  if (existing.coverR2Key) await c.env.STORAGE.delete(existing.coverR2Key)
   return c.json({ ok: true })
 })
 
@@ -711,8 +711,8 @@ audioRoutes.delete('/items/:itemId', authMiddleware, requireRole('creator'), asy
 
   await db.delete(posts).where(eq(posts.id, existing.postId)).run()
   await Promise.all([
-    existing.audioR2Key ? c.env.MEDIA.delete(existing.audioR2Key) : Promise.resolve(),
-    existing.coverR2Key ? c.env.MEDIA.delete(existing.coverR2Key) : Promise.resolve(),
+    existing.audioR2Key ? c.env.STORAGE.delete(existing.audioR2Key) : Promise.resolve(),
+    existing.coverR2Key ? c.env.STORAGE.delete(existing.coverR2Key) : Promise.resolve(),
   ])
   return c.json({ ok: true })
 })
@@ -813,7 +813,7 @@ audioRoutes.get('/collections/:collectionId/cover', authMiddleware, async (c) =>
   if (!collection?.coverR2Key || !collection.coverContentType) return notFound(c, 'Cover not found')
   if (!await canReadCollection(db, c.var.user.id, collection)) return forbidden(c, 'You do not have access to this cover')
 
-  const object = await c.env.MEDIA.get(collection.coverR2Key)
+  const object = await c.env.STORAGE.get(collection.coverR2Key)
   if (!object?.body) return notFound(c, 'Cover not found')
 
   const headers = new Headers()
@@ -835,7 +835,7 @@ audioRoutes.get('/items/:itemId/cover', authMiddleware, async (c) => {
   const contentType = item.coverContentType ?? item.collectionCoverContentType
   if (!r2Key || !contentType) return notFound(c, 'Cover not found')
 
-  const object = await c.env.MEDIA.get(r2Key)
+  const object = await c.env.STORAGE.get(r2Key)
   if (!object?.body) return notFound(c, 'Cover not found')
 
   const headers = new Headers()
@@ -886,8 +886,8 @@ audioRoutes.get('/items/:itemId/stream', authMiddleware, async (c) => {
   }
 
   const object = range
-    ? await c.env.MEDIA.get(item.audioR2Key, { range: { offset: range.start, length: range.length } })
-    : await c.env.MEDIA.get(item.audioR2Key)
+    ? await c.env.STORAGE.get(item.audioR2Key, { range: { offset: range.start, length: range.length } })
+    : await c.env.STORAGE.get(item.audioR2Key)
   if (!object?.body) return notFound(c, 'Audio not found')
 
   const headers = new Headers()

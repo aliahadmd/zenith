@@ -11,6 +11,7 @@ import { getCreatorProfileTabs } from '../lib/profile-tabs'
 import { listPublishedArticlesForCreator } from './articles'
 import { listPublishedAudioForCreator } from './audio'
 import { listPublishedPhotographyForCreator } from './photography'
+import { listPublishedCoursesForCreator } from './courses'
 
 export const profileRoutes = new Hono<HonoEnv>()
 
@@ -29,7 +30,7 @@ profileRoutes.get('/avatar/:userId', zValidator('param', userIdParamSchema, zodH
 
   if (!user?.avatarR2Key) return notFound(c)
 
-  const object = await c.env.AVATARS.get(user.avatarR2Key)
+  const object = await c.env.STORAGE.get(user.avatarR2Key)
   if (!object) return notFound(c)
 
   const contentType = object.httpMetadata?.contentType ?? 'application/octet-stream'
@@ -290,5 +291,25 @@ profileRoutes.get('/:username/audio', authMiddleware, zValidator('param', userna
   return c.json({
     ...await listPublishedAudioForCreator(db, c.var.user.id, creator.id),
     hasAccess: true,
+  })
+})
+
+// ── GET /:username/courses ────────────────────────────────────────────────
+
+profileRoutes.get('/:username/courses', authMiddleware, zValidator('param', usernameParamSchema, zodHook), async (c) => {
+  const { username } = c.req.valid('param')
+  const db = createDb(c.env.DB)
+  const creator = await db
+    .select({ id: users.id, role: users.role })
+    .from(users)
+    .where(eq(users.username, username))
+    .get()
+
+  if (!creator || creator.role !== 'creator') return notFound(c, 'Creator not found')
+
+  const hasAccess = await hasCreatorAccess(db, c.var.user.id, creator.id)
+  return c.json({
+    courses: await listPublishedCoursesForCreator(db, c.var.user.id, creator.id),
+    hasAccess,
   })
 })

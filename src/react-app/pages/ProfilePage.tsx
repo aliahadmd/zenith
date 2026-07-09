@@ -1,4 +1,4 @@
-import { useState } from 'react'
+import { useMemo, useState } from 'react'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
 import { ExternalLink, Globe, Loader2, MoreHorizontal } from 'lucide-react'
@@ -10,7 +10,9 @@ import { apiGetRequired } from '../lib/api'
 import { articleKeys, type ArticleSummary, type CreatorArticlesResponse } from '../lib/articles'
 import { audioKeys, creatorAudioQueryOptions, type AudioCollectionSummary, type CreatorAudioResponse } from '../lib/audio'
 import { creatorPhotographyQueryOptions, photographyKeys, type CreatorPhotographyResponse } from '../lib/photography'
+import { creatorCoursesQueryOptions, courseKeys, type CreatorCoursesResponse } from '../lib/courses'
 import { postKeys, type FeedPost } from '../lib/posts'
+import { normalizeCreatorAllItems, shuffleCreatorAllItems, type CreatorAllItem } from '../lib/profile-content'
 import { cn } from '../lib/utils'
 import { defaultProfileTabs, type ProfileTabKey, type ProfileTabSetting } from '../lib/profile-tabs'
 import {
@@ -49,6 +51,7 @@ import { AudioCard } from '../components/AudioCard'
 import { AudioCollectionCard } from '../components/AudioCollectionCard'
 import { PhotographyCard } from '../components/PhotographyCard'
 import { PostCard } from '../components/PostCard'
+import { CourseCard } from '../components/CourseCard'
 
 type ProfileData = {
   id: string
@@ -94,13 +97,12 @@ export function ProfilePage({ username }: { username: string }) {
   const { currentUser } = useAuth()
   const queryClient = useQueryClient()
   const [pendingFreeKind, setPendingFreeKind] = useState<'free' | 'trial' | null>(null)
+  const [allVisitToken, setAllVisitToken] = useState(0)
 
   const isOwnProfile = currentUser?.username === username
-  const initialTab = isOwnProfile && currentUser?.role === 'creator'
-    ? 'posts'
-    : isOwnProfile
-      ? 'subscribed'
-      : 'about'
+  const initialTab: ProfileTabKey = isOwnProfile && currentUser?.role !== 'creator'
+    ? 'subscribed'
+    : 'all'
   const [activeSelection, setActiveSelection] = useState<{ username: string; tab: ProfileTabKey }>({
     username,
     tab: initialTab,
@@ -120,23 +122,30 @@ export function ProfilePage({ username }: { username: string }) {
     enabled: Boolean(profileQuery.data && isTabVisible('subscribed')),
   })
   const isCreatorProfile = profileQuery.data?.role === 'creator'
+  const creatorContentEnabled = (tabKey: Exclude<ProfileTabKey, 'all' | 'about' | 'subscribed'>) => (
+    Boolean(isCreatorProfile && (isTabVisible(tabKey) || isTabVisible('all')))
+  )
   const creatorPostsQuery = useQuery({
     queryKey: postKeys.creator(username),
     queryFn: () => apiGetRequired<CreatorPostsResponse>(`/api/profile/${username}/posts`),
-    enabled: Boolean(isCreatorProfile && isTabVisible('posts')),
+    enabled: creatorContentEnabled('posts'),
   })
   const creatorArticlesQuery = useQuery({
     queryKey: articleKeys.creator(username),
     queryFn: () => apiGetRequired<CreatorArticlesResponse>(`/api/profile/${username}/articles`),
-    enabled: Boolean(isCreatorProfile && isTabVisible('articles')),
+    enabled: creatorContentEnabled('articles'),
   })
   const creatorPhotographyQuery = useQuery(creatorPhotographyQueryOptions(
     username,
-    Boolean(isCreatorProfile && isTabVisible('photography')),
+    creatorContentEnabled('photography'),
   ))
   const creatorAudioQuery = useQuery(creatorAudioQueryOptions(
     username,
-    Boolean(isCreatorProfile && isTabVisible('audio')),
+    creatorContentEnabled('audio'),
+  ))
+  const creatorCoursesQuery = useQuery(creatorCoursesQueryOptions(
+    username,
+    creatorContentEnabled('courses'),
   ))
   const creatorSubscribersQuery = useQuery({
     queryKey: ['profile', username, 'subscribers'],
@@ -156,6 +165,7 @@ export function ProfilePage({ username }: { username: string }) {
                 queryClient.invalidateQueries({ queryKey: ['subscriptions'] }),
                 queryClient.invalidateQueries({ queryKey: photographyKeys.profile(username) }),
                 queryClient.invalidateQueries({ queryKey: audioKeys.profile(username) }),
+                queryClient.invalidateQueries({ queryKey: courseKeys.creator(username) }),
       ])
       setPendingFreeKind(null)
       toast.success('Subscription activated.')
@@ -173,6 +183,28 @@ export function ProfilePage({ username }: { username: string }) {
       toast.error(error instanceof Error ? error.message : 'Checkout could not be started.')
     },
   })
+
+  const allItems = useMemo(() => normalizeCreatorAllItems({
+    posts: creatorPostsQuery.data?.posts ?? [],
+    articles: creatorArticlesQuery.data?.articles ?? [],
+    photographyAlbums: creatorPhotographyQuery.data?.albums ?? [],
+    audioItems: creatorAudioQuery.data?.items ?? [],
+    courses: creatorCoursesQuery.data?.courses ?? [],
+  }), [
+    creatorArticlesQuery.data?.articles,
+    creatorAudioQuery.data?.items,
+    creatorCoursesQuery.data?.courses,
+    creatorPhotographyQuery.data?.albums,
+    creatorPostsQuery.data?.posts,
+  ])
+  const shuffledAllItems = useMemo(
+    () => {
+      // The visit token intentionally invalidates this memo when All is revisited.
+      void allVisitToken
+      return shuffleCreatorAllItems(allItems)
+    },
+    [allItems, allVisitToken],
+  )
 
   if (profileQuery.isPending) {
     return <LoadingBlock label="Loading profile" />
@@ -207,6 +239,26 @@ export function ProfilePage({ username }: { username: string }) {
       isStartingCheckout={checkoutMutation.isPending}
     />
   ) : null
+  const selectProfileTab = (tab: ProfileTabKey) => {
+    if (tab === 'all') setAllVisitToken((token) => token + 1)
+    setActiveSelection({ username, tab })
+  }
+  const allContentQueries = [
+    creatorPostsQuery,
+    creatorArticlesQuery,
+    creatorPhotographyQuery,
+    creatorAudioQuery,
+    creatorCoursesQuery,
+  ]
+  const allContentIsLoading = allContentQueries.some((query) => query.isPending)
+  const allContentError = allContentQueries.find((query) => query.isError)?.error.message ?? null
+  const allContentHasAccess = [
+    creatorPostsQuery.data?.hasAccess,
+    creatorArticlesQuery.data?.hasAccess,
+    creatorPhotographyQuery.data?.hasAccess,
+    creatorAudioQuery.data?.hasAccess,
+    creatorCoursesQuery.data?.hasAccess,
+  ].some((hasAccess) => hasAccess === true)
 
   return (
     <div className={showMembershipCard
@@ -240,7 +292,7 @@ export function ProfilePage({ username }: { username: string }) {
         {/* Tabs */}
         <Tabs
           value={currentActiveTab}
-          onValueChange={(value) => setActiveSelection({ username, tab: value as ProfileTabKey })}
+          onValueChange={(value) => selectProfileTab(value as ProfileTabKey)}
         >
           <TabsList variant="line" className="h-auto w-full flex-wrap justify-start rounded-none border-b px-4 py-0">
             {primaryTabs.map((tab) => (
@@ -267,7 +319,7 @@ export function ProfilePage({ username }: { username: string }) {
                     {overflowTabs.map((tab) => (
                       <DropdownMenuItem
                         key={tab.key}
-                        onSelect={() => setActiveSelection({ username, tab: tab.key })}
+                        onSelect={() => selectProfileTab(tab.key)}
                       >
                         {tab.label}
                       </DropdownMenuItem>
@@ -277,6 +329,18 @@ export function ProfilePage({ username }: { username: string }) {
               </DropdownMenu>
             )}
           </TabsList>
+          {profile.role === 'creator' && isTabVisible('all') && (
+            <TabsContent value="all">
+              <CreatorAllTab
+                items={shuffledAllItems}
+                audioQueue={creatorAudioQuery.data?.items ?? []}
+                hasAccess={allContentHasAccess}
+                isLoading={allContentIsLoading}
+                error={allContentError}
+                isOwnProfile={isOwnProfile}
+              />
+            </TabsContent>
+          )}
           {isTabVisible('about') && (
             <TabsContent value="about">
             <section className="border-b p-5">
@@ -370,6 +434,17 @@ export function ProfilePage({ username }: { username: string }) {
               />
             </TabsContent>
           )}
+          {profile.role === 'creator' && isTabVisible('courses') && (
+            <TabsContent value="courses">
+              <CreatorCoursesTab
+                courses={creatorCoursesQuery.data?.courses ?? []}
+                hasAccess={creatorCoursesQuery.data?.hasAccess}
+                isLoading={creatorCoursesQuery.isPending}
+                error={creatorCoursesQuery.isError ? creatorCoursesQuery.error.message : null}
+                isOwnProfile={isOwnProfile}
+              />
+            </TabsContent>
+          )}
           {profile.role === 'creator' && isTabVisible('subscribers') && (
             <TabsContent value="subscribers">
               <CreatorSubscribersTab
@@ -446,10 +521,87 @@ function getPreferredProfileTab({
   role: ProfileData['role']
 }): ProfileTabKey {
   const keys = tabs.map((tab) => tab.key)
-  if (isOwnProfile && role === 'creator' && keys.includes('posts')) return 'posts'
+  if (role === 'creator' && keys.includes('all')) return 'all'
   if (isOwnProfile && keys.includes('subscribed')) return 'subscribed'
   if (keys.includes('about')) return 'about'
   return keys[0] ?? 'about'
+}
+
+function CreatorAllTab({
+  items,
+  audioQueue,
+  hasAccess,
+  isLoading,
+  error,
+  isOwnProfile,
+}: {
+  items: CreatorAllItem[]
+  audioQueue: CreatorAudioResponse['items']
+  hasAccess: boolean
+  isLoading: boolean
+  error: string | null
+  isOwnProfile: boolean
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-col">
+        <div className="border-b p-5"><Skeleton className="h-48 w-full rounded-lg" /></div>
+        <div className="border-b p-5"><Skeleton className="h-40 w-full rounded-lg" /></div>
+      </div>
+    )
+  }
+
+  if (error && items.length === 0) {
+    return (
+      <div className="border-b p-5">
+        <p className="text-sm text-muted-foreground">{error}</p>
+      </div>
+    )
+  }
+
+  if (!hasAccess) {
+    return (
+      <div className="border-b p-5">
+        <p className="text-sm text-muted-foreground">
+          Subscribe to this creator to see all member content.
+        </p>
+      </div>
+    )
+  }
+
+  if (items.length === 0) {
+    return (
+      <div className="border-b p-5">
+        <p className="text-sm text-muted-foreground">
+          {isOwnProfile ? 'You have not published any content yet.' : 'No content published yet.'}
+        </p>
+      </div>
+    )
+  }
+
+  return (
+    <div className="flex flex-col">
+      {error && (
+        <div className="border-b p-5">
+          <p className="text-sm text-muted-foreground">Some content could not be loaded: {error}</p>
+        </div>
+      )}
+      {items.map((item) => {
+        switch (item.kind) {
+          case 'post':
+            return <PostCard key={item.key} post={item.post} />
+          case 'article':
+            return <ArticleCard key={item.key} article={item.article} />
+          case 'photography':
+            return <PhotographyCard key={item.key} album={item.album} />
+          case 'audio':
+            return <AudioCard key={item.key} item={item.item} queue={audioQueue} />
+          case 'course':
+            return <CourseCard key={item.key} course={item.course} />
+        }
+      })}
+    </div>
+  )
 }
 
 function CreatorPostsTab({
@@ -779,6 +931,41 @@ function EmptyTab({ label }: { label: string }) {
   return (
     <div className="border-b p-5">
       <p className="text-sm text-muted-foreground">{label}</p>
+    </div>
+  )
+}
+
+function CreatorCoursesTab({
+  courses,
+  hasAccess,
+  isLoading,
+  error,
+  isOwnProfile,
+}: {
+  courses: CreatorCoursesResponse['courses']
+  hasAccess: boolean | undefined
+  isLoading: boolean
+  error: string | null
+  isOwnProfile: boolean
+}) {
+  if (isLoading) {
+    return (
+      <div className="flex flex-col">
+        <div className="border-b p-5"><Skeleton className="h-48 w-full rounded-lg" /></div>
+        <div className="border-b p-5"><Skeleton className="h-40 w-full rounded-lg" /></div>
+      </div>
+    )
+  }
+
+  if (error) return <div className="border-b p-5"><p className="text-sm text-muted-foreground">{error}</p></div>
+
+  if (courses.length === 0) {
+    return <div className="border-b p-5"><p className="text-sm text-muted-foreground">{isOwnProfile ? 'You have not published any courses yet.' : 'No courses published yet.'}</p></div>
+  }
+
+  return (
+    <div className="flex flex-col">
+      {courses.map((course) => <CourseCard key={course.id} course={{ ...course, hasAccess }} />)}
     </div>
   )
 }

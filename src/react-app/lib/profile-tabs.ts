@@ -2,13 +2,15 @@ import { queryOptions } from '@tanstack/react-query'
 import { apiGetRequired, apiPutRequired } from './api'
 
 export const profileTabDefinitions = [
-  { key: 'about', label: 'About', description: 'Bio and social links' },
+  { key: 'all', label: 'All', description: 'All published creator content' },
   { key: 'posts', label: 'Posts', description: 'Short updates and media posts' },
   { key: 'photography', label: 'Photography', description: 'Member photography albums' },
   { key: 'audio', label: 'Audio', description: 'Albums, tracks, podcasts, and episodes' },
   { key: 'articles', label: 'Articles', description: 'Long-form creator articles' },
+  { key: 'courses', label: 'Courses', description: 'Structured subscriber courses' },
   { key: 'subscribers', label: 'Subscribers', description: 'People subscribed to this creator' },
   { key: 'subscribed', label: 'Subscribed to', description: 'Creators this profile follows' },
+  { key: 'about', label: 'About', description: 'Bio and social links' },
 ] as const
 
 export type ProfileTabKey = (typeof profileTabDefinitions)[number]['key']

@@ -96,16 +96,13 @@ describe('StudioPage', () => {
     expect(navigateMock).toHaveBeenCalledWith({ to: '/studio/articles/new' })
   })
 
-  // Validates: Requirements 6.2
-  it('"Course" card is in disabled/coming-soon state', () => {
+  it('"Course" card opens the course studio route', async () => {
+    const user = userEvent.setup()
     renderStudioPage()
 
-    const courseCard = screen.getByText('Course').closest('[aria-disabled]')
-    expect(courseCard).toHaveAttribute('aria-disabled', 'true')
+    await user.click(screen.getByRole('button', { name: /course/i }))
 
-    // One "Coming Soon" badge — Course only
-    const comingSoonBadges = screen.getAllByText('Coming Soon')
-    expect(comingSoonBadges).toHaveLength(1)
+    expect(navigateMock).toHaveBeenCalledWith({ to: '/studio/courses' })
   })
 
   // Validates: Requirements 6.3

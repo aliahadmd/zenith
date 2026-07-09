@@ -10,6 +10,7 @@ import migration6 from '../../../drizzle/0006_creator_profile_tabs.sql?raw'
 import migration7 from '../../../drizzle/0007_audio.sql?raw'
 import migration8 from '../../../drizzle/0008_photography.sql?raw'
 import migration9 from '../../../drizzle/0009_notifications.sql?raw'
+import migration10 from '../../../drizzle/0010_courses.sql?raw'
 import { createDb } from '../db/client'
 import { storeSignInOtp } from '../lib/auth-otp'
 
@@ -91,6 +92,7 @@ describe('Better Auth integration', () => {
     await applyMigration(migration7)
     await applyMigration(migration8)
     await applyMigration(migration9)
+    await applyMigration(migration10)
   })
 
   it('rejects legacy password auth endpoints', async () => {

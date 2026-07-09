@@ -103,7 +103,7 @@ settingsRoutes.put('/avatar', authMiddleware, async (c) => {
     .get()
 
   if (existing?.avatarR2Key) {
-    await c.env.AVATARS.delete(existing.avatarR2Key)
+    await c.env.STORAGE.delete(existing.avatarR2Key)
   }
 
   // Determine extension from content type
@@ -118,7 +118,7 @@ settingsRoutes.put('/avatar', authMiddleware, async (c) => {
   const avatarUrl = `/api/profile/avatar/${userId}`
 
   // Upload new object to R2
-  await c.env.AVATARS.put(r2Key, await file.arrayBuffer(), {
+  await c.env.STORAGE.put(r2Key, await file.arrayBuffer(), {
     httpMetadata: { contentType: file.type },
   })
 

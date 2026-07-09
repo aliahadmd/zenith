@@ -28,7 +28,7 @@ export const users = sqliteTable('users', {
 // ── Creator Profile Tabs ──────────────────────────────────────────────────
 export const creatorProfileTabs = sqliteTable('creator_profile_tabs', {
   creatorId:    text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  tabKey:       text('tab_key', { enum: ['about', 'posts', 'photography', 'audio', 'articles', 'subscribers', 'subscribed'] }).notNull(),
+  tabKey:       text('tab_key', { enum: ['all', 'about', 'posts', 'photography', 'audio', 'articles', 'courses', 'subscribers', 'subscribed'] }).notNull(),
   visible:      integer('visible', { mode: 'boolean' }).notNull().default(true),
   displayOrder: integer('display_order').notNull(),
   createdAt:    integer('created_at')
@@ -107,7 +107,7 @@ export const verification = sqliteTable('verification', {
 export const posts = sqliteTable('posts', {
   id:        text('id').primaryKey(),
   authorId:  text('author_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
-  kind:      text('kind', { enum: ['post', 'article', 'audio', 'photography'] }).notNull().default('post'),
+  kind:      text('kind', { enum: ['post', 'article', 'audio', 'photography', 'course'] }).notNull().default('post'),
   slug:      text('slug').notNull(),
   body:      text('body').notNull(),
   createdAt: integer('created_at', { mode: 'timestamp' })
@@ -257,6 +257,104 @@ export const photographyPhotos = sqliteTable('photography_photos', {
 }, (t) => [
   index('photography_photos_album_order_idx').on(t.albumId, t.displayOrder),
   index('photography_photos_creator_status_idx').on(t.creatorId, t.status, t.createdAt),
+])
+
+// ── Courses ───────────────────────────────────────────────────────────────
+export const courses = sqliteTable('courses', {
+  id:          text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  postId:      text('post_id').notNull().unique().references(() => posts.id, { onDelete: 'cascade' }),
+  creatorId:   text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  slug:        text('slug').notNull(),
+  title:       text('title').notNull(),
+  description: text('description'),
+  status:      text('status', { enum: ['draft', 'published'] }).notNull().default('draft'),
+  publishedAt: integer('published_at', { mode: 'timestamp' }),
+  createdAt:   integer('created_at', { mode: 'timestamp' })
+                .notNull()
+                .default(sql`(unixepoch())`),
+  updatedAt:   integer('updated_at', { mode: 'timestamp_ms' })
+                .notNull()
+                .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                .$onUpdate(() => new Date()),
+}, (t) => [
+  uniqueIndex('courses_creator_slug_unique').on(t.creatorId, t.slug),
+  index('courses_creator_status_published_idx').on(t.creatorId, t.status, t.publishedAt),
+])
+
+export const courseModules = sqliteTable('course_modules', {
+  id:          text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  courseId:    text('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  title:       text('title').notNull(),
+  description: text('description'),
+  displayOrder: integer('display_order').notNull().default(0),
+  createdAt:   integer('created_at', { mode: 'timestamp' })
+                .notNull()
+                .default(sql`(unixepoch())`),
+  updatedAt:   integer('updated_at', { mode: 'timestamp_ms' })
+                .notNull()
+                .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                .$onUpdate(() => new Date()),
+}, (t) => [
+  index('course_modules_course_order_idx').on(t.courseId, t.displayOrder),
+])
+
+export const courseLessons = sqliteTable('course_lessons', {
+  id:            text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  courseId:      text('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  moduleId:      text('module_id').notNull().references(() => courseModules.id, { onDelete: 'cascade' }),
+  title:         text('title').notNull(),
+  summary:       text('summary'),
+  markdown:      text('markdown').notNull().default(''),
+  status:        text('status', { enum: ['draft', 'published'] }).notNull().default('draft'),
+  displayOrder:  integer('display_order').notNull().default(0),
+  publishedAt:   integer('published_at', { mode: 'timestamp' }),
+  createdAt:     integer('created_at', { mode: 'timestamp' })
+                  .notNull()
+                  .default(sql`(unixepoch())`),
+  updatedAt:     integer('updated_at', { mode: 'timestamp_ms' })
+                  .notNull()
+                  .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                  .$onUpdate(() => new Date()),
+}, (t) => [
+  index('course_lessons_module_order_idx').on(t.moduleId, t.displayOrder),
+  index('course_lessons_course_status_idx').on(t.courseId, t.status, t.publishedAt),
+])
+
+export const courseAttachments = sqliteTable('course_attachments', {
+  id:            text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  courseId:      text('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  lessonId:      text('lesson_id').notNull().references(() => courseLessons.id, { onDelete: 'cascade' }),
+  uploaderId:    text('uploader_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  kind:          text('kind', { enum: ['video', 'audio', 'file'] }).notNull(),
+  status:        text('status', { enum: ['pending', 'ready'] }).notNull().default('pending'),
+  r2Key:         text('r2_key').notNull().unique(),
+  r2UploadId:    text('r2_upload_id'),
+  fileName:      text('file_name').notNull(),
+  contentType:   text('content_type').notNull(),
+  sizeBytes:     integer('size_bytes').notNull(),
+  displayOrder:  integer('display_order').notNull().default(0),
+  createdAt:     integer('created_at', { mode: 'timestamp' })
+                  .notNull()
+                  .default(sql`(unixepoch())`),
+  updatedAt:     integer('updated_at', { mode: 'timestamp_ms' })
+                  .notNull()
+                  .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
+                  .$onUpdate(() => new Date()),
+}, (t) => [
+  index('course_attachments_lesson_order_idx').on(t.lessonId, t.displayOrder),
+  index('course_attachments_course_status_idx').on(t.courseId, t.status),
+])
+
+export const courseLessonProgress = sqliteTable('course_lesson_progress', {
+  courseId:   text('course_id').notNull().references(() => courses.id, { onDelete: 'cascade' }),
+  lessonId:   text('lesson_id').notNull().references(() => courseLessons.id, { onDelete: 'cascade' }),
+  userId:     text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  completedAt: integer('completed_at', { mode: 'timestamp' })
+                .notNull()
+                .default(sql`(unixepoch())`),
+}, (t) => [
+  primaryKey({ columns: [t.lessonId, t.userId] }),
+  index('course_progress_course_user_idx').on(t.courseId, t.userId),
 ])
 
 // ── Post Media Attachments ─────────────────────────────────────────────────

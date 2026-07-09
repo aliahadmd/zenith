@@ -1,9 +1,9 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import { BookOpen, Camera, CreditCard, Headphones, LayoutDashboard, WalletCards, type LucideIcon } from 'lucide-react'
+import { BookOpen, Camera, CreditCard, GraduationCap, Headphones, LayoutDashboard, WalletCards, type LucideIcon } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 type StudioNavItem = {
-  to: '/studio' | '/studio/articles/new' | '/studio/photography' | '/studio/audio' | '/studio/subscriptions' | '/studio/payouts'
+  to: '/studio' | '/studio/articles/new' | '/studio/photography' | '/studio/audio' | '/studio/courses' | '/studio/subscriptions' | '/studio/payouts'
   label: string
   icon: LucideIcon
 }
@@ -13,6 +13,7 @@ const studioNavItems: StudioNavItem[] = [
   { to: '/studio/articles/new', label: 'Articles', icon: BookOpen },
   { to: '/studio/photography', label: 'Photography', icon: Camera },
   { to: '/studio/audio', label: 'Audio', icon: Headphones },
+  { to: '/studio/courses', label: 'Courses', icon: GraduationCap },
   { to: '/studio/subscriptions', label: 'Subscriptions', icon: CreditCard },
   { to: '/studio/payouts', label: 'Money', icon: WalletCards },
 ]
@@ -48,7 +49,7 @@ export function StudioNav({ className, orientation = 'horizontal' }: StudioNavPr
         <div className={cn(vertical ? 'flex flex-col gap-1' : 'contents')}>
         {studioNavItems.map((item) => {
           const Icon = item.icon
-          const active = pathname === item.to || (item.to === '/studio/articles/new' && pathname.startsWith('/studio/articles/'))
+          const active = pathname === item.to || (item.to === '/studio/articles/new' && pathname.startsWith('/studio/articles/')) || (item.to === '/studio/courses' && pathname.startsWith('/studio/courses'))
 
           return (
             <Link

@@ -6,6 +6,7 @@ import { createDb, type Db } from '../db/client'
 import {
   audioItems,
   articles,
+  courses,
   photographyAlbums,
   pollOptions,
   pollVotes,
@@ -66,7 +67,7 @@ type PollInput = {
 
 type PostRow = {
   id: string
-  kind: 'post' | 'article' | 'audio' | 'photography'
+  kind: 'post' | 'article' | 'audio' | 'photography' | 'course'
   slug: string
   body: string
   createdAt: Date | number | null
@@ -79,6 +80,7 @@ type PostRow = {
   audioSlug?: string | null
   photographyStatus?: 'draft' | 'published' | null
   photographySlug?: string | null
+  courseStatus?: 'draft' | 'published' | null
 }
 
 const replyAuthors = alias(users, 'reply_authors')
@@ -171,7 +173,7 @@ async function uploadPostAttachments(c: Context<HonoEnv>, postId: string, upload
     const id = crypto.randomUUID()
     const r2Key = `posts/${postId}/${id}${imageExtension(file.type)}`
 
-    await c.env.MEDIA.put(r2Key, await file.arrayBuffer(), {
+    await c.env.STORAGE.put(r2Key, await file.arrayBuffer(), {
       httpMetadata: { contentType: file.type },
     })
 
@@ -195,7 +197,7 @@ async function uploadReplyAttachments(c: Context<HonoEnv>, replyId: string, uplo
     const id = crypto.randomUUID()
     const r2Key = `replies/${replyId}/${id}${imageExtension(file.type)}`
 
-    await c.env.MEDIA.put(r2Key, await file.arrayBuffer(), {
+    await c.env.STORAGE.put(r2Key, await file.arrayBuffer(), {
       httpMetadata: { contentType: file.type },
     })
 
@@ -229,12 +231,14 @@ async function getPostRowById(db: Db, postId: string) {
       audioSlug: audioItems.slug,
       photographyStatus: photographyAlbums.status,
       photographySlug: photographyAlbums.slug,
+      courseStatus: courses.status,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
     .leftJoin(articles, eq(articles.postId, posts.id))
     .leftJoin(audioItems, eq(audioItems.postId, posts.id))
     .leftJoin(photographyAlbums, eq(photographyAlbums.postId, posts.id))
+    .leftJoin(courses, eq(courses.postId, posts.id))
     .where(eq(posts.id, postId))
     .get()
 }
@@ -251,6 +255,9 @@ async function getAccessiblePostById(db: Db, viewerId: string, postId: string) {
   if (post.kind === 'photography' && post.photographyStatus !== 'published' && viewerId !== post.authorId) {
     return { post, allowed: false }
   }
+  if (post.kind === 'course' && post.courseStatus !== 'published' && viewerId !== post.authorId) {
+    return { post, allowed: false }
+  }
   return { post, allowed: await hasCreatorAccess(db, viewerId, post.authorId) }
 }
 
@@ -258,6 +265,7 @@ function contentTargetUrl(post: Pick<PostRow, 'kind' | 'slug' | 'authorUsername'
   if (post.kind === 'article') return `/u/${post.authorUsername}/article/${post.slug}`
   if (post.kind === 'audio') return `/u/${post.authorUsername}/audio/${post.audioSlug ?? post.slug}`
   if (post.kind === 'photography') return `/u/${post.authorUsername}/photography/${post.photographySlug ?? post.slug}`
+  if (post.kind === 'course') return `/u/${post.authorUsername}/course/${post.slug}`
   return `/u/${post.authorUsername}/post/${post.slug}`
 }
 
@@ -737,7 +745,7 @@ mediaRoutes.get('/:attachmentId', authMiddleware, zValidator('param', attachment
   if (!attachment) return notFound(c, 'Media not found')
   if (!await hasCreatorAccess(db, c.var.user.id, attachment.authorId)) return forbidden(c, 'You do not have access to this media')
 
-  const object = await c.env.MEDIA.get(attachment.r2Key)
+  const object = await c.env.STORAGE.get(attachment.r2Key)
   if (!object?.body) return notFound(c, 'Media not found')
 
   const headers = new Headers()

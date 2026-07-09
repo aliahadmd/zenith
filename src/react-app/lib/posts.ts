@@ -3,6 +3,7 @@ import { apiDeleteRequired, apiGetRequired, apiPostRequired } from './api'
 import type { ArticleSummary } from './articles'
 import type { AudioItemSummary } from './audio'
 import type { PhotographyAlbumSummary } from './photography'
+import type { CourseSummary } from './courses'
 
 export type Attachment = {
   id: string
@@ -74,7 +75,7 @@ export type PostDetailResponse = {
 
 export type FeedResponse = {
   posts: FeedPost[]
-  items?: Array<FeedPost | ArticleSummary | AudioItemSummary | PhotographyAlbumSummary>
+  items?: Array<FeedPost | ArticleSummary | AudioItemSummary | PhotographyAlbumSummary | CourseSummary>
   message?: string
 }
 

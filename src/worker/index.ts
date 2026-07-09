@@ -11,6 +11,7 @@ import { audioRoutes } from './routes/audio'
 import { photographyRoutes } from './routes/photography'
 import { paymentsRoutes } from './routes/payments'
 import { notificationsRoutes } from './routes/notifications'
+import { coursesRoutes } from './routes/courses'
 import { notFound, serverError } from './lib/http'
 
 const app = new Hono<HonoEnv>()
@@ -29,6 +30,7 @@ app.route('/api/polls', pollsRoutes)
 app.route('/api/media', mediaRoutes)
 app.route('/api/payments', paymentsRoutes)
 app.route('/api/notifications', notificationsRoutes)
+app.route('/api/courses', coursesRoutes)
 
 app.onError((err, c) => {
   console.error(err)

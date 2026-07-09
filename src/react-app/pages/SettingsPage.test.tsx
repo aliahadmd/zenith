@@ -59,11 +59,15 @@ describe('SettingsPage', () => {
     })
     mockApiGetRequired.mockResolvedValue({
       tabs: [
-        { key: 'about', label: 'About', visible: true, order: 0 },
+        { key: 'all', label: 'All', visible: true, order: 0 },
         { key: 'posts', label: 'Posts', visible: true, order: 1 },
-        { key: 'articles', label: 'Articles', visible: true, order: 2 },
-        { key: 'subscribers', label: 'Subscribers', visible: true, order: 3 },
-        { key: 'subscribed', label: 'Subscribed to', visible: true, order: 4 },
+        { key: 'photography', label: 'Photography', visible: true, order: 2 },
+        { key: 'audio', label: 'Audio', visible: true, order: 3 },
+        { key: 'articles', label: 'Articles', visible: true, order: 4 },
+        { key: 'courses', label: 'Courses', visible: true, order: 5 },
+        { key: 'subscribers', label: 'Subscribers', visible: true, order: 6 },
+        { key: 'subscribed', label: 'Subscribed to', visible: true, order: 7 },
+        { key: 'about', label: 'About', visible: true, order: 8 },
       ],
     })
     mockApiPutRequired.mockImplementation(async (_url, payload) => ({
@@ -92,11 +96,15 @@ describe('SettingsPage', () => {
     await waitFor(() => {
       expect(mockApiPutRequired).toHaveBeenCalledWith('/api/settings/profile-tabs', {
         tabs: [
-          { key: 'about', visible: false },
+          { key: 'all', visible: true },
           { key: 'posts', visible: true },
+          { key: 'photography', visible: true },
+          { key: 'audio', visible: true },
           { key: 'articles', visible: true },
+          { key: 'courses', visible: true },
           { key: 'subscribers', visible: true },
           { key: 'subscribed', visible: true },
+          { key: 'about', visible: false },
         ],
       })
     })

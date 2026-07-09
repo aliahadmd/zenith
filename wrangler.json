@@ -47,12 +47,8 @@
 	],
 	"r2_buckets": [
 		{
-			"binding": "AVATARS",
-			"bucket_name": "zenith-local-avatars"
-		},
-		{
-			"binding": "MEDIA",
-			"bucket_name": "zenith-local-media"
+			"binding": "STORAGE",
+			"bucket_name": "zenith-local"
 		}
 	],
 	"env": {
@@ -81,19 +77,15 @@
 			"d1_databases": [
 				{
 					"binding": "DB",
-					"database_name": "zenith-production-db",
-					"database_id": "43268842-5d00-418b-8a7f-1dfe3fb1a123",
+					"database_name": "zenith",
+					"database_id": "a9636a93-e0cc-4da1-8f41-0a92121675a5",
 					"migrations_dir": "drizzle"
 				}
 			],
 			"r2_buckets": [
 				{
-					"binding": "AVATARS",
-					"bucket_name": "zenith-production-avatars"
-				},
-				{
-					"binding": "MEDIA",
-					"bucket_name": "zenith-production-media"
+					"binding": "STORAGE",
+					"bucket_name": "zenith"
 				}
 			]
 		}

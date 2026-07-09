@@ -192,13 +192,15 @@ describe('profile-and-settings-improvements property tests', () => {
 
 describe('creator profile tab settings schema', () => {
   const validTabs = [
-    { key: 'about', visible: true },
+    { key: 'all', visible: true },
     { key: 'posts', visible: true },
     { key: 'photography', visible: true },
     { key: 'audio', visible: true },
     { key: 'articles', visible: true },
+    { key: 'courses', visible: true },
     { key: 'subscribers', visible: true },
     { key: 'subscribed', visible: true },
+    { key: 'about', visible: true },
   ]
 
   it('accepts the full known tab list with at least one visible tab', () => {
@@ -208,13 +210,15 @@ describe('creator profile tab settings schema', () => {
   it('rejects duplicate tab keys', () => {
     expect(profileTabsSettingsSchema.safeParse({
       tabs: [
-        { key: 'about', visible: true },
+        { key: 'all', visible: true },
         { key: 'about', visible: true },
         { key: 'photography', visible: true },
         { key: 'audio', visible: true },
         { key: 'articles', visible: true },
+        { key: 'courses', visible: true },
         { key: 'subscribers', visible: true },
         { key: 'subscribed', visible: true },
+        { key: 'about', visible: true },
       ],
     }).success).toBe(false)
   })
@@ -222,25 +226,29 @@ describe('creator profile tab settings schema', () => {
   it('rejects unknown tab keys and zero visible tabs', () => {
     expect(profileTabsSettingsSchema.safeParse({
       tabs: [
-        { key: 'about', visible: false },
+        { key: 'all', visible: false },
         { key: 'posts', visible: false },
         { key: 'photography', visible: false },
         { key: 'audio', visible: false },
         { key: 'articles', visible: false },
+        { key: 'courses', visible: false },
         { key: 'subscribers', visible: false },
         { key: 'subscribed', visible: false },
+        { key: 'about', visible: false },
       ],
     }).success).toBe(false)
 
     expect(profileTabsSettingsSchema.safeParse({
       tabs: [
-        { key: 'about', visible: true },
+        { key: 'all', visible: true },
         { key: 'posts', visible: true },
         { key: 'photography', visible: true },
         { key: 'audio', visible: true },
         { key: 'articles', visible: true },
+        { key: 'courses', visible: true },
         { key: 'subscribers', visible: true },
         { key: 'unknown', visible: true },
+        { key: 'about', visible: true },
       ],
     }).success).toBe(false)
   })

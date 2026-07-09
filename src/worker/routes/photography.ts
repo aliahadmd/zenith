@@ -202,7 +202,7 @@ function parsePhotoMetadata(raw: unknown): ParsedPhotoMetadata[] {
 
 async function uploadPreview(c: Context<HonoEnv>, albumId: string, photoId: string, file: File) {
   const r2Key = `photography/albums/${albumId}/photos/${photoId}/preview-${crypto.randomUUID()}${imageExtension(file.type)}`
-  await c.env.MEDIA.put(r2Key, await file.arrayBuffer(), {
+  await c.env.STORAGE.put(r2Key, await file.arrayBuffer(), {
     httpMetadata: { contentType: file.type },
   })
   return {
@@ -216,7 +216,7 @@ async function uploadPreview(c: Context<HonoEnv>, albumId: string, photoId: stri
 async function uploadOriginal(c: Context<HonoEnv>, albumId: string, photoId: string, file: File) {
   const contentType = file.type || 'application/octet-stream'
   const r2Key = `photography/albums/${albumId}/photos/${photoId}/original-${crypto.randomUUID()}${photographyOriginalExtension(file)}`
-  await c.env.MEDIA.put(r2Key, await file.arrayBuffer(), {
+  await c.env.STORAGE.put(r2Key, await file.arrayBuffer(), {
     httpMetadata: { contentType },
   })
   return {
@@ -664,8 +664,8 @@ photographyRoutes.patch('/photos/:photoId', authMiddleware, requireRole('creator
     .run()
 
   await Promise.all([
-    preview && existing.previewR2Key ? c.env.MEDIA.delete(existing.previewR2Key) : Promise.resolve(),
-    original && existing.originalR2Key ? c.env.MEDIA.delete(existing.originalR2Key) : Promise.resolve(),
+    preview && existing.previewR2Key ? c.env.STORAGE.delete(existing.previewR2Key) : Promise.resolve(),
+    original && existing.originalR2Key ? c.env.STORAGE.delete(existing.originalR2Key) : Promise.resolve(),
   ])
 
   const photo = await getPhotoById(db, photoId)
@@ -689,8 +689,8 @@ photographyRoutes.delete('/photos/:photoId', authMiddleware, requireRole('creato
       .run()
   }
   await Promise.all([
-    c.env.MEDIA.delete(existing.previewR2Key),
-    existing.originalR2Key ? c.env.MEDIA.delete(existing.originalR2Key) : Promise.resolve(),
+    c.env.STORAGE.delete(existing.previewR2Key),
+    existing.originalR2Key ? c.env.STORAGE.delete(existing.originalR2Key) : Promise.resolve(),
   ])
   return c.json({ ok: true })
 })
@@ -757,7 +757,7 @@ photographyRoutes.get('/photos/:photoId/preview', authMiddleware, async (c) => {
   const access = await canReadPhoto(db, c.var.user.id, photo)
   if (!access?.allowed) return forbidden(c, 'You do not have access to this photo')
 
-  const object = await c.env.MEDIA.get(photo.previewR2Key)
+  const object = await c.env.STORAGE.get(photo.previewR2Key)
   if (!object?.body) return notFound(c, 'Photo not found')
 
   const headers = new Headers()
@@ -779,7 +779,7 @@ photographyRoutes.get('/photos/:photoId/original', authMiddleware, async (c) => 
     return forbidden(c, 'Original downloads are not enabled for this photo')
   }
 
-  const object = await c.env.MEDIA.get(photo.originalR2Key)
+  const object = await c.env.STORAGE.get(photo.originalR2Key)
   if (!object?.body) return notFound(c, 'Original photo not found')
 
   const headers = new Headers()

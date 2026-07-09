@@ -83,7 +83,7 @@ creatorRoutes.post('/apply', authMiddleware, async (c) => {
   const r2Key = `nid-documents/${userId}/${filename}`
 
   try {
-    await c.env.AVATARS.put(r2Key, await nidDocumentFile.arrayBuffer(), {
+    await c.env.STORAGE.put(r2Key, await nidDocumentFile.arrayBuffer(), {
       httpMetadata: { contentType: nidDocumentFile.type },
     })
   } catch (err) {
@@ -112,7 +112,7 @@ creatorRoutes.post('/apply', authMiddleware, async (c) => {
     console.error('D1 batch write failed:', err)
     // Attempt to clean up the uploaded R2 object
     try {
-      await c.env.AVATARS.delete(r2Key)
+      await c.env.STORAGE.delete(r2Key)
     } catch {
       // Best-effort cleanup; log but don't surface
       console.error('R2 cleanup after D1 failure also failed for key:', r2Key)

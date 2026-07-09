@@ -2,6 +2,7 @@ import { useQuery } from '@tanstack/react-query'
 import { ArticleCard } from '../components/ArticleCard'
 import { AudioCard } from '../components/AudioCard'
 import { PhotographyCard } from '../components/PhotographyCard'
+import { CourseCard } from '../components/CourseCard'
 import { PostCard } from '../components/PostCard'
 import { LoadingBlock } from '../components/LoadingBlock'
 import { feedQueryOptions } from '../lib/posts'
@@ -48,6 +49,8 @@ export function FeedPage() {
               ? <AudioCard key={`audio-${item.id}`} item={item} queue={items.filter((candidate) => candidate.type === 'audio')} />
               : item.type === 'photography'
                 ? <PhotographyCard key={`photography-${item.id}`} album={item} />
+                : item.type === 'course'
+                  ? <CourseCard key={`course-${item.id}`} course={item} />
                 : <PostCard key={`post-${item.id}`} post={item} />
         ))}
       </div>

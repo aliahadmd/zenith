@@ -290,7 +290,7 @@ function buildApplyApp(opts: {
     if (r2PutShouldThrow) {
       return c.json({ error: 'Internal server error' }, 500)
     }
-    // (In the real handler: await c.env.AVATARS.put(...))
+    // (In the real handler: await c.env.STORAGE.put(...))
     void r2Key // used in real handler; suppress unused-var lint
 
     // ── Batch DB write (injected mock) ────────────────────────────────────

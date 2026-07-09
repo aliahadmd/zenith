@@ -48,8 +48,7 @@ export function StudioPage() {
           icon={<GraduationCap />}
           title="Course"
           description="Create a structured multi-lesson course to teach your audience a skill."
-          disabled
-          comingSoon
+          onClick={() => navigate({ to: '/studio/courses' })}
         />
       </div>
 

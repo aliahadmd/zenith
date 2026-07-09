@@ -131,7 +131,7 @@ async function parseArticleForm(c: Context<HonoEnv>): Promise<ParsedArticleForm 
 
 async function uploadCover(c: Context<HonoEnv>, postId: string, file: File) {
   const r2Key = `articles/${postId}/cover-${crypto.randomUUID()}${imageExtension(file.type)}`
-  await c.env.MEDIA.put(r2Key, await file.arrayBuffer(), {
+  await c.env.STORAGE.put(r2Key, await file.arrayBuffer(), {
     httpMetadata: { contentType: file.type },
   })
   return {
@@ -399,7 +399,7 @@ articlesRoutes.get('/:postId/cover', authMiddleware, zValidator('param', article
   if (!article?.coverR2Key || !article.coverContentType) return notFound(c, 'Cover not found')
   if (!await canReadArticle(db, c.var.user.id, article)) return forbidden(c, 'You do not have access to this cover')
 
-  const object = await c.env.MEDIA.get(article.coverR2Key)
+  const object = await c.env.STORAGE.get(article.coverR2Key)
   if (!object?.body) return notFound(c, 'Cover not found')
 
   const headers = new Headers()
