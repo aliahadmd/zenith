@@ -1,6 +1,6 @@
 import { Hono, type Context } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { and, desc, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, isNotNull, isNull, or, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import { createDb, type Db } from '../db/client'
 import {
@@ -29,6 +29,7 @@ import {
   postSlugParamSchema,
   replyCreateJsonSchema,
   replyIdParamSchema,
+  replyUpdateSchema,
 } from '../lib/schemas'
 import {
   errorResponse,
@@ -51,7 +52,7 @@ import {
 } from '../lib/post-data'
 import {
   notifyCreatorOfPostLike,
-  notifyCreatorOfReply,
+  notifyUserOfReply,
   notifySubscribersOfContent,
 } from '../lib/notifications'
 
@@ -303,6 +304,8 @@ export async function serializeReplies(db: Db, viewerId: string, postId: string)
       parentReplyId: postReplies.parentReplyId,
       mentionedUserId: postReplies.mentionedUserId,
       body: postReplies.body,
+      editedAt: postReplies.editedAt,
+      deletedAt: postReplies.deletedAt,
       createdAt: postReplies.createdAt,
       authorId: postReplies.authorId,
       authorDisplayName: replyAuthors.displayName,
@@ -317,7 +320,7 @@ export async function serializeReplies(db: Db, viewerId: string, postId: string)
     .where(and(
       eq(postReplies.postId, postId),
       eq(postReplies.moderationStatus, 'active'),
-      eq(replyAuthors.accountStatus, 'active'),
+      or(isNotNull(postReplies.deletedAt), eq(replyAuthors.accountStatus, 'active')),
     ))
     .orderBy(postReplies.createdAt)
     .all()
@@ -328,28 +331,34 @@ export async function serializeReplies(db: Db, viewerId: string, postId: string)
     buildReplyLikeState(db, viewerId, replyIds),
   ])
 
+  const visibleReplyIds = new Set(replies.map((reply) => reply.id))
+
   return replies.map((reply) => ({
     id: reply.id,
     postId: reply.postId,
-    parentReplyId: reply.parentReplyId,
-    body: reply.body,
+    parentReplyId: reply.parentReplyId && visibleReplyIds.has(reply.parentReplyId) ? reply.parentReplyId : null,
+    body: reply.deletedAt ? '' : reply.body,
     createdAt: toUnixSeconds(reply.createdAt),
-    author: {
+    editedAt: toUnixSeconds(reply.editedAt),
+    deletedAt: toUnixSeconds(reply.deletedAt),
+    isDeleted: Boolean(reply.deletedAt),
+    viewerCanManage: !reply.deletedAt && reply.authorId === viewerId,
+    author: reply.deletedAt ? null : {
       id: reply.authorId,
       displayName: reply.authorDisplayName,
       username: reply.authorUsername,
       avatarUrl: reply.authorAvatarUrl,
     },
-    mentionedUser: reply.mentionedUserId
+    mentionedUser: !reply.deletedAt && reply.mentionedUserId
       ? {
           id: reply.mentionedUserId,
           displayName: reply.mentionedDisplayName,
           username: reply.mentionedUsername,
         }
       : null,
-    attachments: attachmentsByReplyId.get(reply.id) ?? [],
-    likeCount: likeState.counts.get(reply.id) ?? 0,
-    viewerLiked: likeState.viewerLikedIds.has(reply.id),
+    attachments: reply.deletedAt ? [] : attachmentsByReplyId.get(reply.id) ?? [],
+    likeCount: reply.deletedAt ? 0 : likeState.counts.get(reply.id) ?? 0,
+    viewerLiked: !reply.deletedAt && likeState.viewerLikedIds.has(reply.id),
   }))
 }
 
@@ -579,8 +588,8 @@ postsRoutes.post('/:postId/replies', authMiddleware, zValidator('param', postIdP
     body = String(formData.get('body') ?? '').trim()
     parentReplyId = String(formData.get('parentReplyId') ?? '').trim() || undefined
 
-    if (body.length < 1 || body.length > 500) {
-      return errorResponse(c, 422, 'validation_failed', 'Reply body must be between 1 and 500 characters.')
+    if (body.length < 1 || body.length > 2_000) {
+      return errorResponse(c, 422, 'validation_failed', 'Comment must be between 1 and 2,000 characters.')
     }
 
     images = getFiles(formData)
@@ -601,7 +610,7 @@ postsRoutes.post('/:postId/replies', authMiddleware, zValidator('param', postIdP
     const parentReply = await db
       .select({ id: postReplies.id, postId: postReplies.postId, authorId: postReplies.authorId })
       .from(postReplies)
-      .where(and(eq(postReplies.id, parentReplyId), eq(postReplies.moderationStatus, 'active')))
+      .where(and(eq(postReplies.id, parentReplyId), eq(postReplies.moderationStatus, 'active'), isNull(postReplies.deletedAt)))
       .get()
 
     if (!parentReply || parentReply.postId !== postId) return notFound(c, 'Parent reply not found')
@@ -625,12 +634,13 @@ postsRoutes.post('/:postId/replies', authMiddleware, zValidator('param', postIdP
   const replies = await serializeReplies(db, c.var.user.id, postId)
   const reply = replies.find((candidate) => candidate.id === replyId)
 
-  await notifyCreatorOfReply(db, c.env, {
-    creatorId: post.authorId,
+  await notifyUserOfReply(db, c.env, {
+    recipientId: mentionedUserId,
     actorId: c.var.user.id,
     postId,
     replyId,
     targetUrl: contentTargetUrl(post),
+    isThreadReply: Boolean(parentReplyId),
   }, new URL(c.req.url).origin)
 
   return c.json({ reply }, 201)
@@ -676,12 +686,84 @@ postsRoutes.delete('/:postId/like', authMiddleware, zValidator('param', postIdPa
   return c.json(await postLikeState(db, c.var.user.id, postId))
 })
 
+// ── PATCH/DELETE /api/replies/:replyId ───────────────────────────────────
+
+repliesRoutes.patch(
+  '/:replyId',
+  authMiddleware,
+  zValidator('param', replyIdParamSchema, zodHook),
+  zValidator('json', replyUpdateSchema, zodHook),
+  async (c) => {
+    const { replyId } = c.req.valid('param')
+    const { body } = c.req.valid('json')
+    const db = createDb(c.env.DB)
+    const reply = await db
+      .select({ postId: postReplies.postId, authorId: postReplies.authorId })
+      .from(postReplies)
+      .where(and(
+        eq(postReplies.id, replyId),
+        eq(postReplies.moderationStatus, 'active'),
+        isNull(postReplies.deletedAt),
+      ))
+      .get()
+
+    if (!reply) return notFound(c, 'Comment not found')
+    if (reply.authorId !== c.var.user.id) return forbidden(c, 'You can only edit your own comments')
+    const { post, allowed } = await getAccessiblePostById(db, c.var.user.id, reply.postId)
+    if (!post) return notFound(c, 'Post not found')
+    if (!allowed) return forbidden(c, 'You do not have access to this discussion')
+
+    await db.update(postReplies).set({ body, editedAt: new Date(), updatedAt: new Date() }).where(eq(postReplies.id, replyId)).run()
+    const updated = (await serializeReplies(db, c.var.user.id, reply.postId)).find((candidate) => candidate.id === replyId)
+    return c.json({ reply: updated })
+  },
+)
+
+repliesRoutes.delete('/:replyId', authMiddleware, zValidator('param', replyIdParamSchema, zodHook), async (c) => {
+  const { replyId } = c.req.valid('param')
+  const db = createDb(c.env.DB)
+  const reply = await db
+    .select({ postId: postReplies.postId, authorId: postReplies.authorId })
+    .from(postReplies)
+    .where(and(
+      eq(postReplies.id, replyId),
+      eq(postReplies.moderationStatus, 'active'),
+      isNull(postReplies.deletedAt),
+    ))
+    .get()
+
+  if (!reply) return notFound(c, 'Comment not found')
+  if (reply.authorId !== c.var.user.id) return forbidden(c, 'You can only delete your own comments')
+  const { post, allowed } = await getAccessiblePostById(db, c.var.user.id, reply.postId)
+  if (!post) return notFound(c, 'Post not found')
+  if (!allowed) return forbidden(c, 'You do not have access to this discussion')
+
+  const attachments = await db
+    .select({ r2Key: replyAttachments.r2Key })
+    .from(replyAttachments)
+    .where(eq(replyAttachments.replyId, replyId))
+    .all()
+
+  await c.env.DB.batch([
+    c.env.DB.prepare("UPDATE post_replies SET body = '', deleted_at = unixepoch(), updated_at = cast(unixepoch('subsecond') * 1000 as integer) WHERE id = ?").bind(replyId),
+    c.env.DB.prepare('DELETE FROM reply_attachments WHERE reply_id = ?').bind(replyId),
+    c.env.DB.prepare('DELETE FROM reply_likes WHERE reply_id = ?').bind(replyId),
+  ])
+
+  const cleanup = await Promise.allSettled(attachments.map((attachment) => c.env.STORAGE.delete(attachment.r2Key)))
+  if (cleanup.some((result) => result.status === 'rejected')) {
+    console.error(JSON.stringify({ event: 'discussion_attachment_cleanup_failed', replyId }))
+  }
+
+  return c.json({ deleted: true })
+})
+
 // ── POST/DELETE /api/replies/:replyId/like ────────────────────────────────
 
 repliesRoutes.post('/:replyId/like', authMiddleware, zValidator('param', replyIdParamSchema, zodHook), async (c) => {
   const { replyId } = c.req.valid('param')
   const db = createDb(c.env.DB)
-  const reply = await db.select({ postId: postReplies.postId }).from(postReplies).where(and(eq(postReplies.id, replyId), eq(postReplies.moderationStatus, 'active'))).get()
+  const reply = await db.select({ postId: postReplies.postId }).from(postReplies).where(and(eq(postReplies.id, replyId), eq(postReplies.moderationStatus, 'active'), isNull(postReplies.deletedAt))).get()
 
   if (!reply) return notFound(c, 'Reply not found')
   const { post, allowed } = await getAccessiblePostById(db, c.var.user.id, reply.postId)
@@ -695,7 +777,7 @@ repliesRoutes.post('/:replyId/like', authMiddleware, zValidator('param', replyId
 repliesRoutes.delete('/:replyId/like', authMiddleware, zValidator('param', replyIdParamSchema, zodHook), async (c) => {
   const { replyId } = c.req.valid('param')
   const db = createDb(c.env.DB)
-  const reply = await db.select({ postId: postReplies.postId }).from(postReplies).where(and(eq(postReplies.id, replyId), eq(postReplies.moderationStatus, 'active'))).get()
+  const reply = await db.select({ postId: postReplies.postId }).from(postReplies).where(and(eq(postReplies.id, replyId), eq(postReplies.moderationStatus, 'active'), isNull(postReplies.deletedAt))).get()
 
   if (!reply) return notFound(c, 'Reply not found')
   const { post, allowed } = await getAccessiblePostById(db, c.var.user.id, reply.postId)
@@ -788,7 +870,11 @@ mediaRoutes.get('/:attachmentId', authMiddleware, zValidator('param', attachment
     .innerJoin(postReplies, eq(postReplies.id, replyAttachments.replyId))
     .innerJoin(posts, eq(posts.id, postReplies.postId))
     .innerJoin(users, eq(users.id, posts.authorId))
-    .where(and(eq(replyAttachments.id, attachmentId), eq(postReplies.moderationStatus, 'active')))
+    .where(and(
+      eq(replyAttachments.id, attachmentId),
+      eq(postReplies.moderationStatus, 'active'),
+      isNull(postReplies.deletedAt),
+    ))
     .get()
 
   if (!attachment) return notFound(c, 'Media not found')

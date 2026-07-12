@@ -30,11 +30,14 @@ vi.mock('@tanstack/react-router', () => ({
 vi.mock('../lib/api', () => ({
   apiGetRequired: vi.fn(),
   apiPostRequired: vi.fn(),
+  apiPatchRequired: vi.fn(),
   apiDeleteRequired: vi.fn(),
 }))
 
 const mockApiGetRequired = vi.mocked(api.apiGetRequired)
 const mockApiPostRequired = vi.mocked(api.apiPostRequired)
+const mockApiPatchRequired = vi.mocked(api.apiPatchRequired)
+const mockApiDeleteRequired = vi.mocked(api.apiDeleteRequired)
 
 const post: FeedPost = {
   id: 'post-1',
@@ -61,6 +64,10 @@ const replies: PostReply[] = [
     parentReplyId: null,
     body: 'Root reply',
     createdAt: 1_700_000_100,
+    editedAt: null,
+    deletedAt: null,
+    isDeleted: false,
+    viewerCanManage: true,
     author: {
       id: 'member-1',
       displayName: 'Member One',
@@ -90,6 +97,10 @@ const replies: PostReply[] = [
     parentReplyId: 'reply-1',
     body: 'Nested reply',
     createdAt: 1_700_000_200,
+    editedAt: null,
+    deletedAt: null,
+    isDeleted: false,
+    viewerCanManage: false,
     author: {
       id: 'member-2',
       displayName: 'Nested Member',
@@ -112,25 +123,34 @@ describe('PostDetailPage', () => {
     vi.clearAllMocks()
     mockApiGetRequired.mockResolvedValue(makeDetailResponse())
     mockApiPostRequired.mockResolvedValue({ likeCount: 5, viewerLiked: true })
+    mockApiPatchRequired.mockResolvedValue({ reply: replies[0] })
+    mockApiDeleteRequired.mockResolvedValue({ deleted: true })
   })
 
-  it('renders the post detail stream, inline composer, replies, and media', async () => {
+  it('renders the post detail stream, discussion controls, comments, and media', async () => {
     renderPostDetailPage()
 
     expect(await screen.findByRole('heading', { name: 'Post' })).toBeInTheDocument()
-    expect(screen.getByText('2 replies')).toBeInTheDocument()
+    expect(screen.getByRole('heading', { name: 'Discussion' })).toBeInTheDocument()
+    expect(screen.getByText('2 comments')).toBeInTheDocument()
     expect(screen.getByText('A private member update')).toBeInTheDocument()
-    expect(screen.getByPlaceholderText('Reply to @creatorone')).toBeInTheDocument()
+    expect(screen.getByPlaceholderText('Join the discussion')).toBeInTheDocument()
     expect(screen.getByText('Root reply')).toBeInTheDocument()
     expect(screen.getByRole('img', { name: 'reply-photo.jpg' })).toHaveAttribute('src', '/api/media/reply-attachment-1')
+    expect(screen.getByRole('button', { name: 'top', pressed: true })).toBeInTheDocument()
   })
 
-  it('keeps nested replies shallow and opens an inline composer for the selected reply', async () => {
+  it('shows thread depth, collapses branches, and opens an inline composer', async () => {
     const user = userEvent.setup()
     renderPostDetailPage()
 
     const nestedReply = await screen.findByText('Nested reply')
     expect(nestedReply.closest('[data-thread-depth]')).toHaveAttribute('data-thread-depth', '1')
+
+    await user.click(screen.getByRole('button', { name: 'Hide 1 reply' }))
+    expect(screen.queryByText('Nested reply')).not.toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'View 1 reply' }))
+    expect(screen.getByText('Nested reply')).toBeInTheDocument()
 
     await user.click(screen.getByRole('button', { name: 'Reply to Member One' }))
 
@@ -141,8 +161,8 @@ describe('PostDetailPage', () => {
     const user = userEvent.setup()
     renderPostDetailPage()
 
-    await user.type(await screen.findByPlaceholderText('Reply to @creatorone'), 'Thanks for the update')
-    await user.click(screen.getByRole('button', { name: 'Reply' }))
+    await user.type(await screen.findByPlaceholderText('Join the discussion'), 'Thanks for the update')
+    await user.click(screen.getByRole('button', { name: 'Comment' }))
 
     await waitFor(() => {
       expect(mockApiPostRequired).toHaveBeenCalledWith('/api/posts/post-1/replies', {
@@ -150,11 +170,31 @@ describe('PostDetailPage', () => {
       })
     })
 
-    await user.click(screen.getByRole('button', { name: 'Like reply from Member One' }))
+    await user.click(screen.getByRole('button', { name: 'Like comment from Member One' }))
 
     await waitFor(() => {
       expect(mockApiPostRequired).toHaveBeenCalledWith('/api/replies/reply-1/like')
     })
+  })
+
+  it('edits and deletes an owned comment from its action menu', async () => {
+    const user = userEvent.setup()
+    renderPostDetailPage()
+
+    await screen.findByText('Root reply')
+    await user.click(screen.getByRole('button', { name: 'Comment actions' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Edit' }))
+    const editor = screen.getByDisplayValue('Root reply')
+    await user.clear(editor)
+    await user.type(editor, 'Updated discussion comment')
+    await user.click(screen.getByRole('button', { name: 'Save' }))
+    await waitFor(() => expect(mockApiPatchRequired).toHaveBeenCalledWith('/api/replies/reply-1', { body: 'Updated discussion comment' }))
+
+    await user.click(screen.getByRole('button', { name: 'Comment actions' }))
+    await user.click(await screen.findByRole('menuitem', { name: 'Delete' }))
+    expect(screen.getByRole('heading', { name: 'Delete comment?' })).toBeInTheDocument()
+    await user.click(screen.getByRole('button', { name: 'Delete comment' }))
+    await waitFor(() => expect(mockApiDeleteRequired).toHaveBeenCalledWith('/api/replies/reply-1'))
   })
 
   it('renders the empty replies state inside the stream', async () => {
@@ -162,8 +202,8 @@ describe('PostDetailPage', () => {
 
     renderPostDetailPage()
 
-    expect(await screen.findByText('No replies yet')).toBeInTheDocument()
-    expect(screen.getByText('Start the conversation with @creatorone.')).toBeInTheDocument()
+    expect(await screen.findByText('Start the discussion')).toBeInTheDocument()
+    expect(screen.getByText('Share a question or thought with @creatorone.')).toBeInTheDocument()
   })
 })
 

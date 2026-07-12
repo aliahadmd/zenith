@@ -1,5 +1,5 @@
 import { queryOptions } from '@tanstack/react-query'
-import { apiDeleteRequired, apiGetRequired, apiPostRequired } from './api'
+import { apiDeleteRequired, apiGetRequired, apiPatchRequired, apiPostRequired } from './api'
 import type { ArticleSummary } from './articles'
 import type { AudioItemSummary } from './audio'
 import type { PhotographyAlbumSummary } from './photography'
@@ -52,12 +52,16 @@ export type PostReply = {
   parentReplyId: string | null
   body: string
   createdAt: number | null
+  editedAt: number | null
+  deletedAt: number | null
+  isDeleted: boolean
+  viewerCanManage: boolean
   author: {
     id: string
     displayName: string
     username: string
     avatarUrl: string | null
-  }
+  } | null
   mentionedUser: {
     id: string
     displayName: string | null
@@ -122,6 +126,14 @@ export function likeReply(replyId: string) {
 
 export function unlikeReply(replyId: string) {
   return apiDeleteRequired<{ likeCount: number; viewerLiked: boolean }>(`/api/replies/${replyId}/like`)
+}
+
+export function updateReply(replyId: string, body: string) {
+  return apiPatchRequired<{ reply: PostReply | undefined }>(`/api/replies/${replyId}`, { body })
+}
+
+export function deleteReply(replyId: string) {
+  return apiDeleteRequired<{ deleted: true }>(`/api/replies/${replyId}`)
 }
 
 export function votePoll(pollId: string, optionId: string) {

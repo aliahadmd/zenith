@@ -10,7 +10,7 @@ import { Dialog, DialogContent, DialogTitle } from '../components/ui/dialog'
 import { photographyAlbumDetailQueryOptions, photographyKeys, type PhotographyPhotoSummary } from '../lib/photography'
 import { likePost, postKeys, type FeedPost, unlikePost } from '../lib/posts'
 import { cn } from '../lib/utils'
-import { ReplyComposer, ReplyThread } from './PostDetailPage'
+import { Discussion } from '../components/Discussion'
 
 type PhotographyAlbumPageProps = {
   username: string
@@ -122,7 +122,7 @@ export function PhotographyAlbumPage({ username, slug }: PhotographyAlbumPagePro
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-lg font-semibold">Photography</h1>
           <p className="text-sm text-muted-foreground">
-            {album.replyCount === 1 ? '1 reply' : `${album.replyCount} replies`}
+            {album.replyCount === 1 ? '1 comment' : `${album.replyCount} comments`}
           </p>
         </div>
       </header>
@@ -184,8 +184,7 @@ export function PhotographyAlbumPage({ username, slug }: PhotographyAlbumPagePro
         </div>
       </article>
 
-      <ReplyComposer post={replyPost} detailKey={detailKey} />
-      <ReplyThread post={replyPost} replies={replies} detailKey={detailKey} />
+      <Discussion post={replyPost} comments={replies} detailKey={detailKey} />
 
       <Dialog open={selectedPhoto !== null} onOpenChange={(open) => !open && setSelectedPhoto(null)}>
         <DialogContent

@@ -404,6 +404,8 @@ export const postReplies = sqliteTable('post_replies', {
   parentReplyId:   text('parent_reply_id'),
   mentionedUserId: text('mentioned_user_id').references(() => users.id, { onDelete: 'set null' }),
   body:            text('body').notNull(),
+  editedAt:        integer('edited_at', { mode: 'timestamp' }),
+  deletedAt:       integer('deleted_at', { mode: 'timestamp' }),
   moderationStatus: text('moderation_status', { enum: ['active', 'hidden'] }).notNull().default('active'),
   moderationReason: text('moderation_reason'),
   moderatedAt:     integer('moderated_at', { mode: 'timestamp' }),
@@ -419,6 +421,7 @@ export const postReplies = sqliteTable('post_replies', {
   index('post_replies_post_created_idx').on(t.postId, t.createdAt),
   index('post_replies_parent_idx').on(t.parentReplyId),
   index('post_replies_moderation_post_idx').on(t.moderationStatus, t.postId, t.createdAt),
+  index('post_replies_post_deleted_created_idx').on(t.postId, t.deletedAt, t.createdAt),
 ])
 
 export const replyAttachments = sqliteTable('reply_attachments', {

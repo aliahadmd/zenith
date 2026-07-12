@@ -299,32 +299,37 @@ export async function notifySubscribersOfContent(
   }
 }
 
-export async function notifyCreatorOfReply(
+export async function notifyUserOfReply(
   db: Db,
   env: Env,
   input: {
-    creatorId: string
+    recipientId: string
     actorId: string
     postId: string
     replyId: string
     targetUrl: string
+    isThreadReply: boolean
   },
   origin?: string,
 ) {
   const actor = await getUserSummary(db, input.actorId)
-  if (!actor) return
+  if (!actor || input.recipientId === input.actorId) return
   await safeCreateNotification(db, env, {
-    recipientId: input.creatorId,
+    recipientId: input.recipientId,
     actorId: input.actorId,
     type: 'reply_created',
     category: 'interaction',
-    title: `${actor.displayName} replied to your content`,
-    body: `${actor.displayName} added a reply to your content.`,
+    title: input.isThreadReply
+      ? `${actor.displayName} replied to your comment`
+      : `${actor.displayName} commented on your content`,
+    body: input.isThreadReply
+      ? `${actor.displayName} continued a discussion with you.`
+      : `${actor.displayName} started a discussion on your content.`,
     targetUrl: input.targetUrl,
     entityType: 'reply',
     entityId: input.replyId,
     metadata: { postId: input.postId },
-    dedupeKey: `reply:${input.replyId}:creator:${input.creatorId}`,
+    dedupeKey: `reply:${input.replyId}:recipient:${input.recipientId}`,
   }, origin)
 }
 

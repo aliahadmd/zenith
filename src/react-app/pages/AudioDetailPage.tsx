@@ -7,10 +7,10 @@ import { audioItemDetailQueryOptions, audioKeys, formatAudioDuration } from '../
 import { likePost, postKeys, type FeedPost, unlikePost } from '../lib/posts'
 import { cn } from '../lib/utils'
 import { LoadingBlock } from '../components/LoadingBlock'
+import { Discussion } from '../components/Discussion'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
-import { ReplyComposer, ReplyThread } from './PostDetailPage'
 
 export function AudioDetailPage({ username, slug }: { username: string; slug: string }) {
   const queryClient = useQueryClient()
@@ -64,9 +64,6 @@ export function AudioDetailPage({ username, slug }: { username: string; slug: st
       <header className="sticky top-0 z-10 border-b bg-background/90 px-5 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-lg font-semibold">Audio</h1>
-          <p className="text-sm text-muted-foreground">
-            {item.replyCount === 1 ? '1 reply' : `${item.replyCount} replies`}
-          </p>
         </div>
       </header>
 
@@ -150,8 +147,7 @@ export function AudioDetailPage({ username, slug }: { username: string; slug: st
         </div>
       </article>
 
-      <ReplyComposer post={replyPost} detailKey={detailKey} />
-      <ReplyThread post={replyPost} replies={replies} detailKey={detailKey} />
+      <Discussion post={replyPost} comments={replies} detailKey={detailKey} />
     </div>
   )
 }

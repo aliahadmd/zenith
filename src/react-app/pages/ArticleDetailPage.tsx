@@ -2,6 +2,7 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Heart } from 'lucide-react'
 import { toast } from 'sonner'
 import { LoadingBlock } from '../components/LoadingBlock'
+import { Discussion } from '../components/Discussion'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
 import { Badge } from '../components/ui/badge'
@@ -9,7 +10,6 @@ import { Button } from '../components/ui/button'
 import { articleDetailQueryOptions, articleKeys } from '../lib/articles'
 import { likePost, postKeys, type FeedPost, unlikePost } from '../lib/posts'
 import { cn } from '../lib/utils'
-import { ReplyComposer, ReplyThread } from './PostDetailPage'
 
 type ArticleDetailPageProps = {
   username: string
@@ -70,9 +70,6 @@ export function ArticleDetailPage({ username, slug }: ArticleDetailPageProps) {
       <header className="sticky top-0 z-10 border-b bg-background/90 px-5 py-3 backdrop-blur">
         <div className="flex items-center justify-between gap-3">
           <h1 className="text-lg font-semibold">Article</h1>
-          <p className="text-sm text-muted-foreground">
-            {article.replyCount === 1 ? '1 reply' : `${article.replyCount} replies`}
-          </p>
         </div>
       </header>
 
@@ -118,8 +115,7 @@ export function ArticleDetailPage({ username, slug }: ArticleDetailPageProps) {
         </div>
       </article>
 
-      <ReplyComposer post={replyPost} detailKey={detailKey} />
-      <ReplyThread post={replyPost} replies={replies} detailKey={detailKey} />
+      <Discussion post={replyPost} comments={replies} detailKey={detailKey} />
     </div>
   )
 }

@@ -149,8 +149,8 @@ export const replySchema = z.object({
   body: z
     .string()
     .trim()
-    .min(1, 'Reply body cannot be empty.')
-    .max(500, 'Reply body must be 500 characters or fewer.'),
+    .min(1, 'Comment cannot be empty.')
+    .max(2_000, 'Comment must be 2,000 characters or fewer.'),
   images: imageListSchema,
 })
 

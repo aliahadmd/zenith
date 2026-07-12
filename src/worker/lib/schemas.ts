@@ -52,8 +52,12 @@ export const attachmentIdParamSchema = z.object({
 })
 
 export const replyCreateJsonSchema = z.object({
-  body: z.string().trim().min(1, 'Reply body must be between 1 and 500 characters').max(500, 'Reply body must be between 1 and 500 characters'),
+  body: z.string().trim().min(1, 'Comment must be between 1 and 2,000 characters').max(2_000, 'Comment must be between 1 and 2,000 characters'),
   parentReplyId: z.string().min(1).optional(),
+})
+
+export const replyUpdateSchema = z.object({
+  body: z.string().trim().min(1, 'Comment must be between 1 and 2,000 characters').max(2_000, 'Comment must be between 1 and 2,000 characters'),
 })
 
 export const pollVoteSchema = z.object({

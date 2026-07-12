@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, or, sql } from 'drizzle-orm'
+import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import {
   pollOptions,
@@ -178,6 +178,7 @@ export async function buildPostExtras(db: Db, viewerId: string, postIds: string[
       .where(and(
         inArray(postReplies.postId, postIds),
         eq(postReplies.moderationStatus, 'active'),
+        isNull(postReplies.deletedAt),
         eq(users.accountStatus, 'active'),
       ))
       .groupBy(postReplies.postId)

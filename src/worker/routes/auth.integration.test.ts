@@ -12,6 +12,7 @@ import migration8 from '../../../drizzle/0008_photography.sql?raw'
 import migration9 from '../../../drizzle/0009_notifications.sql?raw'
 import migration10 from '../../../drizzle/0010_courses.sql?raw'
 import migration11 from '../../../drizzle/0011_admin_dashboard.sql?raw'
+import migration12 from '../../../drizzle/0012_threaded_discussions.sql?raw'
 import { createDb } from '../db/client'
 import { storeSignInOtp } from '../lib/auth-otp'
 
@@ -97,6 +98,7 @@ describe('Better Auth integration', () => {
     await applyMigration(migration9)
     await applyMigration(migration10)
     await applyMigration(migration11)
+    await applyMigration(migration12)
   })
 
   it('rejects legacy password auth endpoints', async () => {
@@ -275,6 +277,79 @@ describe('Better Auth integration', () => {
     })
     expect(replyLikeResponse.status).toBe(200)
     await expect(replyLikeResponse.json()).resolves.toEqual({ likeCount: 1, viewerLiked: true })
+
+    const editReplyResponse = await SELF.fetch(`https://example.com/api/replies/${replyJson.reply.id}`, {
+      method: 'PATCH',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: 'Thanks for joining the discussion.' }),
+    })
+    expect(editReplyResponse.status).toBe(200)
+    await expect(editReplyResponse.json()).resolves.toMatchObject({
+      reply: {
+        id: replyJson.reply.id,
+        body: 'Thanks for joining the discussion.',
+        viewerCanManage: true,
+      },
+    })
+
+    const nestedReplyResponse = await SELF.fetch(`https://example.com/api/posts/${postJson.id}/replies`, {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json' },
+      body: JSON.stringify({ body: 'A nested follow-up.', parentReplyId: replyJson.reply.id }),
+    })
+    expect(nestedReplyResponse.status).toBe(201)
+    const nestedReply = await nestedReplyResponse.json() as { reply: { id: string; parentReplyId: string } }
+    expect(nestedReply.reply.parentReplyId).toBe(replyJson.reply.id)
+
+    const deleteReplyResponse = await SELF.fetch(`https://example.com/api/replies/${replyJson.reply.id}`, {
+      method: 'DELETE',
+      headers: { Cookie: cookie },
+    })
+    expect(deleteReplyResponse.status).toBe(200)
+    await expect(deleteReplyResponse.json()).resolves.toEqual({ deleted: true })
+
+    const discussionResponse = await SELF.fetch(`https://example.com/api/posts/${postJson.id}/replies`, {
+      headers: { Cookie: cookie },
+    })
+    expect(discussionResponse.status).toBe(200)
+    await expect(discussionResponse.json()).resolves.toMatchObject({
+      replies: [
+        { id: replyJson.reply.id, body: '', author: null, isDeleted: true, viewerCanManage: false },
+        { id: nestedReply.reply.id, parentReplyId: replyJson.reply.id, body: 'A nested follow-up.' },
+      ],
+    })
+
+    const deletedReplyLikeResponse = await SELF.fetch(`https://example.com/api/replies/${replyJson.reply.id}/like`, {
+      method: 'POST',
+      headers: { Cookie: cookie },
+    })
+    expect(deletedReplyLikeResponse.status).toBe(404)
+
+    const mediaCommentForm = new FormData()
+    mediaCommentForm.append('body', 'Comment with a removable photo.')
+    mediaCommentForm.append('images', new File(['discussion image'], 'discussion.png', { type: 'image/png' }))
+    const mediaCommentResponse = await SELF.fetch(`https://example.com/api/posts/${postJson.id}/replies`, {
+      method: 'POST',
+      headers: { Cookie: cookie },
+      body: mediaCommentForm,
+    })
+    expect(mediaCommentResponse.status).toBe(201)
+    const mediaComment = await mediaCommentResponse.json() as { reply: { id: string } }
+    const storedCommentImage = await env.DB.prepare('SELECT r2_key AS r2Key FROM reply_attachments WHERE reply_id = ?')
+      .bind(mediaComment.reply.id)
+      .first<{ r2Key: string }>()
+    expect(storedCommentImage?.r2Key).toBeTruthy()
+    await expect(env.STORAGE.get(storedCommentImage!.r2Key)).resolves.not.toBeNull()
+
+    const deleteMediaCommentResponse = await SELF.fetch(`https://example.com/api/replies/${mediaComment.reply.id}`, {
+      method: 'DELETE',
+      headers: { Cookie: cookie },
+    })
+    expect(deleteMediaCommentResponse.status).toBe(200)
+    await expect(env.STORAGE.get(storedCommentImage!.r2Key)).resolves.toBeNull()
+    await expect(
+      env.DB.prepare('SELECT id FROM reply_attachments WHERE reply_id = ?').bind(mediaComment.reply.id).first(),
+    ).resolves.toBeNull()
 
     const tooManyImages = new FormData()
     tooManyImages.append('body', 'Too many images')
