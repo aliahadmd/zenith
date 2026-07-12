@@ -19,6 +19,7 @@ vi.mock('@tanstack/react-router', () => ({
 // Mock the api module (ShortPostComposer uses apiPostRequired)
 vi.mock('../lib/api', () => ({
   apiPostRequired: vi.fn(),
+  apiGetRequired: vi.fn().mockResolvedValue({ items: [] }),
   apiGet: vi.fn(),
   apiPut: vi.fn(),
 }))
@@ -49,6 +50,7 @@ describe('StudioPage', () => {
         role: 'creator',
         displayName: 'Creator One',
         username: 'creatorone',
+        adminRole: null,
         avatarUrl: null,
       },
       isLoading: false,
@@ -59,12 +61,14 @@ describe('StudioPage', () => {
   })
 
   // Validates: Requirements 6.1, 6.4
-  it('renders all three content-type cards', () => {
+  it('renders all five content-type cards', () => {
     renderStudioPage()
 
-    expect(screen.getByText('Post')).toBeInTheDocument()
-    expect(screen.getByText('Article')).toBeInTheDocument()
-    expect(screen.getByText('Course')).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^post/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^article/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^audio/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^photography/i })).toBeInTheDocument()
+    expect(screen.getByRole('button', { name: /^course/i })).toBeInTheDocument()
   })
 
   it('renders Studio-local navigation', () => {

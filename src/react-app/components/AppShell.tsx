@@ -47,8 +47,8 @@ export function AppShell() {
           </SheetContent>
         </Sheet>
         <div className="min-w-0">
-          <p className="truncate text-sm font-semibold">Creator Network</p>
-          <p className="truncate text-xs text-muted-foreground">Workspace</p>
+          <p className="truncate text-sm font-semibold">Zenith</p>
+          <p className="truncate text-xs text-muted-foreground">Creator workspace</p>
         </div>
       </header>
 

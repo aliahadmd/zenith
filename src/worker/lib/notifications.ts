@@ -10,7 +10,7 @@ import {
 } from '../db/schema'
 import { absoluteEmailUrl, hasTransactionalEmail, sendTransactionalEmail } from './email'
 
-export type NotificationCategory = 'content' | 'interaction' | 'subscription'
+export type NotificationCategory = 'content' | 'interaction' | 'subscription' | 'account'
 
 export type NotificationType =
   | 'content_published'
@@ -20,6 +20,12 @@ export type NotificationType =
   | 'subscription_active'
   | 'subscription_status_changed'
   | 'payment_failed'
+  | 'creator_application_approved'
+  | 'creator_application_rejected'
+  | 'content_hidden'
+  | 'content_restored'
+  | 'account_suspended'
+  | 'account_restored'
 
 export type NotificationPreferencesInput = {
   emailEnabled: boolean
@@ -40,6 +46,7 @@ type NotificationInput = {
   entityId?: string | null
   metadata?: Record<string, unknown> | null
   dedupeKey: string
+  forceEmail?: boolean
 }
 
 type ContentNotificationInput = {
@@ -71,6 +78,7 @@ function nowSeconds() {
 }
 
 function preferenceAllowsEmail(preferences: NotificationPreferencesInput, category: NotificationCategory) {
+  if (category === 'account') return true
   if (!preferences.emailEnabled) return false
   if (category === 'content') return preferences.contentEmailEnabled
   if (category === 'interaction') return preferences.interactionEmailEnabled
@@ -166,7 +174,7 @@ export async function createNotification(
 
   if (!recipient) return null
 
-  const shouldEmail = preferenceAllowsEmail(preferences, input.category) && hasTransactionalEmail(env)
+  const shouldEmail = (input.forceEmail || preferenceAllowsEmail(preferences, input.category)) && hasTransactionalEmail(env)
   const emailStatus = shouldEmail ? 'pending' : 'not_applicable'
 
   await db

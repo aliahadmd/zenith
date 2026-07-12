@@ -130,6 +130,9 @@ async function getCourseById(db: Db, courseId: string) {
       authorDisplayName: users.displayName,
       authorUsername: users.username,
       authorAvatarUrl: users.avatarUrl,
+      moderationStatus: posts.moderationStatus,
+      moderationReason: posts.moderationReason,
+      authorAccountStatus: users.accountStatus,
     })
     .from(courses)
     .innerJoin(posts, eq(posts.id, courses.postId))
@@ -154,6 +157,9 @@ async function getCourseBySlug(db: Db, username: string, slug: string) {
       authorDisplayName: users.displayName,
       authorUsername: users.username,
       authorAvatarUrl: users.avatarUrl,
+      moderationStatus: posts.moderationStatus,
+      moderationReason: posts.moderationReason,
+      authorAccountStatus: users.accountStatus,
     })
     .from(courses)
     .innerJoin(posts, eq(posts.id, courses.postId))
@@ -251,6 +257,8 @@ async function getStructure(db: Db, courseId: string, userId: string, includeDra
 
 async function getCoursePayload(db: Db, viewerId: string, course: CourseRow) {
   const isOwner = viewerId === course.creatorId
+  const memberVisible = course.moderationStatus === 'active' && course.authorAccountStatus === 'active'
+  if (!memberVisible && !isOwner) return null
   if (!isOwner && course.status !== 'published') return null
 
   const hasAccess = isOwner || await hasCreatorAccess(db, viewerId, course.creatorId)
@@ -278,6 +286,8 @@ async function getCoursePayload(db: Db, viewerId: string, course: CourseRow) {
     modules,
     hasAccess,
     isOwner,
+    moderationStatus: course.moderationStatus,
+    moderationReason: isOwner ? course.moderationReason : null,
     progress: hasAccess
       ? {
           completedLessons: publishedLessons.filter((lesson) => lesson.completed).length,
@@ -294,6 +304,7 @@ async function requireOwnedCourse(db: Db, courseId: string, userId: string) {
   const course = await getCourseById(db, courseId)
   if (!course) return { error: 'not_found' as const }
   if (course.creatorId !== userId) return { error: 'forbidden' as const }
+  if (course.moderationStatus !== 'active') return { error: 'moderated' as const }
   return { course }
 }
 
@@ -686,6 +697,7 @@ coursesRoutes.get('/attachments/:attachmentId', authMiddleware, zValidator('para
   const course = await getCourseById(db, attachment.courseId)
   const lesson = await getLessonById(db, attachment.lessonId)
   if (!course || !lesson) return notFound(c, 'Attachment not found')
+  if (course.moderationStatus !== 'active' || course.authorAccountStatus !== 'active') return notFound(c, 'Attachment not found')
   const isOwner = c.var.user.id === course.creatorId
   if (!isOwner && (course.status !== 'published' || lesson.status !== 'published' || !await hasCreatorAccess(db, c.var.user.id, course.creatorId))) {
     return forbidden(c, 'You do not have access to this attachment')
@@ -720,6 +732,7 @@ coursesRoutes.put('/lessons/:lessonId/progress', authMiddleware, zValidator('par
   if (!lesson || lesson.status !== 'published') return notFound(c, 'Lesson not found')
   const course = await getCourseById(db, lesson.courseId)
   if (!course || course.status !== 'published') return notFound(c, 'Course not found')
+  if (course.moderationStatus !== 'active' || course.authorAccountStatus !== 'active') return notFound(c, 'Course not found')
   if (!await hasCreatorAccess(db, c.var.user.id, course.creatorId)) return forbidden(c, 'Subscribe to this creator to track course progress')
 
   if (c.req.valid('json').completed) {

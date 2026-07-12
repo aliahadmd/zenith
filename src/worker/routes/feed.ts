@@ -33,6 +33,8 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .innerJoin(users, eq(users.id, posts.authorId))
     .where(and(
       eq(posts.kind, 'post'),
+      eq(posts.moderationStatus, 'active'),
+      eq(users.accountStatus, 'active'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
       or(
         eq(subscriptionMemberships.status, 'active'),
@@ -68,6 +70,8 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .innerJoin(users, eq(users.id, posts.authorId))
     .where(and(
       eq(posts.kind, 'article'),
+      eq(posts.moderationStatus, 'active'),
+      eq(users.accountStatus, 'active'),
       eq(articles.status, 'published'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
       or(
@@ -105,11 +109,14 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       collectionCoverR2Key: audioCollections.coverR2Key,
     })
     .from(audioItems)
+    .innerJoin(posts, eq(posts.id, audioItems.postId))
     .innerJoin(audioCollections, eq(audioCollections.id, audioItems.collectionId))
     .innerJoin(subscriptionMemberships, eq(subscriptionMemberships.creatorId, audioItems.creatorId))
     .innerJoin(users, eq(users.id, audioItems.creatorId))
     .where(and(
       eq(audioItems.status, 'published'),
+      eq(posts.moderationStatus, 'active'),
+      eq(users.accountStatus, 'active'),
       eq(audioCollections.status, 'published'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
       or(
@@ -141,10 +148,13 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       authorAvatarUrl: users.avatarUrl,
     })
     .from(photographyAlbums)
+    .innerJoin(posts, eq(posts.id, photographyAlbums.postId))
     .innerJoin(subscriptionMemberships, eq(subscriptionMemberships.creatorId, photographyAlbums.creatorId))
     .innerJoin(users, eq(users.id, photographyAlbums.creatorId))
     .where(and(
       eq(photographyAlbums.status, 'published'),
+      eq(posts.moderationStatus, 'active'),
+      eq(users.accountStatus, 'active'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
       or(
         eq(subscriptionMemberships.status, 'active'),
@@ -172,10 +182,13 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       authorAvatarUrl: users.avatarUrl,
     })
     .from(courses)
+    .innerJoin(posts, eq(posts.id, courses.postId))
     .innerJoin(subscriptionMemberships, eq(subscriptionMemberships.creatorId, courses.creatorId))
     .innerJoin(users, eq(users.id, courses.creatorId))
     .where(and(
       eq(courses.status, 'published'),
+      eq(posts.moderationStatus, 'active'),
+      eq(users.accountStatus, 'active'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
       or(
         eq(subscriptionMemberships.status, 'active'),

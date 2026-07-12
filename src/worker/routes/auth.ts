@@ -2,7 +2,7 @@ import { Hono, type Context } from 'hono'
 import { zValidator } from '@hono/zod-validator'
 import { eq } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { users } from '../db/schema'
+import { adminMemberships, users } from '../db/schema'
 import { generateUsername } from '../lib/validators'
 import { createAuth, type AppAuth } from '../lib/auth'
 import { deleteSignInOtp, generateOtp, storeSignInOtp } from '../lib/auth-otp'
@@ -135,6 +135,14 @@ authRoutes.post('/login', passwordAuthDisabled)
 authRoutes.post('/otp/request', zValidator('json', authOtpRequestSchema, zodHook), async (c) => {
   const { email } = c.req.valid('json')
   const db = createDb(c.env.DB)
+  const existingUser = await db
+    .select({ accountStatus: users.accountStatus })
+    .from(users)
+    .where(eq(users.email, email))
+    .get()
+  if (existingUser?.accountStatus === 'suspended') {
+    return errorResponse(c, 403, 'account_suspended', 'This account is suspended.')
+  }
   const otp = generateOtp()
 
   await storeSignInOtp(db, email, otp)
@@ -160,7 +168,15 @@ authRoutes.post('/otp/request', zValidator('json', authOtpRequestSchema, zodHook
 authRoutes.post('/otp/verify', zValidator('json', authOtpVerifySchema, zodHook), async (c) => {
   const { email, otp } = c.req.valid('json')
   const db = createDb(c.env.DB)
-  const existing = await db.select({ id: users.id }).from(users).where(eq(users.email, email)).get()
+  const existing = await db
+    .select({ id: users.id, accountStatus: users.accountStatus })
+    .from(users)
+    .where(eq(users.email, email))
+    .get()
+  if (existing?.accountStatus === 'suspended') {
+    await deleteSignInOtp(db, email)
+    return errorResponse(c, 403, 'account_suspended', 'This account is suspended.')
+  }
   const auth = createAuth(c.env, new URL(c.req.url).origin)
   let authResponse: Response
   try {
@@ -218,8 +234,10 @@ authRoutes.get('/me', authMiddleware, async (c) => {
       tagline: users.tagline,
       avatarUrl: users.avatarUrl,
       socialLinks: users.socialLinks,
+      adminRole: adminMemberships.role,
     })
     .from(users)
+    .leftJoin(adminMemberships, eq(adminMemberships.userId, users.id))
     .where(eq(users.id, c.var.user.id))
     .get()
 

@@ -10,6 +10,7 @@ export type User = {
   tagline?: string | null
   avatarUrl?: string | null
   socialLinks?: string | null
+  adminRole: 'owner' | 'moderator' | null
 }
 
 export const authKeys = {

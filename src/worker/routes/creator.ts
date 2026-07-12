@@ -1,7 +1,7 @@
 import { Hono } from 'hono'
 import { eq } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { users, creatorApplications } from '../db/schema'
+import { creatorApplications } from '../db/schema'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
 import { creatorApplicationFieldsSchema } from '../lib/schemas'
 import {
@@ -14,6 +14,39 @@ import {
 } from '../lib/http'
 
 export const creatorRoutes = new Hono<HonoEnv>()
+
+creatorRoutes.get('/application/me', authMiddleware, async (c) => {
+  const db = createDb(c.env.DB)
+  const application = await db
+    .select({
+      id: creatorApplications.id,
+      fullName: creatorApplications.fullName,
+      address: creatorApplications.address,
+      city: creatorApplications.city,
+      country: creatorApplications.country,
+      nidNumber: creatorApplications.nidNumber,
+      socialLinks: creatorApplications.socialLinks,
+      contentLinks: creatorApplications.contentLinks,
+      status: creatorApplications.status,
+      decisionReason: creatorApplications.decisionReason,
+      reviewedAt: creatorApplications.reviewedAt,
+      resubmittedAt: creatorApplications.resubmittedAt,
+      createdAt: creatorApplications.createdAt,
+      updatedAt: creatorApplications.updatedAt,
+    })
+    .from(creatorApplications)
+    .where(eq(creatorApplications.userId, c.var.user.id))
+    .get()
+
+  if (!application) return c.json({ application: null })
+  return c.json({
+    application: {
+      ...application,
+      socialLinks: JSON.parse(application.socialLinks) as string[],
+      contentLinks: JSON.parse(application.contentLinks) as string[],
+    },
+  })
+})
 
 // ── POST /apply ────────────────────────────────────────────────────────────
 
@@ -69,18 +102,22 @@ creatorRoutes.post('/apply', authMiddleware, async (c) => {
 
   // Check for existing application (userId has UNIQUE constraint)
   const existingApplication = await db
-    .select({ id: creatorApplications.id })
+    .select({
+      id: creatorApplications.id,
+      status: creatorApplications.status,
+      nidDocumentR2Key: creatorApplications.nidDocumentR2Key,
+    })
     .from(creatorApplications)
     .where(eq(creatorApplications.userId, userId))
     .get()
 
-  if (existingApplication) {
-    return conflict(c, 'Application already submitted')
+  if (existingApplication && existingApplication.status !== 'rejected') {
+    return conflict(c, 'Application is already under review')
   }
 
   // Upload NID document to R2
-  const filename = nidDocumentFile.name
-  const r2Key = `nid-documents/${userId}/${filename}`
+  const filename = nidDocumentFile.name.replace(/[^a-zA-Z0-9._-]/g, '-')
+  const r2Key = `nid-documents/${userId}/${crypto.randomUUID()}-${filename}`
 
   try {
     await c.env.STORAGE.put(r2Key, await nidDocumentFile.arrayBuffer(), {
@@ -91,10 +128,28 @@ creatorRoutes.post('/apply', authMiddleware, async (c) => {
     return serverError(c)
   }
 
-  // Atomically insert application and upgrade user role
+  // Persist the pending application before deleting any superseded document.
   try {
-    await db.batch([
-      db.insert(creatorApplications).values({
+    if (existingApplication) {
+      await db.update(creatorApplications).set({
+        fullName,
+        address,
+        city,
+        country,
+        nidNumber,
+        nidDocumentR2Key: r2Key,
+        socialLinks: JSON.stringify(socialLinks),
+        contentLinks: JSON.stringify(contentLinks),
+        status: 'pending',
+        reviewedBy: null,
+        reviewedAt: null,
+        decisionReason: null,
+        adminNote: null,
+        resubmittedAt: new Date(),
+        updatedAt: new Date(),
+      }).where(eq(creatorApplications.id, existingApplication.id)).run()
+    } else {
+      await db.insert(creatorApplications).values({
         userId,
         fullName,
         address,
@@ -104,10 +159,9 @@ creatorRoutes.post('/apply', authMiddleware, async (c) => {
         nidDocumentR2Key: r2Key,
         socialLinks: JSON.stringify(socialLinks),
         contentLinks: JSON.stringify(contentLinks),
-        status: 'approved',
-      }),
-      db.update(users).set({ role: 'creator' }).where(eq(users.id, userId)),
-    ])
+        status: 'pending',
+      }).run()
+    }
   } catch (err) {
     console.error('D1 batch write failed:', err)
     // Attempt to clean up the uploaded R2 object
@@ -120,7 +174,15 @@ creatorRoutes.post('/apply', authMiddleware, async (c) => {
     return serverError(c)
   }
 
-  return c.json({ role: 'creator' }, 201)
+  if (existingApplication) {
+    try {
+      await c.env.STORAGE.delete(existingApplication.nidDocumentR2Key)
+    } catch (error) {
+      console.error('Superseded NID cleanup failed:', error)
+    }
+  }
+
+  return c.json({ application: { status: 'pending' } }, existingApplication ? 200 : 201)
 })
 
 function readRequiredString(formData: FormData, field: string): string {

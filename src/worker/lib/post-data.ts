@@ -10,6 +10,7 @@ import {
   replyAttachments,
   replyLikes,
   subscriptionMemberships,
+  users,
 } from '../db/schema'
 
 export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
@@ -173,7 +174,12 @@ export async function buildPostExtras(db: Db, viewerId: string, postIds: string[
     db
       .select({ postId: postReplies.postId, count: sql<number>`count(*)` })
       .from(postReplies)
-      .where(inArray(postReplies.postId, postIds))
+      .innerJoin(users, eq(users.id, postReplies.authorId))
+      .where(and(
+        inArray(postReplies.postId, postIds),
+        eq(postReplies.moderationStatus, 'active'),
+        eq(users.accountStatus, 'active'),
+      ))
       .groupBy(postReplies.postId)
       .all(),
     db

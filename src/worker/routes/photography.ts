@@ -25,6 +25,7 @@ import {
   toUnixSeconds,
 } from '../lib/post-data'
 import { notifySubscribersOfContent } from '../lib/notifications'
+import { isPostMemberVisible } from '../lib/moderation'
 import { generatePostSlug, serializeReplies, slugify } from './posts'
 
 export const photographyRoutes = new Hono<HonoEnv>()
@@ -383,6 +384,7 @@ async function getAlbumPhotos(db: Db, albumId: string, includeDrafts: boolean) {
 }
 
 async function canReadAlbum(db: Db, viewerId: string, album: AlbumRow) {
+  if (!await isPostMemberVisible(db, album.postId)) return false
   if (viewerId === album.creatorId) return true
   if (album.status !== 'published') return false
   return hasCreatorAccess(db, viewerId, album.creatorId)
@@ -391,6 +393,7 @@ async function canReadAlbum(db: Db, viewerId: string, album: AlbumRow) {
 async function canReadPhoto(db: Db, viewerId: string, photo: PhotoRow) {
   const album = await getAlbumById(db, photo.albumId)
   if (!album) return null
+  if (!await isPostMemberVisible(db, album.postId)) return { album, allowed: false }
   if (viewerId === album.creatorId) return { album, allowed: true }
   if (album.status !== 'published' || photo.status !== 'published') return { album, allowed: false }
   return { album, allowed: await hasCreatorAccess(db, viewerId, album.creatorId) }
@@ -487,6 +490,7 @@ photographyRoutes.patch('/albums/:albumId', authMiddleware, requireRole('creator
   const existing = await getAlbumById(db, albumId)
   if (!existing) return notFound(c, 'Photography album not found')
   if (existing.creatorId !== c.var.user.id) return forbidden(c, 'You cannot edit this album')
+  if (!await isPostMemberVisible(db, existing.postId)) return forbidden(c, 'Moderated content cannot be edited until it is restored')
 
   if (parsed.status === 'published') {
     const issue = await validatePublishedAlbum(db, albumId, parsed.coverPhotoId ?? existing.coverPhotoId)
@@ -536,6 +540,7 @@ photographyRoutes.delete('/albums/:albumId', authMiddleware, requireRole('creato
   const existing = await getAlbumById(db, albumId)
   if (!existing) return notFound(c, 'Photography album not found')
   if (existing.creatorId !== c.var.user.id) return forbidden(c, 'You cannot delete this album')
+  if (!await isPostMemberVisible(db, existing.postId)) return forbidden(c, 'Moderated content cannot be deleted until it is restored')
 
   const count = await db
     .select({ count: sql<number>`count(*)` })
@@ -579,6 +584,7 @@ photographyRoutes.post('/albums/:albumId/photos', authMiddleware, requireRole('c
   const album = await getAlbumById(db, albumId)
   if (!album) return notFound(c, 'Photography album not found')
   if (album.creatorId !== c.var.user.id) return forbidden(c, 'You cannot add photos to this album')
+  if (!await isPostMemberVisible(db, album.postId)) return forbidden(c, 'Moderated content cannot be edited until it is restored')
 
   const [maxOrder] = await db
     .select({ value: sql<number>`coalesce(max(${photographyPhotos.displayOrder}), -1)` })
@@ -632,6 +638,8 @@ photographyRoutes.patch('/photos/:photoId', authMiddleware, requireRole('creator
   const existing = await getPhotoById(db, photoId)
   if (!existing) return notFound(c, 'Photo not found')
   if (existing.creatorId !== c.var.user.id) return forbidden(c, 'You cannot edit this photo')
+  const existingAlbum = await getAlbumById(db, existing.albumId)
+  if (!existingAlbum || !await isPostMemberVisible(db, existingAlbum.postId)) return forbidden(c, 'Moderated content cannot be edited until it is restored')
 
   const preview = fileFromFormData(formData, 'preview')
   const original = fileFromFormData(formData, 'original')
@@ -681,6 +689,7 @@ photographyRoutes.delete('/photos/:photoId', authMiddleware, requireRole('creato
   if (existing.creatorId !== c.var.user.id) return forbidden(c, 'You cannot delete this photo')
 
   const album = await getAlbumById(db, existing.albumId)
+  if (!album || !await isPostMemberVisible(db, album.postId)) return forbidden(c, 'Moderated content cannot be deleted until it is restored')
   await db.delete(photographyPhotos).where(eq(photographyPhotos.id, photoId)).run()
   if (album?.coverPhotoId === photoId) {
     await db.update(photographyAlbums)
@@ -707,6 +716,7 @@ photographyRoutes.put('/albums/:albumId/order', authMiddleware, requireRole('cre
   const album = await getAlbumById(db, albumId)
   if (!album) return notFound(c, 'Photography album not found')
   if (album.creatorId !== c.var.user.id) return forbidden(c, 'You cannot reorder this album')
+  if (!await isPostMemberVisible(db, album.postId)) return forbidden(c, 'Moderated content cannot be edited until it is restored')
 
   const existing = await db
     .select({ id: photographyPhotos.id })
@@ -795,7 +805,13 @@ export async function listPublishedPhotographyForCreator(db: Db, viewerId: strin
     .select(albumSelect())
     .from(photographyAlbums)
     .innerJoin(albumCreators, eq(albumCreators.id, photographyAlbums.creatorId))
-    .where(and(eq(photographyAlbums.creatorId, creatorId), eq(photographyAlbums.status, 'published')))
+    .innerJoin(posts, eq(posts.id, photographyAlbums.postId))
+    .where(and(
+      eq(photographyAlbums.creatorId, creatorId),
+      eq(photographyAlbums.status, 'published'),
+      eq(posts.moderationStatus, 'active'),
+      eq(albumCreators.accountStatus, 'active'),
+    ))
     .orderBy(desc(photographyAlbums.publishedAt))
     .limit(100)
     .all()

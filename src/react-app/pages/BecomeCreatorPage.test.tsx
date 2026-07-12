@@ -25,6 +25,7 @@ vi.mock('../context/AuthContext', async (importOriginal) => {
 // Mock the api module
 vi.mock('../lib/api', () => ({
   apiPostRequired: vi.fn(),
+  apiGetRequired: vi.fn(),
   apiGet: vi.fn(),
   apiPut: vi.fn(),
 }))
@@ -39,6 +40,7 @@ vi.mock('sonner', () => ({
 
 const mockUseAuth = vi.mocked(AuthContext.useAuth)
 const mockApiPostRequired = vi.mocked(api.apiPostRequired)
+const mockApiGetRequired = vi.mocked(api.apiGetRequired)
 
 function makeUser(role: 'subscriber' | 'creator'): User {
   return {
@@ -47,6 +49,7 @@ function makeUser(role: 'subscriber' | 'creator'): User {
     role,
     displayName: 'Test User',
     username: 'testuser',
+    adminRole: null,
   }
 }
 
@@ -67,6 +70,7 @@ function renderPage() {
 describe('BecomeCreatorPage', () => {
   beforeEach(() => {
     vi.clearAllMocks()
+    mockApiGetRequired.mockResolvedValue({ application: null })
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('subscriber'),
       isLoading: false,
@@ -159,9 +163,9 @@ describe('BecomeCreatorPage', () => {
     expect(mockApiPostRequired).not.toHaveBeenCalled()
   })
 
-  // ── Test 4: Successful submit triggers refreshCurrentUser and navigation ───
+  // ── Test 4: Successful submit remains pending review ───────────────────────
   // Validates: Requirements 2.1, 4.1, 4.2
-  it('calls refreshCurrentUser and navigates to /studio on successful submit', async () => {
+  it('submits a pending application without granting creator access', async () => {
     const user = userEvent.setup()
     const mockRefreshCurrentUser = vi.fn().mockResolvedValue(undefined)
 
@@ -173,7 +177,7 @@ describe('BecomeCreatorPage', () => {
       refreshCurrentUser: mockRefreshCurrentUser,
     })
 
-    mockApiPostRequired.mockResolvedValue({ role: 'creator' })
+    mockApiPostRequired.mockResolvedValue({ application: { status: 'pending' } })
 
     renderPage()
 
@@ -194,13 +198,10 @@ describe('BecomeCreatorPage', () => {
     // Submit the form
     await user.click(screen.getByRole('button', { name: /submit application/i }))
 
-    // refreshCurrentUser should be called
     await waitFor(() => {
-      expect(mockRefreshCurrentUser).toHaveBeenCalledOnce()
+      expect(mockApiPostRequired).toHaveBeenCalledOnce()
     })
-
-    await waitFor(() => {
-      expect(mockNavigate).toHaveBeenCalledWith({ to: '/studio' })
-    })
+    expect(mockRefreshCurrentUser).not.toHaveBeenCalled()
+    expect(mockNavigate).not.toHaveBeenCalled()
   })
 })

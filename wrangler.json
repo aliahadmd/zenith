@@ -11,7 +11,16 @@
 		"nodejs_compat"
 	],
 	"observability": {
-		"enabled": true
+		"enabled": true,
+		"logs": {
+			"enabled": true,
+			"invocation_logs": true,
+			"head_sampling_rate": 1
+		},
+		"traces": {
+			"enabled": true,
+			"head_sampling_rate": 0.01
+		}
 	},
 	"upload_source_maps": true,
 	"assets": {
@@ -28,6 +37,7 @@
 		"NOTIFICATION_EMAIL_FROM": "hi@noreply.aliahad.com",
 		"NOTIFICATION_EMAIL_FROM_NAME": "Zenith",
 		"NOTIFICATION_EMAIL_BASE_URL": ""
+		,"ADMIN_CLOUDFLARE_DASHBOARD_URL": "https://dash.cloudflare.com/"
 	},
 	"send_email": [
 		{
@@ -59,7 +69,8 @@
 				"PLATFORM_FEE_BPS": "1000",
 				"NOTIFICATION_EMAIL_FROM": "hi@noreply.aliahad.com",
 				"NOTIFICATION_EMAIL_FROM_NAME": "Zenith",
-				"NOTIFICATION_EMAIL_BASE_URL": "https://zenith.aliahad.com"
+				"NOTIFICATION_EMAIL_BASE_URL": "https://zenith.aliahad.com",
+				"ADMIN_CLOUDFLARE_DASHBOARD_URL": "https://dash.cloudflare.com/4287bb6da0c60bbcc12c01a34718fb86/workers/services/view/zenith-production/production/metrics"
 			},
 			"secrets": {
 				"required": [

@@ -11,6 +11,7 @@ import migration7 from '../../../drizzle/0007_audio.sql?raw'
 import migration8 from '../../../drizzle/0008_photography.sql?raw'
 import migration9 from '../../../drizzle/0009_notifications.sql?raw'
 import migration10 from '../../../drizzle/0010_courses.sql?raw'
+import migration11 from '../../../drizzle/0011_admin_dashboard.sql?raw'
 import { createDb } from '../db/client'
 import { storeSignInOtp } from '../lib/auth-otp'
 
@@ -76,6 +77,8 @@ async function registerAndUpgradeCreator() {
     body: formData,
   })
   expect(applyResponse.status).toBe(201)
+  await env.DB.prepare("UPDATE creator_applications SET status = 'approved' WHERE user_id = ?").bind(user.id).run()
+  await env.DB.prepare("UPDATE users SET role = 'creator' WHERE id = ?").bind(user.id).run()
 
   return { cookie, user }
 }
@@ -93,6 +96,7 @@ describe('Better Auth integration', () => {
     await applyMigration(migration8)
     await applyMigration(migration9)
     await applyMigration(migration10)
+    await applyMigration(migration11)
   })
 
   it('rejects legacy password auth endpoints', async () => {
@@ -158,7 +162,7 @@ describe('Better Auth integration', () => {
     })
   })
 
-  it('keeps the session usable after subscriber upgrades to creator', async () => {
+  it('keeps the session usable after an administrator approves a creator', async () => {
     const email = `creator-${crypto.randomUUID()}@example.com`
 
     const { cookie } = await signInWithOtp(email)
@@ -194,7 +198,18 @@ describe('Better Auth integration', () => {
     })
 
     expect(applyResponse.status).toBe(201)
-    await expect(applyResponse.json()).resolves.toEqual({ role: 'creator' })
+    await expect(applyResponse.json()).resolves.toEqual({ application: { status: 'pending' } })
+
+    const pendingMeResponse = await SELF.fetch('https://example.com/api/auth/me', { headers: { Cookie: cookie } })
+    const pendingMe = await pendingMeResponse.json() as { id: string; role: string }
+    expect(pendingMe).toMatchObject({ role: 'subscriber' })
+
+    const pendingApplication = await env.DB.prepare('SELECT id FROM creator_applications WHERE user_id = ?').bind(
+      pendingMe.id,
+    ).first<{ id: string }>()
+    expect(pendingApplication?.id).toBeTruthy()
+    await env.DB.prepare("UPDATE creator_applications SET status = 'approved' WHERE id = ?").bind(pendingApplication!.id).run()
+    await env.DB.prepare("UPDATE users SET role = 'creator' WHERE email = ?").bind(email).run()
 
     const refreshedMeResponse = await SELF.fetch('https://example.com/api/auth/me', {
       headers: { Cookie: cookie },

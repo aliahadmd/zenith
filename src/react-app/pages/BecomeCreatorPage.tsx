@@ -1,14 +1,12 @@
-import { useState } from 'react'
+import { useEffect, useState } from 'react'
 import { useForm, useFieldArray } from 'react-hook-form'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { z } from 'zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
-import { useNavigate } from '@tanstack/react-router'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { toast } from 'sonner'
 import { Loader2, Plus, Trash2 } from 'lucide-react'
-import { apiPostRequired } from '../lib/api'
+import { apiGetRequired, apiPostRequired } from '../lib/api'
 import { useAuth } from '../context/AuthContext'
-import { authKeys } from '../lib/auth'
 import { creatorApplicationSchema } from '../lib/schemas'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
@@ -26,8 +24,7 @@ type CreatorApplicationFormValues = z.infer<typeof creatorApplicationSchema>
 
 // ── Component ─────────────────────────────────────────────────────────────────
 export function BecomeCreatorPage() {
-  const { currentUser, refreshCurrentUser } = useAuth()
-  const navigate = useNavigate()
+  const { currentUser } = useAuth()
   const queryClient = useQueryClient()
 
   const [alreadyApplied, setAlreadyApplied] = useState(false)
@@ -46,6 +43,38 @@ export function BecomeCreatorPage() {
   })
   const { register, handleSubmit, control, formState: { errors } } = form
 
+  type ApplicationState = {
+    id: string
+    status: 'pending' | 'approved' | 'rejected'
+    decisionReason: string | null
+    fullName: string
+    address: string
+    city: string
+    country: string
+    nidNumber: string
+    socialLinks: string[]
+    contentLinks: string[]
+  }
+  const applicationQuery = useQuery({
+    queryKey: ['creator-application', 'me'],
+    queryFn: () => apiGetRequired<{ application: ApplicationState | null }>('/api/creator/application/me'),
+  })
+
+  useEffect(() => {
+    const application = applicationQuery.data?.application
+    if (application?.status !== 'rejected') return
+    form.reset({
+      fullName: application.fullName,
+      address: application.address,
+      city: application.city,
+      country: application.country,
+      nidNumber: application.nidNumber,
+      nidDocument: undefined as unknown as File,
+      socialLinks: application.socialLinks.map((value) => ({ value })),
+      contentLinks: application.contentLinks.map((value) => ({ value })),
+    })
+  }, [applicationQuery.data, form])
+
   const {
     fields: socialFields,
     append: appendSocial,
@@ -59,12 +88,9 @@ export function BecomeCreatorPage() {
   } = useFieldArray({ control, name: 'contentLinks' })
 
   const applyMutation = useMutation({
-    mutationFn: (formData: FormData) => apiPostRequired<{ role: 'creator' }>('/api/creator/apply', formData),
+    mutationFn: (formData: FormData) => apiPostRequired<{ application: { status: 'pending' } }>('/api/creator/apply', formData),
     onSuccess: async () => {
-      await Promise.all([
-        queryClient.invalidateQueries({ queryKey: authKeys.me }),
-        refreshCurrentUser(),
-      ])
+      await queryClient.invalidateQueries({ queryKey: ['creator-application', 'me'] })
     },
   })
 
@@ -98,14 +124,12 @@ export function BecomeCreatorPage() {
     }
 
     // Success path
-    toast.success(
-      `Congratulations, ${currentUser?.displayName ?? 'creator'}! Your creator status is now active. Start creating content in Studio.`
-    )
-    await navigate({ to: '/studio' })
+    toast.success('Application submitted for review.')
   }
 
   // ── Already-applied state ─────────────────────────────────────────────────
-  if (alreadyApplied) {
+  const application = applicationQuery.data?.application
+  if (alreadyApplied || application?.status === 'pending') {
     return (
       <div data-page-shell="become-creator" className="w-full max-w-3xl py-2 lg:py-8">
         <Card>
@@ -126,6 +150,10 @@ export function BecomeCreatorPage() {
     )
   }
 
+  if (application?.status === 'approved' || currentUser?.role === 'creator') {
+    return <div data-page-shell="become-creator" className="w-full max-w-3xl py-2 lg:py-8"><Card><CardHeader><CardTitle>Creator access active</CardTitle><CardDescription>Your application has been approved. Creator Studio is available from the sidebar.</CardDescription></CardHeader></Card></div>
+  }
+
   // ── Form ──────────────────────────────────────────────────────────────────
   return (
     <div data-page-shell="become-creator" className="flex w-full max-w-3xl flex-col gap-6 py-2 lg:py-8">
@@ -135,6 +163,8 @@ export function BecomeCreatorPage() {
           Fill out the form below to apply for creator status. All fields are required unless noted.
         </p>
       </div>
+
+      {application?.status === 'rejected' ? <Card className="border-destructive/40"><CardHeader><CardTitle>Application needs changes</CardTitle><CardDescription>{application.decisionReason}. Update your details and upload a new identity document to resubmit.</CardDescription></CardHeader></Card> : null}
 
       <Form {...form}>
       <form onSubmit={handleSubmit(onSubmit)} className="flex flex-col gap-6" noValidate>

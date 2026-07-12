@@ -251,7 +251,7 @@ function InputOTPSlot({
       aria-label={isFirstSlot ? undefined : `Verification code digit ${index + 1}`}
       autoComplete={isFirstSlot ? autoComplete : 'off'}
       className={cn(
-        'relative flex size-10 shrink-0 appearance-none items-center justify-center border-y border-r border-input bg-transparent p-0 text-center text-sm text-foreground outline-none transition-all first:rounded-l-md first:border-l last:rounded-r-md',
+        'relative flex size-10 shrink-0 appearance-none items-center justify-center border-y border-r border-input bg-transparent p-0 text-center text-sm text-foreground outline-none transition-[color,background-color,border-color,box-shadow] duration-150 first:rounded-l-md first:border-l last:rounded-r-md',
         'focus:z-10 focus:ring-2 focus:ring-ring focus:ring-offset-background',
         'disabled:cursor-not-allowed disabled:opacity-50',
         inputClassName,

@@ -1,6 +1,6 @@
 import { Hono, type Context } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { and, eq, sql } from 'drizzle-orm'
+import { and, desc, eq, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import { createDb, type Db } from '../db/client'
 import {
@@ -232,6 +232,8 @@ async function getPostRowById(db: Db, postId: string) {
       photographyStatus: photographyAlbums.status,
       photographySlug: photographyAlbums.slug,
       courseStatus: courses.status,
+      moderationStatus: posts.moderationStatus,
+      authorAccountStatus: users.accountStatus,
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
@@ -246,6 +248,9 @@ async function getPostRowById(db: Db, postId: string) {
 async function getAccessiblePostById(db: Db, viewerId: string, postId: string) {
   const post = await getPostRowById(db, postId)
   if (!post) return { post: null, allowed: false }
+  if (post.moderationStatus !== 'active' || post.authorAccountStatus !== 'active') {
+    return { post, allowed: false }
+  }
   if (post.kind === 'article' && post.articleStatus !== 'published' && viewerId !== post.authorId) {
     return { post, allowed: false }
   }
@@ -309,7 +314,11 @@ export async function serializeReplies(db: Db, viewerId: string, postId: string)
     .from(postReplies)
     .innerJoin(replyAuthors, eq(replyAuthors.id, postReplies.authorId))
     .leftJoin(mentionedUsers, eq(mentionedUsers.id, postReplies.mentionedUserId))
-    .where(eq(postReplies.postId, postId))
+    .where(and(
+      eq(postReplies.postId, postId),
+      eq(postReplies.moderationStatus, 'active'),
+      eq(replyAuthors.accountStatus, 'active'),
+    ))
     .orderBy(postReplies.createdAt)
     .all()
 
@@ -371,6 +380,26 @@ async function replyLikeState(db: Db, viewerId: string, replyId: string) {
 }
 
 // ── POST /api/posts ────────────────────────────────────────────────────────
+
+postsRoutes.get('/moderated/mine', authMiddleware, requireRole('creator'), async (c) => {
+  const db = createDb(c.env.DB)
+  const rows = await db.select({
+    id: posts.id,
+    kind: posts.kind,
+    slug: posts.slug,
+    body: posts.body,
+    moderationStatus: posts.moderationStatus,
+    moderationReason: posts.moderationReason,
+    moderatedAt: posts.moderatedAt,
+  }).from(posts).where(and(
+    eq(posts.authorId, c.var.user.id),
+    eq(posts.moderationStatus, 'hidden'),
+  )).orderBy(desc(posts.moderatedAt)).all()
+
+  return c.json({
+    items: rows.map((row) => ({ ...row, moderatedAt: toUnixSeconds(row.moderatedAt) })),
+  })
+})
 
 postsRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
   const db = createDb(c.env.DB)
@@ -491,7 +520,13 @@ postsRoutes.get('/by-slug/:username/:slug', authMiddleware, zValidator('param', 
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
-    .where(and(eq(users.username, username), eq(posts.slug, slug), eq(posts.kind, 'post')))
+    .where(and(
+      eq(users.username, username),
+      eq(posts.slug, slug),
+      eq(posts.kind, 'post'),
+      eq(posts.moderationStatus, 'active'),
+      eq(users.accountStatus, 'active'),
+    ))
     .get()
 
   if (!post) return notFound(c, 'Post not found')
@@ -566,7 +601,7 @@ postsRoutes.post('/:postId/replies', authMiddleware, zValidator('param', postIdP
     const parentReply = await db
       .select({ id: postReplies.id, postId: postReplies.postId, authorId: postReplies.authorId })
       .from(postReplies)
-      .where(eq(postReplies.id, parentReplyId))
+      .where(and(eq(postReplies.id, parentReplyId), eq(postReplies.moderationStatus, 'active')))
       .get()
 
     if (!parentReply || parentReply.postId !== postId) return notFound(c, 'Parent reply not found')
@@ -646,7 +681,7 @@ postsRoutes.delete('/:postId/like', authMiddleware, zValidator('param', postIdPa
 repliesRoutes.post('/:replyId/like', authMiddleware, zValidator('param', replyIdParamSchema, zodHook), async (c) => {
   const { replyId } = c.req.valid('param')
   const db = createDb(c.env.DB)
-  const reply = await db.select({ postId: postReplies.postId }).from(postReplies).where(eq(postReplies.id, replyId)).get()
+  const reply = await db.select({ postId: postReplies.postId }).from(postReplies).where(and(eq(postReplies.id, replyId), eq(postReplies.moderationStatus, 'active'))).get()
 
   if (!reply) return notFound(c, 'Reply not found')
   const { post, allowed } = await getAccessiblePostById(db, c.var.user.id, reply.postId)
@@ -660,7 +695,7 @@ repliesRoutes.post('/:replyId/like', authMiddleware, zValidator('param', replyId
 repliesRoutes.delete('/:replyId/like', authMiddleware, zValidator('param', replyIdParamSchema, zodHook), async (c) => {
   const { replyId } = c.req.valid('param')
   const db = createDb(c.env.DB)
-  const reply = await db.select({ postId: postReplies.postId }).from(postReplies).where(eq(postReplies.id, replyId)).get()
+  const reply = await db.select({ postId: postReplies.postId }).from(postReplies).where(and(eq(postReplies.id, replyId), eq(postReplies.moderationStatus, 'active'))).get()
 
   if (!reply) return notFound(c, 'Reply not found')
   const { post, allowed } = await getAccessiblePostById(db, c.var.user.id, reply.postId)
@@ -679,13 +714,21 @@ pollsRoutes.post('/:pollId/vote', authMiddleware, zValidator('param', pollIdPara
   const db = createDb(c.env.DB)
 
   const poll = await db
-    .select({ id: postPolls.id, postId: postPolls.postId, authorId: posts.authorId })
+    .select({
+      id: postPolls.id,
+      postId: postPolls.postId,
+      authorId: posts.authorId,
+      moderationStatus: posts.moderationStatus,
+      authorAccountStatus: users.accountStatus,
+    })
     .from(postPolls)
     .innerJoin(posts, eq(posts.id, postPolls.postId))
+    .innerJoin(users, eq(users.id, posts.authorId))
     .where(eq(postPolls.id, pollId))
     .get()
 
   if (!poll) return notFound(c, 'Poll not found')
+  if (poll.moderationStatus !== 'active' || poll.authorAccountStatus !== 'active') return notFound(c, 'Poll not found')
   if (!await hasCreatorAccess(db, c.var.user.id, poll.authorId)) return forbidden(c, 'You do not have access to this poll')
 
   const option = await db
@@ -722,9 +765,12 @@ mediaRoutes.get('/:attachmentId', authMiddleware, zValidator('param', attachment
       fileName: postAttachments.fileName,
       contentType: postAttachments.contentType,
       authorId: posts.authorId,
+      postModerationStatus: posts.moderationStatus,
+      authorAccountStatus: users.accountStatus,
     })
     .from(postAttachments)
     .innerJoin(posts, eq(posts.id, postAttachments.postId))
+    .innerJoin(users, eq(users.id, posts.authorId))
     .where(eq(postAttachments.id, attachmentId))
     .get()
 
@@ -735,14 +781,18 @@ mediaRoutes.get('/:attachmentId', authMiddleware, zValidator('param', attachment
       fileName: replyAttachments.fileName,
       contentType: replyAttachments.contentType,
       authorId: posts.authorId,
+      postModerationStatus: posts.moderationStatus,
+      authorAccountStatus: users.accountStatus,
     })
     .from(replyAttachments)
     .innerJoin(postReplies, eq(postReplies.id, replyAttachments.replyId))
     .innerJoin(posts, eq(posts.id, postReplies.postId))
-    .where(eq(replyAttachments.id, attachmentId))
+    .innerJoin(users, eq(users.id, posts.authorId))
+    .where(and(eq(replyAttachments.id, attachmentId), eq(postReplies.moderationStatus, 'active')))
     .get()
 
   if (!attachment) return notFound(c, 'Media not found')
+  if (attachment.postModerationStatus !== 'active' || attachment.authorAccountStatus !== 'active') return notFound(c, 'Media not found')
   if (!await hasCreatorAccess(db, c.var.user.id, attachment.authorId)) return forbidden(c, 'You do not have access to this media')
 
   const object = await c.env.STORAGE.get(attachment.r2Key)

@@ -63,6 +63,7 @@ function makeUser(): User {
     role: 'subscriber',
     displayName: 'Test User',
     username: 'testuser',
+    adminRole: null,
   }
 }
 

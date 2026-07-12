@@ -24,6 +24,7 @@ import {
 } from '../lib/post-data'
 import { notifySubscribersOfContent } from '../lib/notifications'
 import { generatePostSlug, serializeReplies } from './posts'
+import { isPostMemberVisible } from '../lib/moderation'
 
 export const articlesRoutes = new Hono<HonoEnv>()
 
@@ -198,6 +199,7 @@ async function getArticleByPostId(db: Db, postId: string) {
 }
 
 async function canReadArticle(db: Db, viewerId: string, article: ArticleRow) {
+  if (!await isPostMemberVisible(db, article.postId)) return false
   if (viewerId === article.authorId) return true
   if (article.status !== 'published') return false
   return hasCreatorAccess(db, viewerId, article.authorId)
@@ -259,6 +261,7 @@ articlesRoutes.patch('/:postId', authMiddleware, requireRole('creator'), zValida
   const existing = await getArticleByPostId(db, postId)
   if (!existing) return notFound(c, 'Article not found')
   if (existing.authorId !== c.var.user.id) return forbidden(c, 'You cannot edit this article')
+  if (!await isPostMemberVisible(db, existing.postId)) return forbidden(c, 'Moderated content cannot be edited until it is restored')
 
   if (parsed.status === 'published' && !parsed.cover && !existing.coverR2Key) {
     return errorResponse(c, 422, 'validation_failed', 'Published articles need a cover photo.')
@@ -307,6 +310,7 @@ articlesRoutes.post('/:postId/publish', authMiddleware, requireRole('creator'), 
   const existing = await getArticleByPostId(db, postId)
   if (!existing) return notFound(c, 'Article not found')
   if (existing.authorId !== c.var.user.id) return forbidden(c, 'You cannot publish this article')
+  if (!await isPostMemberVisible(db, existing.postId)) return forbidden(c, 'Moderated content cannot be published until it is restored')
   if (!existing.title || !existing.markdown || !existing.coverR2Key) {
     return errorResponse(c, 422, 'validation_failed', 'Published articles need a title, article body, and cover photo.')
   }
@@ -360,7 +364,13 @@ articlesRoutes.get('/by-slug/:username/:slug', authMiddleware, zValidator('param
     .from(articles)
     .innerJoin(posts, eq(posts.id, articles.postId))
     .innerJoin(users, eq(users.id, posts.authorId))
-    .where(and(eq(users.username, username), eq(posts.slug, slug), eq(posts.kind, 'article')))
+    .where(and(
+      eq(users.username, username),
+      eq(posts.slug, slug),
+      eq(posts.kind, 'article'),
+      eq(posts.moderationStatus, 'active'),
+      eq(users.accountStatus, 'active'),
+    ))
     .get()
 
   if (!article) return notFound(c, 'Article not found')
@@ -436,7 +446,12 @@ export async function listPublishedArticlesForCreator(db: Db, viewerId: string, 
     .from(articles)
     .innerJoin(posts, eq(posts.id, articles.postId))
     .innerJoin(users, eq(users.id, posts.authorId))
-    .where(and(eq(posts.authorId, creatorId), eq(articles.status, 'published')))
+    .where(and(
+      eq(posts.authorId, creatorId),
+      eq(articles.status, 'published'),
+      eq(posts.moderationStatus, 'active'),
+      eq(users.accountStatus, 'active'),
+    ))
     .orderBy(desc(articles.publishedAt))
     .limit(50)
     .all()

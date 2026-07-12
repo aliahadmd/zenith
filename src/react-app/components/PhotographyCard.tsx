@@ -8,6 +8,7 @@ import { cn } from '../lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
+import { ReportDialog } from './ReportDialog'
 
 type PhotographyCardProps = {
   album: PhotographyAlbumSummary
@@ -115,6 +116,7 @@ export function PhotographyCard({ album, showReplyAction = true }: PhotographyCa
                 </Link>
               </Button>
             )}
+            <ReportDialog targetType="post" targetId={album.postId} />
           </div>
         </div>
       </div>

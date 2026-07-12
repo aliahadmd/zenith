@@ -1,14 +1,22 @@
 import { createMiddleware } from 'hono/factory'
 import { eq } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { users } from '../db/schema'
+import { adminMemberships, users } from '../db/schema'
 import { createAuth } from '../lib/auth'
-import { forbidden, unauthorized } from '../lib/http'
+import { errorResponse, forbidden, unauthorized } from '../lib/http'
+
+export type AuthenticatedUser = {
+  id: string
+  email: string
+  role: 'subscriber' | 'creator'
+  accountStatus: 'active' | 'suspended'
+  adminRole: 'owner' | 'moderator' | null
+}
 
 export type HonoEnv = {
   Bindings: Env
   Variables: {
-    user: { id: string; email: string; role: 'subscriber' | 'creator' }
+    user: AuthenticatedUser
   }
 }
 
@@ -24,12 +32,18 @@ export const authMiddleware = createMiddleware<HonoEnv>(async (c, next) => {
       id: users.id,
       email: users.email,
       role: users.role,
+      accountStatus: users.accountStatus,
+      adminRole: adminMemberships.role,
     })
     .from(users)
+    .leftJoin(adminMemberships, eq(adminMemberships.userId, users.id))
     .where(eq(users.id, session.user.id))
     .get()
 
   if (!user) return unauthorized(c)
+  if (user.accountStatus === 'suspended') {
+    return errorResponse(c, 403, 'account_suspended', 'This account is suspended.')
+  }
 
   c.set('user', user)
   await next()

@@ -77,6 +77,9 @@ async function apiFetch<T>(
         error = normalized.error
         code = normalized.code
         details = normalized.details
+        if (code === 'account_suspended' && typeof window !== 'undefined') {
+          window.dispatchEvent(new CustomEvent('account-suspended'))
+        }
       }
     } else if (!res.ok) {
       error = res.statusText || 'An error occurred'
@@ -113,8 +116,8 @@ export function apiPatch<T>(url: string, body?: unknown): Promise<ApiResponse<T>
   })
 }
 
-export function apiDelete<T>(url: string): Promise<ApiResponse<T>> {
-  return apiFetch<T>(url, { method: 'DELETE' })
+export function apiDelete<T>(url: string, body?: unknown): Promise<ApiResponse<T>> {
+  return apiFetch<T>(url, { method: 'DELETE', body: body === undefined ? undefined : JSON.stringify(body) })
 }
 
 export async function apiRequest<T>(
@@ -155,6 +158,6 @@ export function apiPatchRequired<T>(url: string, body?: unknown): Promise<T> {
   })
 }
 
-export function apiDeleteRequired<T>(url: string): Promise<T> {
-  return apiRequest<T>(url, { method: 'DELETE' })
+export function apiDeleteRequired<T>(url: string, body?: unknown): Promise<T> {
+  return apiRequest<T>(url, { method: 'DELETE', body: body === undefined ? undefined : JSON.stringify(body) })
 }

@@ -26,6 +26,7 @@ import {
   toUnixSeconds,
 } from '../lib/post-data'
 import { notifySubscribersOfContent } from '../lib/notifications'
+import { isPostMemberVisible } from '../lib/moderation'
 import { generatePostSlug, serializeReplies, slugify } from './posts'
 
 export const audioRoutes = new Hono<HonoEnv>()
@@ -451,12 +452,15 @@ async function getItemById(db: Db, itemId: string) {
 }
 
 async function canReadCollection(db: Db, viewerId: string, collection: AudioCollectionRow) {
+  const creator = await db.select({ accountStatus: users.accountStatus }).from(users).where(eq(users.id, collection.creatorId)).get()
+  if (creator?.accountStatus !== 'active') return false
   if (viewerId === collection.creatorId) return true
   if (collection.status !== 'published') return false
   return hasCreatorAccess(db, viewerId, collection.creatorId)
 }
 
 async function canReadItem(db: Db, viewerId: string, item: AudioItemRow) {
+  if (!await isPostMemberVisible(db, item.postId)) return false
   if (viewerId === item.creatorId) return true
   if (item.status !== 'published' || item.collectionStatus !== 'published') return false
   return hasCreatorAccess(db, viewerId, item.creatorId)
@@ -653,6 +657,7 @@ audioRoutes.patch('/items/:itemId', authMiddleware, requireRole('creator'), asyn
   const existing = await getItemById(db, itemId)
   if (!existing) return notFound(c, 'Audio item not found')
   if (existing.creatorId !== c.var.user.id) return forbidden(c, 'You cannot edit this audio item')
+  if (!await isPostMemberVisible(db, existing.postId)) return forbidden(c, 'Moderated content cannot be edited until it is restored')
   if (parsed.collectionId !== existing.collectionId) {
     return errorResponse(c, 422, 'validation_failed', 'Moving audio items between collections is not supported in this slice.')
   }
@@ -708,6 +713,7 @@ audioRoutes.delete('/items/:itemId', authMiddleware, requireRole('creator'), asy
   const existing = await getItemById(db, itemId)
   if (!existing) return notFound(c, 'Audio item not found')
   if (existing.creatorId !== c.var.user.id) return forbidden(c, 'You cannot delete this audio item')
+  if (!await isPostMemberVisible(db, existing.postId)) return forbidden(c, 'Moderated content cannot be deleted until it is restored')
 
   await db.delete(posts).where(eq(posts.id, existing.postId)).run()
   await Promise.all([
@@ -769,9 +775,12 @@ audioRoutes.get('/collections/by-slug/:username/:slug', authMiddleware, async (c
     .from(audioItems)
     .innerJoin(audioCollections, eq(audioCollections.id, audioItems.collectionId))
     .innerJoin(itemCreators, eq(itemCreators.id, audioItems.creatorId))
+    .innerJoin(posts, eq(posts.id, audioItems.postId))
     .where(and(
       eq(audioItems.collectionId, collection.id),
       c.var.user.id === collection.creatorId ? undefined : eq(audioItems.status, 'published'),
+      eq(posts.moderationStatus, 'active'),
+      eq(itemCreators.accountStatus, 'active'),
     ))
     .orderBy(asc(audioItems.displayOrder))
     .all()
@@ -912,10 +921,13 @@ export async function listPublishedAudioForCreator(db: Db, viewerId: string, cre
     .from(audioItems)
     .innerJoin(audioCollections, eq(audioCollections.id, audioItems.collectionId))
     .innerJoin(itemCreators, eq(itemCreators.id, audioItems.creatorId))
+    .innerJoin(posts, eq(posts.id, audioItems.postId))
     .where(and(
       eq(audioItems.creatorId, creatorId),
       eq(audioItems.status, 'published'),
       eq(audioCollections.status, 'published'),
+      eq(posts.moderationStatus, 'active'),
+      eq(itemCreators.accountStatus, 'active'),
     ))
     .orderBy(desc(audioItems.publishedAt))
     .limit(100)
@@ -925,7 +937,11 @@ export async function listPublishedAudioForCreator(db: Db, viewerId: string, cre
     .select(collectionSelect())
     .from(audioCollections)
     .innerJoin(collectionCreators, eq(collectionCreators.id, audioCollections.creatorId))
-    .where(and(eq(audioCollections.creatorId, creatorId), eq(audioCollections.status, 'published')))
+    .where(and(
+      eq(audioCollections.creatorId, creatorId),
+      eq(audioCollections.status, 'published'),
+      eq(collectionCreators.accountStatus, 'active'),
+    ))
     .orderBy(desc(audioCollections.updatedAt))
     .limit(100)
     .all()

@@ -41,7 +41,11 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   useEffect(() => {
     const handleUnauthorized = () => queryClient.setQueryData(authKeys.me, null)
     window.addEventListener('unauthorized', handleUnauthorized)
-    return () => window.removeEventListener('unauthorized', handleUnauthorized)
+    window.addEventListener('account-suspended', handleUnauthorized)
+    return () => {
+      window.removeEventListener('unauthorized', handleUnauthorized)
+      window.removeEventListener('account-suspended', handleUnauthorized)
+    }
   }, [queryClient])
 
   async function completeOtpSignIn(email: string, otp: string) {

@@ -25,7 +25,7 @@ profileRoutes.get('/avatar/:userId', zValidator('param', userIdParamSchema, zodH
   const user = await db
     .select({ avatarR2Key: users.avatarR2Key })
     .from(users)
-    .where(eq(users.id, userId))
+    .where(and(eq(users.id, userId), eq(users.accountStatus, 'active')))
     .get()
 
   if (!user?.avatarR2Key) return notFound(c)
@@ -54,7 +54,7 @@ profileRoutes.get('/:username', zValidator('param', usernameParamSchema, zodHook
       socialLinks: users.socialLinks,
     })
     .from(users)
-    .where(eq(users.username, username))
+    .where(and(eq(users.username, username), eq(users.accountStatus, 'active')))
     .get()
 
   if (!user) return notFound(c)
@@ -99,6 +99,7 @@ profileRoutes.get('/:username/subscriptions', zValidator('param', usernameParamS
     .where(and(
       eq(subscriptionMemberships.subscriberId, user.id),
       eq(users.role, 'creator'),
+      eq(users.accountStatus, 'active'),
       or(
         eq(subscriptionMemberships.status, 'active'),
         and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
@@ -118,7 +119,7 @@ profileRoutes.get('/:username/subscribers', authMiddleware, zValidator('param', 
   const creator = await db
     .select({ id: users.id, role: users.role })
     .from(users)
-    .where(eq(users.username, username))
+    .where(and(eq(users.username, username), eq(users.accountStatus, 'active')))
     .get()
 
   if (!creator || creator.role !== 'creator') return notFound(c, 'Creator not found')
@@ -138,6 +139,7 @@ profileRoutes.get('/:username/subscribers', authMiddleware, zValidator('param', 
     .innerJoin(users, eq(users.id, subscriptionMemberships.subscriberId))
     .where(and(
       eq(subscriptionMemberships.creatorId, creator.id),
+      eq(users.accountStatus, 'active'),
       or(
         eq(subscriptionMemberships.status, 'active'),
         and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
@@ -164,7 +166,7 @@ profileRoutes.get('/:username/posts', authMiddleware, zValidator('param', userna
       role: users.role,
     })
     .from(users)
-    .where(eq(users.username, username))
+    .where(and(eq(users.username, username), eq(users.accountStatus, 'active')))
     .get()
 
   if (!creator || creator.role !== 'creator') return notFound(c, 'Creator not found')
@@ -185,7 +187,12 @@ profileRoutes.get('/:username/posts', authMiddleware, zValidator('param', userna
     })
     .from(posts)
     .innerJoin(users, eq(users.id, posts.authorId))
-    .where(and(eq(posts.authorId, creator.id), eq(posts.kind, 'post')))
+    .where(and(
+      eq(posts.authorId, creator.id),
+      eq(posts.kind, 'post'),
+      eq(posts.moderationStatus, 'active'),
+      eq(users.accountStatus, 'active'),
+    ))
     .orderBy(desc(posts.createdAt))
     .limit(50)
     .all()
@@ -224,7 +231,7 @@ profileRoutes.get('/:username/articles', authMiddleware, zValidator('param', use
       role: users.role,
     })
     .from(users)
-    .where(eq(users.username, username))
+    .where(and(eq(users.username, username), eq(users.accountStatus, 'active')))
     .get()
 
   if (!creator || creator.role !== 'creator') return notFound(c, 'Creator not found')
@@ -250,7 +257,7 @@ profileRoutes.get('/:username/photography', authMiddleware, zValidator('param', 
       role: users.role,
     })
     .from(users)
-    .where(eq(users.username, username))
+    .where(and(eq(users.username, username), eq(users.accountStatus, 'active')))
     .get()
 
   if (!creator || creator.role !== 'creator') return notFound(c, 'Creator not found')
@@ -278,7 +285,7 @@ profileRoutes.get('/:username/audio', authMiddleware, zValidator('param', userna
       role: users.role,
     })
     .from(users)
-    .where(eq(users.username, username))
+    .where(and(eq(users.username, username), eq(users.accountStatus, 'active')))
     .get()
 
   if (!creator || creator.role !== 'creator') return notFound(c, 'Creator not found')
@@ -302,7 +309,7 @@ profileRoutes.get('/:username/courses', authMiddleware, zValidator('param', user
   const creator = await db
     .select({ id: users.id, role: users.role })
     .from(users)
-    .where(eq(users.username, username))
+    .where(and(eq(users.username, username), eq(users.accountStatus, 'active')))
     .get()
 
   if (!creator || creator.role !== 'creator') return notFound(c, 'Creator not found')

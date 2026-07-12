@@ -7,6 +7,7 @@ import {
   LogOut,
   Rss,
   Settings,
+  ShieldCheck,
   User,
 } from 'lucide-react'
 import { useQuery } from '@tanstack/react-query'
@@ -24,7 +25,7 @@ type SidebarProps = {
 }
 
 type NavItem = {
-  to: '/feed' | '/notifications' | '/settings' | '/become-creator' | '/studio'
+  to: '/feed' | '/notifications' | '/settings' | '/become-creator' | '/studio' | '/admin'
   label: string
   icon: LucideIcon
   badge?: number
@@ -60,6 +61,9 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
         : []
 
   const [feedNavItem, ...secondaryNavItems] = roleNavItems
+  const adminNavItem: NavItem | null = currentUser?.adminRole
+    ? { to: '/admin' as const, label: 'Admin', icon: ShieldCheck }
+    : null
   const settingsNavItem: NavItem = { to: '/settings' as const, label: 'Settings', icon: Settings }
   const FeedIcon = feedNavItem?.icon
 
@@ -103,7 +107,7 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           <User data-icon="inline-start" />
           Profile
         </Link>
-        {[...secondaryNavItems, settingsNavItem].map((item) => {
+        {[...secondaryNavItems, ...(adminNavItem ? [adminNavItem] : []), settingsNavItem].map((item) => {
           const Icon = item.icon
           return (
             <Link key={item.to} to={item.to} className={navLinkClass(item.to)} onClick={onNavigate}>

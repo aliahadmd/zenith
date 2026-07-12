@@ -11,6 +11,7 @@ import migration7 from '../../../drizzle/0007_audio.sql?raw'
 import migration8 from '../../../drizzle/0008_photography.sql?raw'
 import migration9 from '../../../drizzle/0009_notifications.sql?raw'
 import migration10 from '../../../drizzle/0010_courses.sql?raw'
+import migration11 from '../../../drizzle/0011_admin_dashboard.sql?raw'
 import { createDb } from '../db/client'
 import { subscriptionMemberships, users } from '../db/schema'
 import { storeSignInOtp } from '../lib/auth-otp'
@@ -46,7 +47,7 @@ async function registerUser(prefix: string) {
 
 describe('courses routes', () => {
   beforeAll(async () => {
-    for (const migration of [migration0, migration1, migration2, migration3, migration4, migration5, migration6, migration7, migration8, migration9, migration10]) {
+    for (const migration of [migration0, migration1, migration2, migration3, migration4, migration5, migration6, migration7, migration8, migration9, migration10, migration11]) {
       await applyMigration(migration)
     }
   })

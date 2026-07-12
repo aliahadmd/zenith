@@ -53,7 +53,7 @@ export function AuthPageShell({ children, description, footer, mode, title }: Au
               <span className="flex size-10 items-center justify-center rounded-md border bg-card/70">
                 <Sparkles aria-hidden="true" />
               </span>
-              Creator Network
+              Zenith
             </Link>
 
             <div className="flex flex-col gap-4">
@@ -99,7 +99,7 @@ export function AuthPageShell({ children, description, footer, mode, title }: Au
               <span className="flex size-10 items-center justify-center rounded-md border bg-card/70">
                 <Sparkles aria-hidden="true" />
               </span>
-              Creator Network
+              Zenith
             </Link>
             <div className="flex flex-col gap-2">
               <h1 className="text-3xl font-semibold leading-tight tracking-normal text-balance">

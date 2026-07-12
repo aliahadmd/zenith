@@ -9,6 +9,7 @@ import { cn } from '../lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
+import { ReportDialog } from './ReportDialog'
 
 type AudioCardProps = {
   item: AudioItemSummary
@@ -150,6 +151,7 @@ export function AudioCard({ item, queue, showReplyAction = true }: AudioCardProp
                 </Link>
               </Button>
             )}
+            <ReportDialog targetType="post" targetId={item.postId} />
           </div>
         </div>
       </div>

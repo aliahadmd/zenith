@@ -1,7 +1,7 @@
 import { queryOptions } from '@tanstack/react-query'
 import { apiGetRequired, apiPatchRequired, apiPostRequired, apiPutRequired } from './api'
 
-export type NotificationCategory = 'content' | 'interaction' | 'subscription'
+export type NotificationCategory = 'content' | 'interaction' | 'subscription' | 'account'
 
 export type NotificationItem = {
   id: string

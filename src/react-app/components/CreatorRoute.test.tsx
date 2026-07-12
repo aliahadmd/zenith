@@ -28,6 +28,7 @@ function makeUser(role: 'subscriber' | 'creator'): User {
     role,
     displayName: 'Test User',
     username: 'testuser',
+    adminRole: null,
   }
 }
 

@@ -10,6 +10,10 @@ export const users = sqliteTable('users', {
   role:         text('role', { enum: ['subscriber', 'creator'] })
                   .notNull()
                   .default('subscriber'),
+  accountStatus: text('account_status', { enum: ['active', 'suspended'] }).notNull().default('active'),
+  suspensionReason: text('suspension_reason'),
+  suspendedAt: integer('suspended_at', { mode: 'timestamp' }),
+  suspendedBy: text('suspended_by'),
   displayName:  text('display_name').notNull(),
   username:     text('username').notNull().unique(),
   tagline:      text('tagline'),
@@ -23,7 +27,20 @@ export const users = sqliteTable('users', {
                   .notNull()
                   .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
                   .$onUpdate(() => new Date()),
-})
+}, (t) => [
+  index('users_account_status_idx').on(t.accountStatus),
+])
+
+// ── Administration ────────────────────────────────────────────────────────
+export const adminMemberships = sqliteTable('admin_memberships', {
+  userId:    text('user_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  role:      text('role', { enum: ['owner', 'moderator'] }).notNull(),
+  grantedBy: text('granted_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt: integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  updatedAt: integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  index('admin_memberships_role_idx').on(t.role),
+])
 
 // ── Creator Profile Tabs ──────────────────────────────────────────────────
 export const creatorProfileTabs = sqliteTable('creator_profile_tabs', {
@@ -110,6 +127,10 @@ export const posts = sqliteTable('posts', {
   kind:      text('kind', { enum: ['post', 'article', 'audio', 'photography', 'course'] }).notNull().default('post'),
   slug:      text('slug').notNull(),
   body:      text('body').notNull(),
+  moderationStatus: text('moderation_status', { enum: ['active', 'hidden'] }).notNull().default('active'),
+  moderationReason: text('moderation_reason'),
+  moderatedAt: integer('moderated_at', { mode: 'timestamp' }),
+  moderatedBy: text('moderated_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt: integer('created_at', { mode: 'timestamp' })
                .notNull()
                .default(sql`(unixepoch())`),
@@ -117,6 +138,7 @@ export const posts = sqliteTable('posts', {
   uniqueIndex('posts_author_slug_unique').on(t.authorId, t.slug),
   index('posts_kind_created_idx').on(t.kind, t.createdAt),
   index('posts_author_created_idx').on(t.authorId, t.createdAt),
+  index('posts_moderation_author_idx').on(t.moderationStatus, t.authorId, t.createdAt),
 ])
 
 // ── Articles ───────────────────────────────────────────────────────────────
@@ -382,6 +404,10 @@ export const postReplies = sqliteTable('post_replies', {
   parentReplyId:   text('parent_reply_id'),
   mentionedUserId: text('mentioned_user_id').references(() => users.id, { onDelete: 'set null' }),
   body:            text('body').notNull(),
+  moderationStatus: text('moderation_status', { enum: ['active', 'hidden'] }).notNull().default('active'),
+  moderationReason: text('moderation_reason'),
+  moderatedAt:     integer('moderated_at', { mode: 'timestamp' }),
+  moderatedBy:     text('moderated_by').references(() => users.id, { onDelete: 'set null' }),
   createdAt:       integer('created_at', { mode: 'timestamp' })
                      .notNull()
                      .default(sql`(unixepoch())`),
@@ -392,6 +418,7 @@ export const postReplies = sqliteTable('post_replies', {
 }, (t) => [
   index('post_replies_post_created_idx').on(t.postId, t.createdAt),
   index('post_replies_parent_idx').on(t.parentReplyId),
+  index('post_replies_moderation_post_idx').on(t.moderationStatus, t.postId, t.createdAt),
 ])
 
 export const replyAttachments = sqliteTable('reply_attachments', {
@@ -500,11 +527,65 @@ export const creatorApplications = sqliteTable('creator_applications', {
   contentLinks:     text('content_links').notNull(),  // JSON array of URL strings
   status:           text('status', { enum: ['pending', 'approved', 'rejected'] })
                       .notNull()
-                      .default('approved'),
+                      .default('pending'),
+  reviewedBy:       text('reviewed_by').references(() => users.id, { onDelete: 'set null' }),
+  reviewedAt:       integer('reviewed_at', { mode: 'timestamp' }),
+  decisionReason:   text('decision_reason'),
+  adminNote:        text('admin_note'),
+  resubmittedAt:    integer('resubmitted_at', { mode: 'timestamp' }),
   createdAt:        integer('created_at', { mode: 'timestamp' })
                       .notNull()
                       .default(sql`(unixepoch())`),
-})
+  updatedAt:        integer('updated_at', { mode: 'timestamp' })
+                      .notNull()
+                      .default(sql`(unixepoch())`),
+}, (t) => [
+  index('creator_applications_status_updated_idx').on(t.status, t.updatedAt),
+])
+
+// ── Moderation ────────────────────────────────────────────────────────────
+export const moderationCases = sqliteTable('moderation_cases', {
+  id:              text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  targetType:      text('target_type', { enum: ['post', 'reply', 'user'] }).notNull(),
+  targetId:        text('target_id').notNull(),
+  status:          text('status', { enum: ['open', 'reviewing', 'resolved', 'dismissed'] }).notNull().default('open'),
+  assignedAdminId: text('assigned_admin_id').references(() => users.id, { onDelete: 'set null' }),
+  resolutionAction: text('resolution_action'),
+  resolutionNote:  text('resolution_note'),
+  resolvedBy:      text('resolved_by').references(() => users.id, { onDelete: 'set null' }),
+  resolvedAt:      integer('resolved_at', { mode: 'timestamp' }),
+  createdAt:       integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  updatedAt:       integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  uniqueIndex('moderation_cases_target_unique').on(t.targetType, t.targetId),
+  index('moderation_cases_status_updated_idx').on(t.status, t.updatedAt),
+])
+
+export const contentReports = sqliteTable('content_reports', {
+  id:         text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  caseId:     text('case_id').notNull().references(() => moderationCases.id, { onDelete: 'cascade' }),
+  reporterId: text('reporter_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  reason:     text('reason', { enum: ['spam', 'harassment', 'hate', 'sexual', 'violence', 'copyright', 'impersonation', 'other'] }).notNull(),
+  details:    text('details'),
+  createdAt:  integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  uniqueIndex('content_reports_case_reporter_unique').on(t.caseId, t.reporterId),
+  index('content_reports_case_created_idx').on(t.caseId, t.createdAt),
+])
+
+export const adminAuditLogs = sqliteTable('admin_audit_logs', {
+  id:         text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  actorId:    text('actor_id').notNull().references(() => users.id, { onDelete: 'restrict' }),
+  action:     text('action').notNull(),
+  targetType: text('target_type').notNull(),
+  targetId:   text('target_id').notNull(),
+  reason:     text('reason'),
+  metadata:   text('metadata'),
+  createdAt:  integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  index('admin_audit_logs_created_idx').on(t.createdAt),
+  index('admin_audit_logs_actor_created_idx').on(t.actorId, t.createdAt),
+])
 
 // ── Creator Payment Accounts ───────────────────────────────────────────────
 export const creatorPaymentAccounts = sqliteTable('creator_payment_accounts', {
@@ -671,9 +752,15 @@ export const notifications = sqliteTable('notifications', {
                     'subscription_active',
                     'subscription_status_changed',
                     'payment_failed',
+                    'creator_application_approved',
+                    'creator_application_rejected',
+                    'content_hidden',
+                    'content_restored',
+                    'account_suspended',
+                    'account_restored',
                   ],
                 }).notNull(),
-  category:     text('category', { enum: ['content', 'interaction', 'subscription'] }).notNull(),
+  category:     text('category', { enum: ['content', 'interaction', 'subscription', 'account'] }).notNull(),
   title:        text('title').notNull(),
   body:         text('body').notNull(),
   targetUrl:    text('target_url'),
@@ -714,6 +801,7 @@ export const notificationPreferences = sqliteTable('notification_preferences', {
 // ── Inferred types ─────────────────────────────────────────────────────────
 export type User                 = typeof users.$inferSelect
 export type NewUser              = typeof users.$inferInsert
+export type AdminMembership      = typeof adminMemberships.$inferSelect
 export type CreatorProfileTab    = typeof creatorProfileTabs.$inferSelect
 export type Session              = typeof session.$inferSelect
 export type Account              = typeof account.$inferSelect
@@ -735,6 +823,9 @@ export type PollVote             = typeof pollVotes.$inferSelect
 export type Follow               = typeof follows.$inferSelect
 export type CreatorApplication   = typeof creatorApplications.$inferSelect
 export type NewCreatorApplication = typeof creatorApplications.$inferInsert
+export type ModerationCase       = typeof moderationCases.$inferSelect
+export type ContentReport        = typeof contentReports.$inferSelect
+export type AdminAuditLog        = typeof adminAuditLogs.$inferSelect
 export type CreatorPaymentAccount = typeof creatorPaymentAccounts.$inferSelect
 export type MembershipPlan        = typeof membershipPlans.$inferSelect
 export type MembershipPlanPrice   = typeof membershipPlanPrices.$inferSelect

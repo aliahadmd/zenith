@@ -6,6 +6,7 @@ import { toast } from 'sonner'
 import { Heart, ImagePlus, Loader2, MessageCircle, Reply, X } from 'lucide-react'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
 import { Button } from '../components/ui/button'
+import { ReportDialog } from '../components/ReportDialog'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../components/ui/form'
 import { Input } from '../components/ui/input'
 import { Textarea } from '../components/ui/textarea'
@@ -358,6 +359,7 @@ function ReplyItem({
                 <Reply data-icon="inline-start" />
                 Reply
               </Button>
+              <ReportDialog targetType="reply" targetId={reply.id} />
             </div>
           </div>
         </div>

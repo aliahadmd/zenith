@@ -75,6 +75,9 @@
     --chart-4: oklch(0.64 0.18 310);
     --chart-5: oklch(0.58 0.18 25);
     --radius: 0.5rem;
+    --ease-out: cubic-bezier(0.23, 1, 0.32, 1);
+    --ease-in-out: cubic-bezier(0.77, 0, 0.175, 1);
+    --ease-drawer: cubic-bezier(0.32, 0.72, 0, 1);
     --sidebar: oklch(0.995 0 0);
     --sidebar-foreground: oklch(0.17 0.01 255);
     --sidebar-primary: oklch(0.62 0.19 252);
@@ -130,6 +133,9 @@
   html {
     @apply font-sans;
     }
+  ::selection {
+    background: color-mix(in oklch, var(--primary) 24%, transparent);
+  }
 }
 
 @keyframes auth-grid-pan {
@@ -187,21 +193,47 @@
   }
 
   .auth-fade-up {
-    animation: auth-fade-up 640ms ease-out both;
+    animation: auth-fade-up 420ms var(--ease-out) both;
   }
 
   .auth-float {
-    animation: auth-float 8s ease-in-out infinite;
+    animation: auth-float 8s var(--ease-in-out) infinite;
   }
 
   .auth-path-draw {
     stroke-dasharray: 640;
     stroke-dashoffset: 640;
-    animation: auth-path-draw 2200ms ease-out both;
+    animation: auth-path-draw 1600ms var(--ease-out) both;
   }
 
   .animate-caret-blink {
     animation: caret-blink 1.2s ease-out infinite;
+  }
+
+  .interactive-surface {
+    transition:
+      transform 180ms var(--ease-out),
+      background-color 160ms ease,
+      border-color 160ms ease,
+      color 160ms ease;
+  }
+
+  .content-type-card-arrow {
+    transition: transform 160ms var(--ease-out), color 160ms ease;
+  }
+
+  @media (hover: hover) and (pointer: fine) {
+    .interactive-surface:hover {
+      transform: translateY(-2px);
+    }
+
+    .interactive-surface:hover .content-type-card-arrow {
+      transform: translate(2px, -2px);
+    }
+  }
+
+  .interactive-surface:active {
+    transform: scale(0.985);
   }
 }
 
@@ -220,5 +252,15 @@
 
   .auth-path-draw {
     stroke-dashoffset: 0;
+  }
+
+  .animate-caret-blink {
+    animation: none;
+  }
+
+  .interactive-surface,
+  .content-type-card-arrow {
+    transition: none;
+    transform: none;
   }
 }

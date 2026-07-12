@@ -269,7 +269,7 @@ export function AudioPlayerProvider({ children }: { children: ReactNode }) {
       {currentItem && (
         <div className="pointer-events-none fixed inset-x-0 bottom-3 z-40 px-3 sm:bottom-4">
           <div
-            className="pointer-events-auto mx-auto flex max-w-3xl flex-col gap-3 rounded-3xl border px-4 py-3 shadow-2xl sm:flex-row sm:items-center"
+            className="pointer-events-auto mx-auto flex max-w-3xl flex-col gap-3 rounded-lg border px-4 py-3 shadow-xl sm:flex-row sm:items-center"
             style={playerThemeStyle(playerTheme)}
           >
             <div className="flex min-w-0 flex-1 items-center gap-3">

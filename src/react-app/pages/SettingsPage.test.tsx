@@ -44,6 +44,7 @@ function makeCreator(): User {
     role: 'creator',
     displayName: 'Creator One',
     username: 'creatorone',
+    adminRole: null,
   }
 }
 

@@ -8,6 +8,7 @@ import { cn } from '../lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
+import { ReportDialog } from './ReportDialog'
 
 export function CourseCard({ course, showReplyAction = true }: { course: CourseSummary; showReplyAction?: boolean }) {
   const queryClient = useQueryClient()
@@ -84,6 +85,7 @@ export function CourseCard({ course, showReplyAction = true }: { course: CourseS
                 </Link>
               </Button>
             )}
+            <ReportDialog targetType="post" targetId={course.postId} />
           </div>
         </div>
       </div>

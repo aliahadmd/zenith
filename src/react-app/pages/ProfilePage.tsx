@@ -52,6 +52,7 @@ import { AudioCollectionCard } from '../components/AudioCollectionCard'
 import { PhotographyCard } from '../components/PhotographyCard'
 import { PostCard } from '../components/PostCard'
 import { CourseCard } from '../components/CourseCard'
+import { ReportDialog } from '../components/ReportDialog'
 
 type ProfileData = {
   id: string
@@ -281,6 +282,7 @@ export function ProfilePage({ username }: { username: string }) {
               <p className="mt-3 max-w-prose text-sm leading-6">{profile.tagline}</p>
             )}
           </div>
+          {!isOwnProfile ? <ReportDialog targetType="user" targetId={profile.id} /> : null}
         </div>
 
         {showMembershipCard && (

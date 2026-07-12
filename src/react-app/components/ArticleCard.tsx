@@ -8,6 +8,7 @@ import { cn } from '../lib/utils'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
+import { ReportDialog } from './ReportDialog'
 
 type ArticleCardProps = {
   article: ArticleSummary
@@ -114,6 +115,7 @@ export function ArticleCard({ article, showReplyAction = true }: ArticleCardProp
                 </Link>
               </Button>
             )}
+            <ReportDialog targetType="post" targetId={article.postId} />
           </div>
         </div>
       </div>

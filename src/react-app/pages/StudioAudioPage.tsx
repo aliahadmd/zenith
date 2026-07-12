@@ -221,7 +221,7 @@ function CollectionManager({
 
   if (collections.length === 0) {
     return (
-      <div className="rounded-3xl border bg-card/30 p-8 text-center">
+      <div className="rounded-lg border bg-card/30 p-8 text-center">
         <Icon className="mx-auto text-muted-foreground" aria-hidden="true" />
         <h3 className="mt-3 text-base font-semibold">No {kind === 'album' ? 'albums' : 'podcasts'} yet</h3>
         <p className="mt-1 text-sm text-muted-foreground">
