@@ -8,6 +8,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { ReportDialog } from './ReportDialog'
+import { SaveButton } from './SaveButton'
 
 type PostCardProps = {
   post: FeedPost
@@ -166,6 +167,11 @@ export function PostCard({ post, showReplyAction = true }: PostCardProps) {
                 </Link>
               </Button>
             )}
+            <SaveButton
+              postId={post.id}
+              saved={post.viewerSaved}
+              queryKeys={[postKeys.creator(post.author.username), postKeys.detail(post.author.username, post.slug)]}
+            />
             <ReportDialog targetType="post" targetId={post.id} />
           </div>
         </div>

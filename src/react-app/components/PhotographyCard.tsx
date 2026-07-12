@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { ReportDialog } from './ReportDialog'
+import { SaveButton } from './SaveButton'
 
 type PhotographyCardProps = {
   album: PhotographyAlbumSummary
@@ -116,6 +117,11 @@ export function PhotographyCard({ album, showReplyAction = true }: PhotographyCa
                 </Link>
               </Button>
             )}
+            <SaveButton
+              postId={album.postId}
+              saved={album.viewerSaved}
+              queryKeys={[photographyKeys.profile(album.author.username), photographyKeys.album(album.author.username, album.slug)]}
+            />
             <ReportDialog targetType="post" targetId={album.postId} />
           </div>
         </div>

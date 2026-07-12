@@ -255,6 +255,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       likeCount: extras.postLikeCounts.get(row.id) ?? 0,
       replyCount: extras.postReplyCounts.get(row.id) ?? 0,
       viewerLiked: extras.viewerLikedPostIds.has(row.id),
+      viewerSaved: extras.viewerSavedPostIds.has(row.id),
       poll: extras.pollsByPostId.get(row.id) ?? null,
     }
   })
@@ -281,6 +282,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     likeCount: extras.postLikeCounts.get(row.id) ?? 0,
     replyCount: extras.postReplyCounts.get(row.id) ?? 0,
     viewerLiked: extras.viewerLikedPostIds.has(row.id),
+    viewerSaved: extras.viewerSavedPostIds.has(row.id),
   }))
 
   const mappedAudio = audioRows.map((row) => ({
@@ -314,6 +316,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     likeCount: extras.postLikeCounts.get(row.postId) ?? 0,
     replyCount: extras.postReplyCounts.get(row.postId) ?? 0,
     viewerLiked: extras.viewerLikedPostIds.has(row.postId),
+    viewerSaved: extras.viewerSavedPostIds.has(row.postId),
   }))
 
   const mappedPhotography = photographyRows.map((row) => {
@@ -364,6 +367,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       likeCount: extras.postLikeCounts.get(row.postId) ?? 0,
       replyCount: extras.postReplyCounts.get(row.postId) ?? 0,
       viewerLiked: extras.viewerLikedPostIds.has(row.postId),
+      viewerSaved: extras.viewerSavedPostIds.has(row.postId),
     }
   })
 
@@ -387,6 +391,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     likeCount: extras.postLikeCounts.get(row.postId) ?? 0,
     replyCount: extras.postReplyCounts.get(row.postId) ?? 0,
     viewerLiked: extras.viewerLikedPostIds.has(row.postId),
+    viewerSaved: extras.viewerSavedPostIds.has(row.postId),
   }))
 
   const items = [...mappedPosts, ...mappedArticles, ...mappedAudio, ...mappedPhotography, ...mappedCourses]

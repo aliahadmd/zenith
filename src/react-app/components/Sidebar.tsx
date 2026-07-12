@@ -2,6 +2,7 @@ import { Link, useRouterState } from '@tanstack/react-router'
 import {
   BadgePlus,
   Bell,
+  Bookmark,
   LayoutDashboard,
   type LucideIcon,
   LogOut,
@@ -25,7 +26,7 @@ type SidebarProps = {
 }
 
 type NavItem = {
-  to: '/feed' | '/notifications' | '/settings' | '/become-creator' | '/studio' | '/admin'
+  to: '/feed' | '/library' | '/notifications' | '/settings' | '/become-creator' | '/studio' | '/admin'
   label: string
   icon: LucideIcon
   badge?: number
@@ -49,23 +50,26 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
     currentUser?.role === 'subscriber'
       ? [
           { to: '/feed' as const, label: 'Feed', icon: Rss },
+          { to: '/library' as const, label: 'Library', icon: Bookmark },
           { to: '/notifications' as const, label: 'Notifications', icon: Bell, badge: unreadCount },
           { to: '/become-creator' as const, label: 'Become Creator', icon: BadgePlus },
         ]
       : currentUser?.role === 'creator'
         ? [
             { to: '/feed' as const, label: 'Feed', icon: Rss },
+            { to: '/library' as const, label: 'Library', icon: Bookmark },
             { to: '/notifications' as const, label: 'Notifications', icon: Bell, badge: unreadCount },
             { to: '/studio' as const, label: 'Studio', icon: LayoutDashboard },
           ]
         : []
 
-  const [feedNavItem, ...secondaryNavItems] = roleNavItems
+  const [feedNavItem, libraryNavItem, ...secondaryNavItems] = roleNavItems
   const adminNavItem: NavItem | null = currentUser?.adminRole
     ? { to: '/admin' as const, label: 'Admin', icon: ShieldCheck }
     : null
   const settingsNavItem: NavItem = { to: '/settings' as const, label: 'Settings', icon: Settings }
   const FeedIcon = feedNavItem?.icon
+  const LibraryIcon = libraryNavItem?.icon
 
   async function handleLogout() {
     await logout()
@@ -96,6 +100,12 @@ export function Sidebar({ className, onNavigate }: SidebarProps) {
           <Link to={feedNavItem.to} className={navLinkClass(feedNavItem.to)} onClick={onNavigate}>
             <FeedIcon data-icon="inline-start" />
             {feedNavItem.label}
+          </Link>
+        ) : null}
+        {libraryNavItem && LibraryIcon ? (
+          <Link to={libraryNavItem.to} className={navLinkClass(libraryNavItem.to)} onClick={onNavigate}>
+            <LibraryIcon data-icon="inline-start" />
+            {libraryNavItem.label}
           </Link>
         ) : null}
         <Link

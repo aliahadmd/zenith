@@ -96,6 +96,7 @@ function makeAlbumDetail(): PhotographyAlbumDetailResponse {
     likeCount: 0,
     replyCount: 0,
     viewerLiked: false,
+    viewerSaved: false,
   }
 
   return { album, photos, replies: [] }

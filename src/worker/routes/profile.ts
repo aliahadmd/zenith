@@ -213,6 +213,7 @@ profileRoutes.get('/:username/posts', authMiddleware, zValidator('param', userna
     likeCount: extras.postLikeCounts.get(row.id) ?? 0,
     replyCount: extras.postReplyCounts.get(row.id) ?? 0,
     viewerLiked: extras.viewerLikedPostIds.has(row.id),
+    viewerSaved: extras.viewerSavedPostIds.has(row.id),
     poll: extras.pollsByPostId.get(row.id) ?? null,
   }))
 

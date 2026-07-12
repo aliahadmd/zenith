@@ -4,6 +4,7 @@ import { Link } from '@tanstack/react-router'
 import { ArrowRight, CheckCircle2, Download, FileAudio, Heart, LockKeyhole, MessageCircle } from 'lucide-react'
 import { toast } from 'sonner'
 import { Discussion } from '../components/Discussion'
+import { SaveButton } from '../components/SaveButton'
 import { LoadingBlock } from '../components/LoadingBlock'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
@@ -60,6 +61,7 @@ export function CourseDetailPage({ username, slug }: { username: string; slug: s
     likeCount: course.likeCount,
     replyCount: course.replyCount,
     viewerLiked: course.viewerLiked,
+    viewerSaved: course.viewerSaved,
     poll: null,
   }
   const detailKey = courseKeys.detail(username, slug)
@@ -79,7 +81,7 @@ export function CourseDetailPage({ username, slug }: { username: string; slug: s
           {activeLesson ? <LessonContent lesson={activeLesson} hasAccess={Boolean(course.hasAccess)} isOwner={Boolean(course.isOwner)} onToggleComplete={(completed) => progressMutation.mutate({ lessonId: activeLesson.id, completed })} isUpdating={progressMutation.isPending} /> : <Card><CardContent className="py-12 text-center text-muted-foreground">This course does not have any published lessons yet.</CardContent></Card>}
           {!course.hasAccess && !course.isOwner && <Card className="mt-6 border-primary/30 bg-primary/5"><CardContent className="flex flex-col gap-3 p-5 sm:flex-row sm:items-center sm:justify-between"><div><p className="font-medium">Subscribe to unlock the lessons</p><p className="mt-1 text-sm text-muted-foreground">You can preview the course outline. Membership unlocks the Markdown, video, audio, files, and progress tracking.</p></div><Button asChild><Link to="/u/$username" params={{ username }}>View membership</Link></Button></CardContent></Card>}
 
-          <div className="mt-6 flex flex-wrap items-center gap-1 text-muted-foreground"><Button type="button" variant={course.viewerLiked ? 'secondary' : 'ghost'} size="sm" className={cn('rounded-full px-2.5', course.viewerLiked && 'text-primary')} onClick={() => likeMutation.mutate()} disabled={likeMutation.isPending}><Heart data-icon="inline-start" />{course.likeCount}</Button><span className="inline-flex items-center gap-1 px-2.5 text-sm"><MessageCircle className="size-4" />{course.replyCount}</span></div>
+          <div className="mt-6 flex flex-wrap items-center gap-1 text-muted-foreground"><Button type="button" variant={course.viewerLiked ? 'secondary' : 'ghost'} size="sm" className={cn('rounded-full px-2.5', course.viewerLiked && 'text-primary')} onClick={() => likeMutation.mutate()} disabled={likeMutation.isPending}><Heart data-icon="inline-start" />{course.likeCount}</Button><span className="inline-flex items-center gap-1 px-2.5 text-sm"><MessageCircle className="size-4" />{course.replyCount}</span><SaveButton postId={course.postId} saved={course.viewerSaved} canSave={Boolean(course.hasAccess || course.isOwner)} queryKeys={[detailKey, courseKeys.creator(username)]} /></div>
           <Discussion post={replyPost} comments={detailQuery.data.replies ?? []} detailKey={detailKey} />
         </main>
       </div>

@@ -292,6 +292,7 @@ function serializePost(post: PostRow, extras: Awaited<ReturnType<typeof buildPos
     likeCount: extras.postLikeCounts.get(post.id) ?? 0,
     replyCount: extras.postReplyCounts.get(post.id) ?? 0,
     viewerLiked: extras.viewerLikedPostIds.has(post.id),
+    viewerSaved: extras.viewerSavedPostIds.has(post.id),
     poll: extras.pollsByPostId.get(post.id) ?? null,
   }
 }

@@ -14,6 +14,7 @@ import { notificationsRoutes } from './routes/notifications'
 import { coursesRoutes } from './routes/courses'
 import { adminRoutes } from './routes/admin'
 import { reportRoutes } from './routes/reports'
+import { libraryRoutes } from './routes/library'
 import { notFound, serverError } from './lib/http'
 
 const app = new Hono<HonoEnv>()
@@ -35,6 +36,7 @@ app.route('/api/notifications', notificationsRoutes)
 app.route('/api/courses', coursesRoutes)
 app.route('/api/reports', reportRoutes)
 app.route('/api/admin', adminRoutes)
+app.route('/api/library', libraryRoutes)
 
 app.onError((err, c) => {
   console.error(err)

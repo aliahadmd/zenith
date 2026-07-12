@@ -371,6 +371,7 @@ function serializeItem(row: AudioItemRow, extras?: Awaited<ReturnType<typeof bui
     likeCount: extras?.postLikeCounts.get(row.postId) ?? 0,
     replyCount: extras?.postReplyCounts.get(row.postId) ?? 0,
     viewerLiked: extras?.viewerLikedPostIds.has(row.postId) ?? false,
+    viewerSaved: extras?.viewerSavedPostIds.has(row.postId) ?? false,
   }
 }
 

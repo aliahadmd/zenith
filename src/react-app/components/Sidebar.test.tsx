@@ -96,7 +96,7 @@ describe('Sidebar', () => {
     renderSidebar()
 
     const linkNames = screen.getAllByRole('link').map((link) => link.textContent)
-    expect(linkNames).toEqual(['Feed', 'Profile', 'Notifications', 'Become Creator', 'Settings'])
+    expect(linkNames).toEqual(['Feed', 'Library', 'Profile', 'Notifications', 'Become Creator', 'Settings'])
   })
 
   it('renders creator workspace entry for a creator', () => {

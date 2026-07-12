@@ -462,6 +462,16 @@ export const replyLikes = sqliteTable('reply_likes', {
   index('reply_likes_user_idx').on(t.userId),
 ])
 
+// ── Saved Library ─────────────────────────────────────────────────────────
+export const savedItems = sqliteTable('saved_items', {
+  userId:  text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  postId:  text('post_id').notNull().references(() => posts.id, { onDelete: 'cascade' }),
+  savedAt: integer('saved_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.postId] }),
+  index('saved_items_user_saved_idx').on(t.userId, t.savedAt),
+])
+
 // ── Post Polls ─────────────────────────────────────────────────────────────
 export const postPolls = sqliteTable('post_polls', {
   id:        text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
@@ -820,6 +830,7 @@ export type PostReply            = typeof postReplies.$inferSelect
 export type ReplyAttachment      = typeof replyAttachments.$inferSelect
 export type PostLike             = typeof postLikes.$inferSelect
 export type ReplyLike            = typeof replyLikes.$inferSelect
+export type SavedItem            = typeof savedItems.$inferSelect
 export type PostPoll             = typeof postPolls.$inferSelect
 export type PollOption           = typeof pollOptions.$inferSelect
 export type PollVote             = typeof pollVotes.$inferSelect

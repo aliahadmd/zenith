@@ -66,6 +66,7 @@ export type CourseSummary = {
   likeCount: number
   replyCount: number
   viewerLiked: boolean
+  viewerSaved: boolean
 }
 
 export type CourseDetailResponse = {

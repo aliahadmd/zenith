@@ -54,6 +54,7 @@ const post: FeedPost = {
   likeCount: 3,
   replyCount: 2,
   viewerLiked: false,
+  viewerSaved: false,
   poll: null,
 }
 

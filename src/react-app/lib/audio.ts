@@ -56,6 +56,7 @@ export type AudioItemSummary = {
   likeCount: number
   replyCount: number
   viewerLiked: boolean
+  viewerSaved: boolean
 }
 
 export type CreatorAudioResponse = {

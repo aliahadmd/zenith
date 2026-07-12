@@ -16,6 +16,7 @@ import { Route as IndexRouteImport } from './routes/index'
 import { Route as AuthenticatedStudioRouteImport } from './routes/_authenticated/studio'
 import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticated/settings'
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
+import { Route as AuthenticatedLibraryRouteImport } from './routes/_authenticated/library'
 import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
 import { Route as AuthenticatedBecomeCreatorRouteImport } from './routes/_authenticated/become-creator'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
@@ -79,6 +80,11 @@ const AuthenticatedNotificationsRoute =
     path: '/notifications',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
+const AuthenticatedLibraryRoute = AuthenticatedLibraryRouteImport.update({
+  id: '/library',
+  path: '/library',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedFeedRoute = AuthenticatedFeedRouteImport.update({
   id: '/feed',
   path: '/feed',
@@ -245,6 +251,7 @@ export interface FileRoutesByFullPath {
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/become-creator': typeof AuthenticatedBecomeCreatorRoute
   '/feed': typeof AuthenticatedFeedRoute
+  '/library': typeof AuthenticatedLibraryRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/studio': typeof AuthenticatedStudioRoute
@@ -279,6 +286,7 @@ export interface FileRoutesByTo {
   '/register': typeof RegisterRoute
   '/become-creator': typeof AuthenticatedBecomeCreatorRoute
   '/feed': typeof AuthenticatedFeedRoute
+  '/library': typeof AuthenticatedLibraryRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
   '/settings': typeof AuthenticatedSettingsRoute
   '/studio': typeof AuthenticatedStudioRoute
@@ -316,6 +324,7 @@ export interface FileRoutesById {
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/become-creator': typeof AuthenticatedBecomeCreatorRoute
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
+  '/_authenticated/library': typeof AuthenticatedLibraryRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
   '/_authenticated/settings': typeof AuthenticatedSettingsRoute
   '/_authenticated/studio': typeof AuthenticatedStudioRoute
@@ -353,6 +362,7 @@ export interface FileRouteTypes {
     | '/admin'
     | '/become-creator'
     | '/feed'
+    | '/library'
     | '/notifications'
     | '/settings'
     | '/studio'
@@ -387,6 +397,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/become-creator'
     | '/feed'
+    | '/library'
     | '/notifications'
     | '/settings'
     | '/studio'
@@ -423,6 +434,7 @@ export interface FileRouteTypes {
     | '/_authenticated/admin'
     | '/_authenticated/become-creator'
     | '/_authenticated/feed'
+    | '/_authenticated/library'
     | '/_authenticated/notifications'
     | '/_authenticated/settings'
     | '/_authenticated/studio'
@@ -508,6 +520,13 @@ declare module '@tanstack/react-router' {
       path: '/notifications'
       fullPath: '/notifications'
       preLoaderRoute: typeof AuthenticatedNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/library': {
+      id: '/_authenticated/library'
+      path: '/library'
+      fullPath: '/library'
+      preLoaderRoute: typeof AuthenticatedLibraryRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/feed': {
@@ -736,6 +755,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedBecomeCreatorRoute: typeof AuthenticatedBecomeCreatorRoute
   AuthenticatedFeedRoute: typeof AuthenticatedFeedRoute
+  AuthenticatedLibraryRoute: typeof AuthenticatedLibraryRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedStudioRoute: typeof AuthenticatedStudioRoute
@@ -765,6 +785,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedBecomeCreatorRoute: AuthenticatedBecomeCreatorRoute,
   AuthenticatedFeedRoute: AuthenticatedFeedRoute,
+  AuthenticatedLibraryRoute: AuthenticatedLibraryRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedStudioRoute: AuthenticatedStudioRoute,

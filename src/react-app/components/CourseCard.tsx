@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { ReportDialog } from './ReportDialog'
+import { SaveButton } from './SaveButton'
 
 export function CourseCard({ course, showReplyAction = true }: { course: CourseSummary; showReplyAction?: boolean }) {
   const queryClient = useQueryClient()
@@ -85,6 +86,12 @@ export function CourseCard({ course, showReplyAction = true }: { course: CourseS
                 </Link>
               </Button>
             )}
+            <SaveButton
+              postId={course.postId}
+              saved={course.viewerSaved}
+              canSave={course.hasAccess !== false || course.isOwner === true}
+              queryKeys={[courseKeys.creator(course.creator.username), courseKeys.detail(course.creator.username, course.slug)]}
+            />
             <ReportDialog targetType="post" targetId={course.postId} />
           </div>
         </div>

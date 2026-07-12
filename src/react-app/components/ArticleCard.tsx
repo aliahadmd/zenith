@@ -9,6 +9,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { ReportDialog } from './ReportDialog'
+import { SaveButton } from './SaveButton'
 
 type ArticleCardProps = {
   article: ArticleSummary
@@ -115,6 +116,11 @@ export function ArticleCard({ article, showReplyAction = true }: ArticleCardProp
                 </Link>
               </Button>
             )}
+            <SaveButton
+              postId={article.postId}
+              saved={article.viewerSaved}
+              queryKeys={[articleKeys.creator(article.author.username), articleKeys.detail(article.author.username, article.slug)]}
+            />
             <ReportDialog targetType="post" targetId={article.postId} />
           </div>
         </div>

@@ -24,6 +24,7 @@ export type ArticleSummary = {
   likeCount: number
   replyCount: number
   viewerLiked: boolean
+  viewerSaved: boolean
 }
 
 export type ArticleDetailResponse = {

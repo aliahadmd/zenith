@@ -8,6 +8,7 @@ import { likePost, postKeys, type FeedPost, unlikePost } from '../lib/posts'
 import { cn } from '../lib/utils'
 import { LoadingBlock } from '../components/LoadingBlock'
 import { Discussion } from '../components/Discussion'
+import { SaveButton } from '../components/SaveButton'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
@@ -55,6 +56,7 @@ export function AudioDetailPage({ username, slug }: { username: string; slug: st
     likeCount: item.likeCount,
     replyCount: item.replyCount,
     viewerLiked: item.viewerLiked,
+    viewerSaved: item.viewerSaved,
     poll: null,
   }
   const collectionRoute = item.collection.kind === 'album' ? '/u/$username/album/$slug' : '/u/$username/podcast/$slug'
@@ -144,6 +146,7 @@ export function AudioDetailPage({ username, slug }: { username: string; slug: st
             <Heart data-icon="inline-start" />
             {item.likeCount}
           </Button>
+          <SaveButton postId={item.postId} saved={item.viewerSaved} queryKeys={[detailKey, audioKeys.profile(username)]} />
         </div>
       </article>
 

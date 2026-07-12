@@ -43,6 +43,7 @@ export type FeedPost = {
   likeCount: number
   replyCount: number
   viewerLiked: boolean
+  viewerSaved: boolean
   poll: Poll | null
 }
 

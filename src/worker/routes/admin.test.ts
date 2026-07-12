@@ -13,6 +13,7 @@ import migration9 from '../../../drizzle/0009_notifications.sql?raw'
 import migration10 from '../../../drizzle/0010_courses.sql?raw'
 import migration11 from '../../../drizzle/0011_admin_dashboard.sql?raw'
 import migration12 from '../../../drizzle/0012_threaded_discussions.sql?raw'
+import migration13 from '../../../drizzle/0013_saved_library.sql?raw'
 import { createDb } from '../db/client'
 import { storeSignInOtp } from '../lib/auth-otp'
 
@@ -53,7 +54,7 @@ function jsonRequest(cookie: string, body?: unknown, method = 'POST') {
 
 describe('admin dashboard routes', () => {
   beforeAll(async () => {
-    for (const migration of [migration0, migration1, migration2, migration3, migration4, migration5, migration6, migration7, migration8, migration9, migration10, migration11, migration12]) {
+    for (const migration of [migration0, migration1, migration2, migration3, migration4, migration5, migration6, migration7, migration8, migration9, migration10, migration11, migration12, migration13]) {
       await applyMigration(migration)
     }
   })

@@ -10,6 +10,7 @@ import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Badge } from './ui/badge'
 import { Button } from './ui/button'
 import { ReportDialog } from './ReportDialog'
+import { SaveButton } from './SaveButton'
 
 type AudioCardProps = {
   item: AudioItemSummary
@@ -151,6 +152,11 @@ export function AudioCard({ item, queue, showReplyAction = true }: AudioCardProp
                 </Link>
               </Button>
             )}
+            <SaveButton
+              postId={item.postId}
+              saved={item.viewerSaved}
+              queryKeys={[audioKeys.profile(item.author.username), audioKeys.item(item.author.username, item.slug)]}
+            />
             <ReportDialog targetType="post" targetId={item.postId} />
           </div>
         </div>

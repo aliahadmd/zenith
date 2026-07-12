@@ -11,6 +11,7 @@ import { photographyAlbumDetailQueryOptions, photographyKeys, type PhotographyPh
 import { likePost, postKeys, type FeedPost, unlikePost } from '../lib/posts'
 import { cn } from '../lib/utils'
 import { Discussion } from '../components/Discussion'
+import { SaveButton } from '../components/SaveButton'
 
 type PhotographyAlbumPageProps = {
   username: string
@@ -112,6 +113,7 @@ export function PhotographyAlbumPage({ username, slug }: PhotographyAlbumPagePro
     likeCount: album.likeCount,
     replyCount: album.replyCount,
     viewerLiked: album.viewerLiked,
+    viewerSaved: album.viewerSaved,
     poll: null,
   }
   const detailKey = photographyKeys.album(username, slug)
@@ -181,6 +183,7 @@ export function PhotographyAlbumPage({ username, slug }: PhotographyAlbumPagePro
             <Heart data-icon="inline-start" />
             {album.likeCount}
           </Button>
+          <SaveButton postId={album.postId} saved={album.viewerSaved} queryKeys={[detailKey, photographyKeys.profile(username)]} />
         </div>
       </article>
 

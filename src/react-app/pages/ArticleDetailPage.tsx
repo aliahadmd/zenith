@@ -3,6 +3,7 @@ import { Heart } from 'lucide-react'
 import { toast } from 'sonner'
 import { LoadingBlock } from '../components/LoadingBlock'
 import { Discussion } from '../components/Discussion'
+import { SaveButton } from '../components/SaveButton'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
 import { Badge } from '../components/ui/badge'
@@ -61,6 +62,7 @@ export function ArticleDetailPage({ username, slug }: ArticleDetailPageProps) {
     likeCount: article.likeCount,
     replyCount: article.replyCount,
     viewerLiked: article.viewerLiked,
+    viewerSaved: article.viewerSaved,
     poll: null,
   }
   const detailKey = articleKeys.detail(username, slug)
@@ -112,6 +114,7 @@ export function ArticleDetailPage({ username, slug }: ArticleDetailPageProps) {
             <Heart data-icon="inline-start" />
             {article.likeCount}
           </Button>
+          <SaveButton postId={article.postId} saved={article.viewerSaved} queryKeys={[detailKey, articleKeys.creator(username)]} />
         </div>
       </article>
 

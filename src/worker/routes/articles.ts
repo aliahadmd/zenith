@@ -166,6 +166,7 @@ function serializeArticle(row: ArticleRow, extras?: Awaited<ReturnType<typeof bu
     likeCount: extras?.postLikeCounts.get(row.postId) ?? 0,
     replyCount: extras?.postReplyCounts.get(row.postId) ?? 0,
     viewerLiked: extras?.viewerLikedPostIds.has(row.postId) ?? false,
+    viewerSaved: extras?.viewerSavedPostIds.has(row.postId) ?? false,
   }
 }
 

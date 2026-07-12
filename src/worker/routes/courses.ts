@@ -297,6 +297,7 @@ async function getCoursePayload(db: Db, viewerId: string, course: CourseRow) {
     likeCount: extras.postLikeCounts.get(course.postId) ?? 0,
     replyCount: extras.postReplyCounts.get(course.postId) ?? 0,
     viewerLiked: extras.viewerLikedPostIds.has(course.postId),
+    viewerSaved: extras.viewerSavedPostIds.has(course.postId),
   }
 }
 

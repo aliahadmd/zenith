@@ -9,6 +9,7 @@ import {
   postReplies,
   replyAttachments,
   replyLikes,
+  savedItems,
   subscriptionMemberships,
   users,
 } from '../db/schema'
@@ -66,6 +67,7 @@ export type PostExtras = {
   postLikeCounts: Map<string, number>
   postReplyCounts: Map<string, number>
   viewerLikedPostIds: Set<string>
+  viewerSavedPostIds: Set<string>
   pollsByPostId: Map<string, PollSummary>
 }
 
@@ -146,13 +148,14 @@ export async function buildPostExtras(db: Db, viewerId: string, postIds: string[
   const postLikeCounts = new Map<string, number>()
   const postReplyCounts = new Map<string, number>()
   const viewerLikedPostIds = new Set<string>()
+  const viewerSavedPostIds = new Set<string>()
   const pollsByPostId = new Map<string, PollSummary>()
 
   if (postIds.length === 0) {
-    return { attachmentsByPostId, postLikeCounts, postReplyCounts, viewerLikedPostIds, pollsByPostId }
+    return { attachmentsByPostId, postLikeCounts, postReplyCounts, viewerLikedPostIds, viewerSavedPostIds, pollsByPostId }
   }
 
-  const [attachments, likeCounts, replyCounts, viewerLikes, polls] = await Promise.all([
+  const [attachments, likeCounts, replyCounts, viewerLikes, viewerSaves, polls] = await Promise.all([
     db
       .select({
         id: postAttachments.id,
@@ -189,6 +192,11 @@ export async function buildPostExtras(db: Db, viewerId: string, postIds: string[
       .where(and(inArray(postLikes.postId, postIds), eq(postLikes.userId, viewerId)))
       .all(),
     db
+      .select({ postId: savedItems.postId })
+      .from(savedItems)
+      .where(and(inArray(savedItems.postId, postIds), eq(savedItems.userId, viewerId)))
+      .all(),
+    db
       .select({
         id: postPolls.id,
         postId: postPolls.postId,
@@ -215,6 +223,7 @@ export async function buildPostExtras(db: Db, viewerId: string, postIds: string[
   for (const row of likeCounts) postLikeCounts.set(row.postId, Number(row.count))
   for (const row of replyCounts) postReplyCounts.set(row.postId, Number(row.count))
   for (const row of viewerLikes) viewerLikedPostIds.add(row.postId)
+  for (const row of viewerSaves) viewerSavedPostIds.add(row.postId)
 
   const pollIds = polls.map((poll) => poll.id)
   if (pollIds.length > 0) {
@@ -281,7 +290,7 @@ export async function buildPostExtras(db: Db, viewerId: string, postIds: string[
     }
   }
 
-  return { attachmentsByPostId, postLikeCounts, postReplyCounts, viewerLikedPostIds, pollsByPostId }
+  return { attachmentsByPostId, postLikeCounts, postReplyCounts, viewerLikedPostIds, viewerSavedPostIds, pollsByPostId }
 }
 
 export async function buildReplyAttachments(db: Db, replyIds: string[]) {
