@@ -14,6 +14,8 @@ import migration10 from '../../../drizzle/0010_courses.sql?raw'
 import migration11 from '../../../drizzle/0011_admin_dashboard.sql?raw'
 import migration12 from '../../../drizzle/0012_threaded_discussions.sql?raw'
 import migration13 from '../../../drizzle/0013_saved_library.sql?raw'
+import migration14 from '../../../drizzle/0014_content_scheduling.sql?raw'
+import migration15 from '../../../drizzle/0015_creator_discovery.sql?raw'
 import { createDb } from '../db/client'
 import { storeSignInOtp } from '../lib/auth-otp'
 
@@ -36,7 +38,7 @@ async function signIn(email: string) {
 
 describe('saved library routes', () => {
   beforeAll(async () => {
-    for (const migration of [migration0, migration1, migration2, migration3, migration4, migration5, migration6, migration7, migration8, migration9, migration10, migration11, migration12, migration13]) await apply(migration)
+    for (const migration of [migration0, migration1, migration2, migration3, migration4, migration5, migration6, migration7, migration8, migration9, migration10, migration11, migration12, migration13, migration14, migration15]) await apply(migration)
   })
 
   it('keeps libraries private and returns access-safe mixed content', async () => {
@@ -54,7 +56,7 @@ describe('saved library routes', () => {
       post: crypto.randomUUID(), article: crypto.randomUUID(), audio: crypto.randomUUID(), photography: crypto.randomUUID(), course: crypto.randomUUID(),
     }
     for (const [kind, id] of Object.entries(ids)) {
-      await env.DB.prepare('INSERT INTO posts (id, author_id, kind, slug, body) VALUES (?, ?, ?, ?, ?)')
+      await env.DB.prepare('INSERT INTO posts (id, author_id, kind, slug, body, published_at) VALUES (?, ?, ?, ?, ?, unixepoch())')
         .bind(id, creator.user.id, kind, `${kind}-${id.slice(0, 8)}`, `Private ${kind} body`).run()
     }
     await env.DB.prepare("INSERT INTO articles (post_id, title, excerpt, markdown, status, published_at) VALUES (?, 'Private article title', 'Excerpt', '# Secret', 'published', unixepoch())").bind(ids.article).run()

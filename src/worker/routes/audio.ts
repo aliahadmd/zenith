@@ -1,8 +1,8 @@
 import { Hono, type Context } from 'hono'
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import { createDb, type Db } from '../db/client'
-import { audioCollections, audioItems, posts, users } from '../db/schema'
+import { audioCollections, audioItems, contentSchedules, posts, users } from '../db/schema'
 import { authMiddleware, requireRole, type HonoEnv } from '../middleware/auth'
 import {
   errorResponse,
@@ -25,11 +25,17 @@ import {
   MAX_IMAGE_SIZE,
   toUnixSeconds,
 } from '../lib/post-data'
-import { notifySubscribersOfContent } from '../lib/notifications'
 import { isPostMemberVisible } from '../lib/moderation'
+import { PublicationError, publishContent } from '../lib/publication'
 import { generatePostSlug, serializeReplies, slugify } from './posts'
 
 export const audioRoutes = new Hono<HonoEnv>()
+
+function publicationFailure(c: Context<HonoEnv>, error: PublicationError) {
+  if (error.code === 'content_moderated' || error.code === 'account_suspended') return forbidden(c, error.message)
+  if (error.code === 'not_found') return notFound(c, error.message)
+  return errorResponse(c, 422, error.code, error.message)
+}
 
 type AudioCollectionKind = 'album' | 'podcast'
 type AudioItemKind = 'music' | 'podcast_episode'
@@ -616,6 +622,7 @@ audioRoutes.post('/items', authMiddleware, requireRole('creator'), async (c) => 
     kind: 'audio',
     slug: postSlug,
     body: parsed.description || parsed.title,
+    publishedAt: null,
   }).run()
 
   await db.insert(audioItems).values({
@@ -627,25 +634,24 @@ audioRoutes.post('/items', authMiddleware, requireRole('creator'), async (c) => 
     slug,
     title: parsed.title,
     description: parsed.description || null,
-    status: parsed.status,
+    status: 'draft',
     durationSeconds: parsed.durationSeconds,
     displayOrder: Number(maxOrder?.value ?? -1) + 1,
-    publishedAt: parsed.status === 'published' ? now : null,
+    publishedAt: null,
     ...audioFields,
     ...coverFields,
   }).run()
 
+  if (parsed.status === 'published') {
+    try {
+      await publishContent(db, c.env, postId, { now, origin: new URL(c.req.url).origin })
+    } catch (error) {
+      if (error instanceof PublicationError) return publicationFailure(c, error)
+      throw error
+    }
+  }
   const item = await getItemById(db, itemId)
   const extras = item ? await buildPostExtras(db, c.var.user.id, [item.postId]) : undefined
-  if (parsed.status === 'published' && item) {
-    await notifySubscribersOfContent(db, c.env, {
-      creatorId: c.var.user.id,
-      contentType: 'audio',
-      entityId: item.id,
-      title: item.title,
-      targetUrl: `/u/${item.creatorUsername}/audio/${item.slug}`,
-    }, new URL(c.req.url).origin)
-  }
   return c.json({ item: item ? serializeItem(item, extras) : null }, 201)
 })
 
@@ -659,6 +665,8 @@ audioRoutes.patch('/items/:itemId', authMiddleware, requireRole('creator'), asyn
   if (!existing) return notFound(c, 'Audio item not found')
   if (existing.creatorId !== c.var.user.id) return forbidden(c, 'You cannot edit this audio item')
   if (!await isPostMemberVisible(db, existing.postId)) return forbidden(c, 'Moderated content cannot be edited until it is restored')
+  const schedule = await db.select({ status: contentSchedules.status }).from(contentSchedules).where(eq(contentSchedules.postId, existing.postId)).get()
+  if (schedule?.status === 'processing') return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   if (parsed.collectionId !== existing.collectionId) {
     return errorResponse(c, 422, 'validation_failed', 'Moving audio items between collections is not supported in this slice.')
   }
@@ -671,12 +679,13 @@ audioRoutes.patch('/items/:itemId', authMiddleware, requireRole('creator'), asyn
 
   const audioFields = parsed.audio ? await uploadItemAudio(c, itemId, parsed.audio) : {}
   const coverFields = parsed.cover ? await uploadItemCover(c, itemId, parsed.cover) : {}
-  const publishedAt = parsed.status === 'published'
-    ? existing.publishedAt ? new Date(toUnixSeconds(existing.publishedAt)! * 1000) : new Date()
+  const remainsPublished = existing.status === 'published' && parsed.status === 'published'
+  const publishedAt = remainsPublished && existing.publishedAt
+    ? new Date(toUnixSeconds(existing.publishedAt)! * 1000)
     : null
 
   await db.update(posts)
-    .set({ body: parsed.description || parsed.title })
+    .set({ body: parsed.description || parsed.title, ...(parsed.status === 'draft' ? { publishedAt: null } : {}) })
     .where(eq(posts.id, existing.postId))
     .run()
 
@@ -684,7 +693,7 @@ audioRoutes.patch('/items/:itemId', authMiddleware, requireRole('creator'), asyn
     .set({
       title: parsed.title,
       description: parsed.description || null,
-      status: parsed.status,
+      status: remainsPublished ? 'published' : 'draft',
       durationSeconds: parsed.durationSeconds,
       publishedAt,
       updatedAt: new Date(),
@@ -694,17 +703,16 @@ audioRoutes.patch('/items/:itemId', authMiddleware, requireRole('creator'), asyn
     .where(eq(audioItems.id, itemId))
     .run()
 
+  if (!remainsPublished && parsed.status === 'published') {
+    try {
+      await publishContent(db, c.env, existing.postId, { origin: new URL(c.req.url).origin })
+    } catch (error) {
+      if (error instanceof PublicationError) return publicationFailure(c, error)
+      throw error
+    }
+  }
   const item = await getItemById(db, itemId)
   const extras = item ? await buildPostExtras(db, c.var.user.id, [item.postId]) : undefined
-  if (existing.status !== 'published' && parsed.status === 'published' && item) {
-    await notifySubscribersOfContent(db, c.env, {
-      creatorId: c.var.user.id,
-      contentType: 'audio',
-      entityId: item.id,
-      title: item.title,
-      targetUrl: `/u/${item.creatorUsername}/audio/${item.slug}`,
-    }, new URL(c.req.url).origin)
-  }
   return c.json({ item: item ? serializeItem(item, extras) : null })
 })
 
@@ -715,6 +723,8 @@ audioRoutes.delete('/items/:itemId', authMiddleware, requireRole('creator'), asy
   if (!existing) return notFound(c, 'Audio item not found')
   if (existing.creatorId !== c.var.user.id) return forbidden(c, 'You cannot delete this audio item')
   if (!await isPostMemberVisible(db, existing.postId)) return forbidden(c, 'Moderated content cannot be deleted until it is restored')
+  const schedule = await db.select({ status: contentSchedules.status }).from(contentSchedules).where(eq(contentSchedules.postId, existing.postId)).get()
+  if (schedule?.status === 'processing') return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
 
   await db.delete(posts).where(eq(posts.id, existing.postId)).run()
   await Promise.all([
@@ -736,6 +746,8 @@ audioRoutes.put('/collections/:collectionId/order', authMiddleware, requireRole(
   const collection = await getCollectionById(db, collectionId)
   if (!collection) return notFound(c, 'Collection not found')
   if (collection.creatorId !== c.var.user.id) return forbidden(c, 'You cannot reorder this collection')
+  const processing = await db.select({ postId: contentSchedules.postId }).from(audioItems).innerJoin(contentSchedules, eq(contentSchedules.postId, audioItems.postId)).where(and(eq(audioItems.collectionId, collectionId), eq(contentSchedules.status, 'processing'))).get()
+  if (processing) return errorResponse(c, 409, 'schedule_processing', 'An item in this collection is being published now.')
 
   const existing = await db
     .select({ id: audioItems.id })
@@ -927,6 +939,7 @@ export async function listPublishedAudioForCreator(db: Db, viewerId: string, cre
       eq(audioItems.creatorId, creatorId),
       eq(audioItems.status, 'published'),
       eq(audioCollections.status, 'published'),
+      isNotNull(posts.publishedAt),
       eq(posts.moderationStatus, 'active'),
       eq(itemCreators.accountStatus, 'active'),
     ))

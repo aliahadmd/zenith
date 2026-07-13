@@ -64,6 +64,11 @@
 	"env": {
 		"production": {
 			"name": "zenith-production",
+			"triggers": {
+				"crons": [
+					"* * * * *"
+				]
+			},
 			"vars": {
 				"PAYMENT_PROVIDER": "stripe",
 				"PLATFORM_FEE_BPS": "1000",

@@ -18,6 +18,7 @@ vi.mock('../lib/api', () => ({
   apiGetRequired: vi.fn(),
   apiPostRequired: vi.fn(),
   apiDeleteRequired: vi.fn(),
+  apiPutRequired: vi.fn(),
 }))
 
 const mockUseAuth = vi.mocked(AuthContext.useAuth)
@@ -46,6 +47,20 @@ describe('AdminPage', () => {
     expect(await screen.findByText('42')).toBeInTheDocument()
     expect(screen.getByText('Pending applications')).toBeInTheDocument()
     expect(screen.getByText('Administrators')).toBeInTheDocument()
+    expect(screen.getByText('Discovery')).toBeInTheDocument()
+  })
+
+  it('renders owner discovery curation', async () => {
+    mockApiGet.mockImplementation(async (url) => {
+      if (String(url).endsWith('/categories')) return { categories: [{ id: 'cat-1', slug: 'design', name: 'Design', description: null, displayOrder: 0, active: 1, assignmentCount: 2 }] }
+      if (String(url).endsWith('/featured')) return { creators: [] }
+      if (String(url).includes('/eligible-creators')) return { creators: [] }
+      return {}
+    })
+    renderAdmin('discovery')
+    expect(await screen.findByText('Discovery categories')).toBeInTheDocument()
+    expect(screen.getByText('Featured creators')).toBeInTheDocument()
+    expect(screen.getByText('/design · 2 creator assignments')).toBeInTheDocument()
   })
 
   it('renders the paginated user queue with state filters and actions', async () => {

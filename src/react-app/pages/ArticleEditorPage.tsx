@@ -6,7 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useNavigate } from '@tanstack/react-router'
 import { useForm, useWatch } from 'react-hook-form'
-import { BookOpen, ImagePlus, Loader2, Save, Send, X } from 'lucide-react'
+import { BookOpen, CalendarClock, ImagePlus, Loader2, Save, Send, X } from 'lucide-react'
 import { toast } from 'sonner'
 import { useAuth } from '../context/AuthContext'
 import { articleByIdQueryOptions, articleKeys, createArticle, updateArticle } from '../lib/articles'
@@ -15,6 +15,7 @@ import { postKeys } from '../lib/posts'
 import { MarkdownRenderer } from '../components/MarkdownRenderer'
 import { LoadingBlock } from '../components/LoadingBlock'
 import { StudioLayout } from '../components/StudioLayout'
+import { ScheduleDialog } from '../components/ScheduleDialog'
 import { Avatar, AvatarFallback, AvatarImage } from '../components/ui/avatar'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
@@ -50,6 +51,7 @@ export function ArticleEditorPage({ postId }: ArticleEditorPageProps) {
     defaultValues,
   })
   const [submitIntent, setSubmitIntent] = useState<'draft' | 'published'>('draft')
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const title = useWatch({ control: form.control, name: 'title' }) ?? ''
   const excerpt = useWatch({ control: form.control, name: 'excerpt' }) ?? ''
   const markdown = useWatch({ control: form.control, name: 'markdown' }) ?? ''
@@ -149,6 +151,11 @@ export function ArticleEditorPage({ postId }: ArticleEditorPageProps) {
                 {saveMutation.isPending && submitIntent === 'draft' ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Save data-icon="inline-start" />}
                 Save draft
               </Button>
+              {postId && articleQuery.data?.article.status === 'draft' && (
+                <Button type="button" variant="outline" disabled={saveMutation.isPending} onClick={() => setScheduleOpen(true)}>
+                  <CalendarClock data-icon="inline-start" /> Schedule
+                </Button>
+              )}
               <Button type="submit" disabled={saveMutation.isPending} onClick={() => setSubmitIntent('published')}>
                 {saveMutation.isPending && submitIntent === 'published' ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Send data-icon="inline-start" />}
                 Publish
@@ -285,6 +292,14 @@ export function ArticleEditorPage({ postId }: ArticleEditorPageProps) {
           </div>
         </form>
       </Form>
+      {postId && (
+        <ScheduleDialog
+          postId={postId}
+          open={scheduleOpen}
+          onOpenChange={setScheduleOpen}
+          onScheduled={() => queryClient.invalidateQueries({ queryKey: articleKeys.byId(postId) })}
+        />
+      )}
     </StudioLayout>
   )
 }

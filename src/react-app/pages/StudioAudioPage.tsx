@@ -18,7 +18,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Disc3, GripVertical, Headphones, Loader2, Pencil, Podcast, Plus, Trash2 } from 'lucide-react'
+import { CalendarClock, Disc3, GripVertical, Headphones, Loader2, Pencil, Podcast, Plus, Trash2 } from 'lucide-react'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
 import {
@@ -40,6 +40,7 @@ import {
 import { audioCollectionSchema, audioItemSchema, type AudioCollectionFormValues, type AudioItemFormValues } from '../lib/schemas'
 import { cn } from '../lib/utils'
 import { StudioLayout } from '../components/StudioLayout'
+import { ScheduleDialog } from '../components/ScheduleDialog'
 import { LoadingBlock } from '../components/LoadingBlock'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
@@ -577,6 +578,7 @@ function ItemDialog({
   onOpenChange: (open: boolean) => void
   onSaved: () => Promise<void>
 }) {
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const form = useForm<AudioItemFormValues>({
     resolver: zodResolver(audioItemSchema),
     values: collection ? {
@@ -616,6 +618,7 @@ function ItemDialog({
   const label = collection?.kind === 'album' ? 'track' : 'episode'
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-2xl">
         <DialogHeader>
@@ -705,6 +708,9 @@ function ItemDialog({
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              {item?.status === 'draft' && collection?.status === 'published' && (
+                <Button type="button" variant="outline" onClick={() => setScheduleOpen(true)}><CalendarClock data-icon="inline-start" /> Schedule</Button>
+              )}
               <Button type="submit" disabled={!collection || saveMutation.isPending}>
                 {saveMutation.isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
                 Save
@@ -714,5 +720,7 @@ function ItemDialog({
         </Form>
       </DialogContent>
     </Dialog>
+    {item && <ScheduleDialog postId={item.postId} open={scheduleOpen} onOpenChange={setScheduleOpen} onScheduled={onSaved} />}
+    </>
   )
 }

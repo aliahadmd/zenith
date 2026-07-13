@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { and, eq } from 'drizzle-orm'
+import { and, eq, isNotNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { createDb } from '../db/client'
 import { contentReports, moderationCases, postReplies, posts, users } from '../db/schema'
@@ -21,9 +21,9 @@ reportRoutes.post('/', authMiddleware, zValidator('json', reportSchema, zodHook)
   const db = createDb(c.env.DB)
 
   const target = input.targetType === 'post'
-    ? await db.select({ id: posts.id, ownerId: posts.authorId }).from(posts).where(eq(posts.id, input.targetId)).get()
+    ? await db.select({ id: posts.id, ownerId: posts.authorId }).from(posts).where(and(eq(posts.id, input.targetId), isNotNull(posts.publishedAt))).get()
     : input.targetType === 'reply'
-      ? await db.select({ id: postReplies.id, ownerId: postReplies.authorId }).from(postReplies).where(eq(postReplies.id, input.targetId)).get()
+      ? await db.select({ id: postReplies.id, ownerId: postReplies.authorId }).from(postReplies).innerJoin(posts, eq(posts.id, postReplies.postId)).where(and(eq(postReplies.id, input.targetId), isNotNull(posts.publishedAt))).get()
       : await db.select({ id: users.id, ownerId: users.id }).from(users).where(eq(users.id, input.targetId)).get()
 
   if (!target) return notFound(c, 'Report target not found')

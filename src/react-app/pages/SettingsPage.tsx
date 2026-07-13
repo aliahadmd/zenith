@@ -19,7 +19,7 @@ import { CSS } from '@dnd-kit/utilities'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { Link } from '@tanstack/react-router'
-import { Bell, GripVertical, KeyRound, Loader2, PanelsTopLeft, ShieldCheck, UserRound } from 'lucide-react'
+import { Bell, Compass, GripVertical, KeyRound, Loader2, PanelsTopLeft, ShieldCheck, UserRound } from 'lucide-react'
 import { useForm, useWatch, type FieldValues, type Path, type UseFormReturn } from 'react-hook-form'
 import { z } from 'zod'
 import { toast } from 'sonner'
@@ -55,6 +55,7 @@ import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '
 import { Switch } from '../components/ui/switch'
 import { Badge } from '../components/ui/badge'
 import { Skeleton } from '../components/ui/skeleton'
+import { DiscoverySettingsPanel } from '../components/DiscoverySettingsPanel'
 
 type ProfileSettingsValues = z.infer<typeof profileSettingsSchema>
 type UsernameSettingsValues = z.infer<typeof usernameSettingsSchema>
@@ -62,13 +63,13 @@ type AvatarSettingsValues = z.infer<typeof avatarSettingsSchema>
 type EmailSettingsValues = z.infer<typeof emailSettingsSchema>
 type EmailOtpSettingsValues = z.infer<typeof emailOtpSettingsSchema>
 
-export type SettingsSection = 'profile' | 'profile-tabs' | 'account' | 'notifications' | 'security'
+export type SettingsSection = 'profile' | 'profile-tabs' | 'discovery' | 'account' | 'notifications' | 'security'
 
 const settingsNavItems: Array<{
   section: SettingsSection
   label: string
   description: string
-  to: '/settings/profile' | '/settings/profile-tabs' | '/settings/account' | '/settings/notifications' | '/settings/security'
+  to: '/settings/profile' | '/settings/profile-tabs' | '/settings/discovery' | '/settings/account' | '/settings/notifications' | '/settings/security'
   icon: typeof UserRound
 }> = [
   {
@@ -84,6 +85,13 @@ const settingsNavItems: Array<{
     description: 'Order and visibility',
     to: '/settings/profile-tabs',
     icon: PanelsTopLeft,
+  },
+  {
+    section: 'discovery',
+    label: 'Discovery',
+    description: 'Interests and categories',
+    to: '/settings/discovery',
+    icon: Compass,
   },
   {
     section: 'account',
@@ -116,6 +124,10 @@ const sectionCopy: Record<SettingsSection, { title: string; description: string 
   'profile-tabs': {
     title: 'Profile Tabs',
     description: 'Choose which profile sections appear first and which move into More.',
+  },
+  discovery: {
+    title: 'Discovery',
+    description: 'Manage recommendation interests and public creator categories.',
   },
   account: {
     title: 'Account',
@@ -384,6 +396,10 @@ export function SettingsPage({ section = 'profile' }: { section?: SettingsSectio
 
           {section === 'profile-tabs' && (
             <ProfileTabsSettings />
+          )}
+
+          {section === 'discovery' && (
+            <DiscoverySettingsPanel />
           )}
 
           {section === 'account' && (

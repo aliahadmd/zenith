@@ -18,11 +18,13 @@ import { Route as AuthenticatedSettingsRouteImport } from './routes/_authenticat
 import { Route as AuthenticatedNotificationsRouteImport } from './routes/_authenticated/notifications'
 import { Route as AuthenticatedLibraryRouteImport } from './routes/_authenticated/library'
 import { Route as AuthenticatedFeedRouteImport } from './routes/_authenticated/feed'
+import { Route as AuthenticatedExploreRouteImport } from './routes/_authenticated/explore'
 import { Route as AuthenticatedBecomeCreatorRouteImport } from './routes/_authenticated/become-creator'
 import { Route as AuthenticatedAdminRouteImport } from './routes/_authenticated/admin'
 import { Route as AuthenticatedAdminIndexRouteImport } from './routes/_authenticated/admin.index'
 import { Route as AuthenticatedUUsernameRouteImport } from './routes/_authenticated/u.$username'
 import { Route as AuthenticatedStudioSubscriptionsRouteImport } from './routes/_authenticated/studio_.subscriptions'
+import { Route as AuthenticatedStudioScheduledRouteImport } from './routes/_authenticated/studio_.scheduled'
 import { Route as AuthenticatedStudioPhotographyRouteImport } from './routes/_authenticated/studio_.photography'
 import { Route as AuthenticatedStudioPayoutsRouteImport } from './routes/_authenticated/studio_.payouts'
 import { Route as AuthenticatedStudioCoursesRouteImport } from './routes/_authenticated/studio_.courses'
@@ -31,6 +33,7 @@ import { Route as AuthenticatedSettingsSecurityRouteImport } from './routes/_aut
 import { Route as AuthenticatedSettingsProfileTabsRouteImport } from './routes/_authenticated/settings_.profile-tabs'
 import { Route as AuthenticatedSettingsProfileRouteImport } from './routes/_authenticated/settings_.profile'
 import { Route as AuthenticatedSettingsNotificationsRouteImport } from './routes/_authenticated/settings_.notifications'
+import { Route as AuthenticatedSettingsDiscoveryRouteImport } from './routes/_authenticated/settings_.discovery'
 import { Route as AuthenticatedSettingsAccountRouteImport } from './routes/_authenticated/settings_.account'
 import { Route as AuthenticatedAdminSectionRouteImport } from './routes/_authenticated/admin.$section'
 import { Route as AuthenticatedStudioCoursesNewRouteImport } from './routes/_authenticated/studio_.courses.new'
@@ -90,6 +93,11 @@ const AuthenticatedFeedRoute = AuthenticatedFeedRouteImport.update({
   path: '/feed',
   getParentRoute: () => AuthenticatedRoute,
 } as any)
+const AuthenticatedExploreRoute = AuthenticatedExploreRouteImport.update({
+  id: '/explore',
+  path: '/explore',
+  getParentRoute: () => AuthenticatedRoute,
+} as any)
 const AuthenticatedBecomeCreatorRoute =
   AuthenticatedBecomeCreatorRouteImport.update({
     id: '/become-creator',
@@ -115,6 +123,12 @@ const AuthenticatedStudioSubscriptionsRoute =
   AuthenticatedStudioSubscriptionsRouteImport.update({
     id: '/studio_/subscriptions',
     path: '/studio/subscriptions',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedStudioScheduledRoute =
+  AuthenticatedStudioScheduledRouteImport.update({
+    id: '/studio_/scheduled',
+    path: '/studio/scheduled',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedStudioPhotographyRoute =
@@ -163,6 +177,12 @@ const AuthenticatedSettingsNotificationsRoute =
   AuthenticatedSettingsNotificationsRouteImport.update({
     id: '/settings_/notifications',
     path: '/settings/notifications',
+    getParentRoute: () => AuthenticatedRoute,
+  } as any)
+const AuthenticatedSettingsDiscoveryRoute =
+  AuthenticatedSettingsDiscoveryRouteImport.update({
+    id: '/settings_/discovery',
+    path: '/settings/discovery',
     getParentRoute: () => AuthenticatedRoute,
   } as any)
 const AuthenticatedSettingsAccountRoute =
@@ -250,6 +270,7 @@ export interface FileRoutesByFullPath {
   '/register': typeof RegisterRoute
   '/admin': typeof AuthenticatedAdminRouteWithChildren
   '/become-creator': typeof AuthenticatedBecomeCreatorRoute
+  '/explore': typeof AuthenticatedExploreRoute
   '/feed': typeof AuthenticatedFeedRoute
   '/library': typeof AuthenticatedLibraryRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
@@ -257,6 +278,7 @@ export interface FileRoutesByFullPath {
   '/studio': typeof AuthenticatedStudioRoute
   '/admin/$section': typeof AuthenticatedAdminSectionRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
+  '/settings/discovery': typeof AuthenticatedSettingsDiscoveryRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/settings/profile-tabs': typeof AuthenticatedSettingsProfileTabsRoute
@@ -265,6 +287,7 @@ export interface FileRoutesByFullPath {
   '/studio/courses': typeof AuthenticatedStudioCoursesRouteWithChildren
   '/studio/payouts': typeof AuthenticatedStudioPayoutsRoute
   '/studio/photography': typeof AuthenticatedStudioPhotographyRoute
+  '/studio/scheduled': typeof AuthenticatedStudioScheduledRoute
   '/studio/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/u/$username': typeof AuthenticatedUUsernameRoute
   '/admin/': typeof AuthenticatedAdminIndexRoute
@@ -285,6 +308,7 @@ export interface FileRoutesByTo {
   '/login': typeof LoginRoute
   '/register': typeof RegisterRoute
   '/become-creator': typeof AuthenticatedBecomeCreatorRoute
+  '/explore': typeof AuthenticatedExploreRoute
   '/feed': typeof AuthenticatedFeedRoute
   '/library': typeof AuthenticatedLibraryRoute
   '/notifications': typeof AuthenticatedNotificationsRoute
@@ -292,6 +316,7 @@ export interface FileRoutesByTo {
   '/studio': typeof AuthenticatedStudioRoute
   '/admin/$section': typeof AuthenticatedAdminSectionRoute
   '/settings/account': typeof AuthenticatedSettingsAccountRoute
+  '/settings/discovery': typeof AuthenticatedSettingsDiscoveryRoute
   '/settings/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/settings/profile': typeof AuthenticatedSettingsProfileRoute
   '/settings/profile-tabs': typeof AuthenticatedSettingsProfileTabsRoute
@@ -300,6 +325,7 @@ export interface FileRoutesByTo {
   '/studio/courses': typeof AuthenticatedStudioCoursesRouteWithChildren
   '/studio/payouts': typeof AuthenticatedStudioPayoutsRoute
   '/studio/photography': typeof AuthenticatedStudioPhotographyRoute
+  '/studio/scheduled': typeof AuthenticatedStudioScheduledRoute
   '/studio/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/u/$username': typeof AuthenticatedUUsernameRoute
   '/admin': typeof AuthenticatedAdminIndexRoute
@@ -323,6 +349,7 @@ export interface FileRoutesById {
   '/register': typeof RegisterRoute
   '/_authenticated/admin': typeof AuthenticatedAdminRouteWithChildren
   '/_authenticated/become-creator': typeof AuthenticatedBecomeCreatorRoute
+  '/_authenticated/explore': typeof AuthenticatedExploreRoute
   '/_authenticated/feed': typeof AuthenticatedFeedRoute
   '/_authenticated/library': typeof AuthenticatedLibraryRoute
   '/_authenticated/notifications': typeof AuthenticatedNotificationsRoute
@@ -330,6 +357,7 @@ export interface FileRoutesById {
   '/_authenticated/studio': typeof AuthenticatedStudioRoute
   '/_authenticated/admin/$section': typeof AuthenticatedAdminSectionRoute
   '/_authenticated/settings_/account': typeof AuthenticatedSettingsAccountRoute
+  '/_authenticated/settings_/discovery': typeof AuthenticatedSettingsDiscoveryRoute
   '/_authenticated/settings_/notifications': typeof AuthenticatedSettingsNotificationsRoute
   '/_authenticated/settings_/profile': typeof AuthenticatedSettingsProfileRoute
   '/_authenticated/settings_/profile-tabs': typeof AuthenticatedSettingsProfileTabsRoute
@@ -338,6 +366,7 @@ export interface FileRoutesById {
   '/_authenticated/studio_/courses': typeof AuthenticatedStudioCoursesRouteWithChildren
   '/_authenticated/studio_/payouts': typeof AuthenticatedStudioPayoutsRoute
   '/_authenticated/studio_/photography': typeof AuthenticatedStudioPhotographyRoute
+  '/_authenticated/studio_/scheduled': typeof AuthenticatedStudioScheduledRoute
   '/_authenticated/studio_/subscriptions': typeof AuthenticatedStudioSubscriptionsRoute
   '/_authenticated/u/$username': typeof AuthenticatedUUsernameRoute
   '/_authenticated/admin/': typeof AuthenticatedAdminIndexRoute
@@ -361,6 +390,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/admin'
     | '/become-creator'
+    | '/explore'
     | '/feed'
     | '/library'
     | '/notifications'
@@ -368,6 +398,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/admin/$section'
     | '/settings/account'
+    | '/settings/discovery'
     | '/settings/notifications'
     | '/settings/profile'
     | '/settings/profile-tabs'
@@ -376,6 +407,7 @@ export interface FileRouteTypes {
     | '/studio/courses'
     | '/studio/payouts'
     | '/studio/photography'
+    | '/studio/scheduled'
     | '/studio/subscriptions'
     | '/u/$username'
     | '/admin/'
@@ -396,6 +428,7 @@ export interface FileRouteTypes {
     | '/login'
     | '/register'
     | '/become-creator'
+    | '/explore'
     | '/feed'
     | '/library'
     | '/notifications'
@@ -403,6 +436,7 @@ export interface FileRouteTypes {
     | '/studio'
     | '/admin/$section'
     | '/settings/account'
+    | '/settings/discovery'
     | '/settings/notifications'
     | '/settings/profile'
     | '/settings/profile-tabs'
@@ -411,6 +445,7 @@ export interface FileRouteTypes {
     | '/studio/courses'
     | '/studio/payouts'
     | '/studio/photography'
+    | '/studio/scheduled'
     | '/studio/subscriptions'
     | '/u/$username'
     | '/admin'
@@ -433,6 +468,7 @@ export interface FileRouteTypes {
     | '/register'
     | '/_authenticated/admin'
     | '/_authenticated/become-creator'
+    | '/_authenticated/explore'
     | '/_authenticated/feed'
     | '/_authenticated/library'
     | '/_authenticated/notifications'
@@ -440,6 +476,7 @@ export interface FileRouteTypes {
     | '/_authenticated/studio'
     | '/_authenticated/admin/$section'
     | '/_authenticated/settings_/account'
+    | '/_authenticated/settings_/discovery'
     | '/_authenticated/settings_/notifications'
     | '/_authenticated/settings_/profile'
     | '/_authenticated/settings_/profile-tabs'
@@ -448,6 +485,7 @@ export interface FileRouteTypes {
     | '/_authenticated/studio_/courses'
     | '/_authenticated/studio_/payouts'
     | '/_authenticated/studio_/photography'
+    | '/_authenticated/studio_/scheduled'
     | '/_authenticated/studio_/subscriptions'
     | '/_authenticated/u/$username'
     | '/_authenticated/admin/'
@@ -536,6 +574,13 @@ declare module '@tanstack/react-router' {
       preLoaderRoute: typeof AuthenticatedFeedRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
+    '/_authenticated/explore': {
+      id: '/_authenticated/explore'
+      path: '/explore'
+      fullPath: '/explore'
+      preLoaderRoute: typeof AuthenticatedExploreRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
     '/_authenticated/become-creator': {
       id: '/_authenticated/become-creator'
       path: '/become-creator'
@@ -569,6 +614,13 @@ declare module '@tanstack/react-router' {
       path: '/studio/subscriptions'
       fullPath: '/studio/subscriptions'
       preLoaderRoute: typeof AuthenticatedStudioSubscriptionsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/studio_/scheduled': {
+      id: '/_authenticated/studio_/scheduled'
+      path: '/studio/scheduled'
+      fullPath: '/studio/scheduled'
+      preLoaderRoute: typeof AuthenticatedStudioScheduledRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/studio_/photography': {
@@ -625,6 +677,13 @@ declare module '@tanstack/react-router' {
       path: '/settings/notifications'
       fullPath: '/settings/notifications'
       preLoaderRoute: typeof AuthenticatedSettingsNotificationsRouteImport
+      parentRoute: typeof AuthenticatedRoute
+    }
+    '/_authenticated/settings_/discovery': {
+      id: '/_authenticated/settings_/discovery'
+      path: '/settings/discovery'
+      fullPath: '/settings/discovery'
+      preLoaderRoute: typeof AuthenticatedSettingsDiscoveryRouteImport
       parentRoute: typeof AuthenticatedRoute
     }
     '/_authenticated/settings_/account': {
@@ -754,12 +813,14 @@ const AuthenticatedStudioCoursesRouteWithChildren =
 interface AuthenticatedRouteChildren {
   AuthenticatedAdminRoute: typeof AuthenticatedAdminRouteWithChildren
   AuthenticatedBecomeCreatorRoute: typeof AuthenticatedBecomeCreatorRoute
+  AuthenticatedExploreRoute: typeof AuthenticatedExploreRoute
   AuthenticatedFeedRoute: typeof AuthenticatedFeedRoute
   AuthenticatedLibraryRoute: typeof AuthenticatedLibraryRoute
   AuthenticatedNotificationsRoute: typeof AuthenticatedNotificationsRoute
   AuthenticatedSettingsRoute: typeof AuthenticatedSettingsRoute
   AuthenticatedStudioRoute: typeof AuthenticatedStudioRoute
   AuthenticatedSettingsAccountRoute: typeof AuthenticatedSettingsAccountRoute
+  AuthenticatedSettingsDiscoveryRoute: typeof AuthenticatedSettingsDiscoveryRoute
   AuthenticatedSettingsNotificationsRoute: typeof AuthenticatedSettingsNotificationsRoute
   AuthenticatedSettingsProfileRoute: typeof AuthenticatedSettingsProfileRoute
   AuthenticatedSettingsProfileTabsRoute: typeof AuthenticatedSettingsProfileTabsRoute
@@ -768,6 +829,7 @@ interface AuthenticatedRouteChildren {
   AuthenticatedStudioCoursesRoute: typeof AuthenticatedStudioCoursesRouteWithChildren
   AuthenticatedStudioPayoutsRoute: typeof AuthenticatedStudioPayoutsRoute
   AuthenticatedStudioPhotographyRoute: typeof AuthenticatedStudioPhotographyRoute
+  AuthenticatedStudioScheduledRoute: typeof AuthenticatedStudioScheduledRoute
   AuthenticatedStudioSubscriptionsRoute: typeof AuthenticatedStudioSubscriptionsRoute
   AuthenticatedUUsernameRoute: typeof AuthenticatedUUsernameRoute
   AuthenticatedStudioArticlesNewRoute: typeof AuthenticatedStudioArticlesNewRoute
@@ -784,12 +846,14 @@ interface AuthenticatedRouteChildren {
 const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedAdminRoute: AuthenticatedAdminRouteWithChildren,
   AuthenticatedBecomeCreatorRoute: AuthenticatedBecomeCreatorRoute,
+  AuthenticatedExploreRoute: AuthenticatedExploreRoute,
   AuthenticatedFeedRoute: AuthenticatedFeedRoute,
   AuthenticatedLibraryRoute: AuthenticatedLibraryRoute,
   AuthenticatedNotificationsRoute: AuthenticatedNotificationsRoute,
   AuthenticatedSettingsRoute: AuthenticatedSettingsRoute,
   AuthenticatedStudioRoute: AuthenticatedStudioRoute,
   AuthenticatedSettingsAccountRoute: AuthenticatedSettingsAccountRoute,
+  AuthenticatedSettingsDiscoveryRoute: AuthenticatedSettingsDiscoveryRoute,
   AuthenticatedSettingsNotificationsRoute:
     AuthenticatedSettingsNotificationsRoute,
   AuthenticatedSettingsProfileRoute: AuthenticatedSettingsProfileRoute,
@@ -799,6 +863,7 @@ const AuthenticatedRouteChildren: AuthenticatedRouteChildren = {
   AuthenticatedStudioCoursesRoute: AuthenticatedStudioCoursesRouteWithChildren,
   AuthenticatedStudioPayoutsRoute: AuthenticatedStudioPayoutsRoute,
   AuthenticatedStudioPhotographyRoute: AuthenticatedStudioPhotographyRoute,
+  AuthenticatedStudioScheduledRoute: AuthenticatedStudioScheduledRoute,
   AuthenticatedStudioSubscriptionsRoute: AuthenticatedStudioSubscriptionsRoute,
   AuthenticatedUUsernameRoute: AuthenticatedUUsernameRoute,
   AuthenticatedStudioArticlesNewRoute: AuthenticatedStudioArticlesNewRoute,

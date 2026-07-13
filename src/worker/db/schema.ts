@@ -60,6 +60,50 @@ export const creatorProfileTabs = sqliteTable('creator_profile_tabs', {
   index('creator_profile_tabs_creator_order_idx').on(t.creatorId, t.displayOrder),
 ])
 
+// ── Creator Discovery ─────────────────────────────────────────────────────
+export const discoveryCategories = sqliteTable('discovery_categories', {
+  id:           text('id').primaryKey(),
+  slug:         text('slug').notNull().unique(),
+  name:         text('name').notNull(),
+  description:  text('description'),
+  displayOrder: integer('display_order').notNull(),
+  active:       integer('active', { mode: 'boolean' }).notNull().default(true),
+  createdAt:    integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  updatedAt:    integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  index('discovery_categories_active_order_idx').on(t.active, t.displayOrder),
+])
+
+export const creatorCategories = sqliteTable('creator_categories', {
+  creatorId:   text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  categoryId:  text('category_id').notNull().references(() => discoveryCategories.id, { onDelete: 'cascade' }),
+  displayOrder: integer('display_order').notNull().default(0),
+  createdAt:   integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  primaryKey({ columns: [t.creatorId, t.categoryId] }),
+  index('creator_categories_category_creator_idx').on(t.categoryId, t.creatorId),
+  index('creator_categories_creator_order_idx').on(t.creatorId, t.displayOrder),
+])
+
+export const userCategoryInterests = sqliteTable('user_category_interests', {
+  userId:     text('user_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  categoryId: text('category_id').notNull().references(() => discoveryCategories.id, { onDelete: 'cascade' }),
+  createdAt:  integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  primaryKey({ columns: [t.userId, t.categoryId] }),
+  index('user_category_interests_category_user_idx').on(t.categoryId, t.userId),
+])
+
+export const featuredCreators = sqliteTable('featured_creators', {
+  creatorId:   text('creator_id').primaryKey().references(() => users.id, { onDelete: 'cascade' }),
+  displayOrder: integer('display_order').notNull(),
+  featuredBy:  text('featured_by').references(() => users.id, { onDelete: 'set null' }),
+  createdAt:   integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  updatedAt:   integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  index('featured_creators_order_idx').on(t.displayOrder),
+])
+
 // ── Better Auth Sessions ───────────────────────────────────────────────────
 export const session = sqliteTable('session', {
   id:        text('id').primaryKey(),
@@ -131,6 +175,7 @@ export const posts = sqliteTable('posts', {
   moderationReason: text('moderation_reason'),
   moderatedAt: integer('moderated_at', { mode: 'timestamp' }),
   moderatedBy: text('moderated_by').references(() => users.id, { onDelete: 'set null' }),
+  publishedAt: integer('published_at', { mode: 'timestamp' }),
   createdAt: integer('created_at', { mode: 'timestamp' })
                .notNull()
                .default(sql`(unixepoch())`),
@@ -139,6 +184,27 @@ export const posts = sqliteTable('posts', {
   index('posts_kind_created_idx').on(t.kind, t.createdAt),
   index('posts_author_created_idx').on(t.authorId, t.createdAt),
   index('posts_moderation_author_idx').on(t.moderationStatus, t.authorId, t.createdAt),
+  index('posts_kind_published_idx').on(t.kind, t.publishedAt),
+])
+
+// ── Content Scheduling ────────────────────────────────────────────────────
+export const contentSchedules = sqliteTable('content_schedules', {
+  postId:              text('post_id').primaryKey().references(() => posts.id, { onDelete: 'cascade' }),
+  creatorId:           text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  status:              text('status', { enum: ['pending', 'processing', 'published', 'failed', 'canceled'] }).notNull().default('pending'),
+  scheduledFor:        integer('scheduled_for', { mode: 'timestamp' }).notNull(),
+  nextAttemptAt:       integer('next_attempt_at', { mode: 'timestamp' }).notNull(),
+  attemptCount:        integer('attempt_count').notNull().default(0),
+  revision:            integer('revision').notNull().default(1),
+  processingStartedAt: integer('processing_started_at', { mode: 'timestamp' }),
+  lastErrorCode:       text('last_error_code'),
+  lastErrorMessage:    text('last_error_message'),
+  publishedAt:         integer('published_at', { mode: 'timestamp' }),
+  createdAt:           integer('created_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+  updatedAt:           integer('updated_at', { mode: 'timestamp' }).notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  index('content_schedules_due_idx').on(t.status, t.nextAttemptAt),
+  index('content_schedules_creator_status_idx').on(t.creatorId, t.status, t.scheduledFor),
 ])
 
 // ── Articles ───────────────────────────────────────────────────────────────
@@ -771,6 +837,7 @@ export const notifications = sqliteTable('notifications', {
                     'content_restored',
                     'account_suspended',
                     'account_restored',
+                    'content_schedule_failed',
                   ],
                 }).notNull(),
   category:     text('category', { enum: ['content', 'interaction', 'subscription', 'account'] }).notNull(),
@@ -816,10 +883,15 @@ export type User                 = typeof users.$inferSelect
 export type NewUser              = typeof users.$inferInsert
 export type AdminMembership      = typeof adminMemberships.$inferSelect
 export type CreatorProfileTab    = typeof creatorProfileTabs.$inferSelect
+export type DiscoveryCategory    = typeof discoveryCategories.$inferSelect
+export type CreatorCategory      = typeof creatorCategories.$inferSelect
+export type UserCategoryInterest = typeof userCategoryInterests.$inferSelect
+export type FeaturedCreator      = typeof featuredCreators.$inferSelect
 export type Session              = typeof session.$inferSelect
 export type Account              = typeof account.$inferSelect
 export type Verification         = typeof verification.$inferSelect
 export type Post                 = typeof posts.$inferSelect
+export type ContentSchedule      = typeof contentSchedules.$inferSelect
 export type Article              = typeof articles.$inferSelect
 export type AudioCollection      = typeof audioCollections.$inferSelect
 export type AudioItem            = typeof audioItems.$inferSelect

@@ -1,8 +1,8 @@
 import { Hono, type Context } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { and, desc, eq } from 'drizzle-orm'
+import { and, desc, eq, isNotNull } from 'drizzle-orm'
 import { createDb, type Db } from '../db/client'
-import { articles, posts, users } from '../db/schema'
+import { articles, contentSchedules, posts, users } from '../db/schema'
 import { authMiddleware, requireRole, type HonoEnv } from '../middleware/auth'
 import { articleIdParamSchema, articleSlugParamSchema } from '../lib/schemas'
 import {
@@ -22,9 +22,9 @@ import {
   MAX_IMAGE_SIZE,
   toUnixSeconds,
 } from '../lib/post-data'
-import { notifySubscribersOfContent } from '../lib/notifications'
 import { generatePostSlug, serializeReplies } from './posts'
 import { isPostMemberVisible } from '../lib/moderation'
+import { PublicationError, publishContent } from '../lib/publication'
 
 export const articlesRoutes = new Hono<HonoEnv>()
 
@@ -206,6 +206,12 @@ async function canReadArticle(db: Db, viewerId: string, article: ArticleRow) {
   return hasCreatorAccess(db, viewerId, article.authorId)
 }
 
+function publicationFailure(c: Context<HonoEnv>, error: PublicationError) {
+  if (error.code === 'content_moderated' || error.code === 'account_suspended') return forbidden(c, error.message)
+  if (error.code === 'not_found') return notFound(c, error.message)
+  return errorResponse(c, 422, error.code, error.message)
+}
+
 articlesRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
   const parsed = await parseArticleForm(c)
   if (parsed instanceof Response) return parsed
@@ -228,6 +234,7 @@ articlesRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
     kind: 'article',
     slug,
     body: excerpt || parsed.title,
+    publishedAt: null,
   }).run()
 
   await db.insert(articles).values({
@@ -235,21 +242,20 @@ articlesRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
     title: parsed.title || 'Untitled article',
     excerpt,
     markdown: parsed.markdown,
-    status: parsed.status,
-    publishedAt: parsed.status === 'published' ? now : null,
+    status: 'draft',
+    publishedAt: null,
     ...coverFields,
   }).run()
 
-  const article = await getArticleByPostId(db, postId)
-  if (parsed.status === 'published' && article) {
-    await notifySubscribersOfContent(db, c.env, {
-      creatorId: authorId,
-      contentType: 'article',
-      entityId: postId,
-      title: parsed.title || 'Untitled article',
-      targetUrl: `/u/${article.authorUsername}/article/${article.slug}`,
-    }, new URL(c.req.url).origin)
+  if (parsed.status === 'published') {
+    try {
+      await publishContent(db, c.env, postId, { now, origin: new URL(c.req.url).origin })
+    } catch (error) {
+      if (error instanceof PublicationError) return publicationFailure(c, error)
+      throw error
+    }
   }
+  const article = await getArticleByPostId(db, postId)
   return c.json({ article: article ? serializeArticle(article) : null }, 201)
 })
 
@@ -263,6 +269,8 @@ articlesRoutes.patch('/:postId', authMiddleware, requireRole('creator'), zValida
   if (!existing) return notFound(c, 'Article not found')
   if (existing.authorId !== c.var.user.id) return forbidden(c, 'You cannot edit this article')
   if (!await isPostMemberVisible(db, existing.postId)) return forbidden(c, 'Moderated content cannot be edited until it is restored')
+  const schedule = await db.select({ status: contentSchedules.status }).from(contentSchedules).where(eq(contentSchedules.postId, postId)).get()
+  if (schedule?.status === 'processing') return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
 
   if (parsed.status === 'published' && !parsed.cover && !existing.coverR2Key) {
     return errorResponse(c, 422, 'validation_failed', 'Published articles need a cover photo.')
@@ -270,12 +278,13 @@ articlesRoutes.patch('/:postId', authMiddleware, requireRole('creator'), zValida
 
   const coverFields = parsed.cover ? await uploadCover(c, postId, parsed.cover) : {}
   const excerpt = parsed.excerpt || markdownExcerpt(parsed.markdown)
-  const publishedAt = parsed.status === 'published'
-    ? existing.publishedAt ? new Date(toUnixSeconds(existing.publishedAt)! * 1000) : new Date()
+  const remainsPublished = existing.status === 'published' && parsed.status === 'published'
+  const publishedAt = remainsPublished && existing.publishedAt
+    ? new Date(toUnixSeconds(existing.publishedAt)! * 1000)
     : null
 
   await db.update(posts)
-    .set({ body: excerpt || parsed.title })
+    .set({ body: excerpt || parsed.title, ...(parsed.status === 'draft' ? { publishedAt: null } : {}) })
     .where(eq(posts.id, postId))
     .run()
 
@@ -284,7 +293,7 @@ articlesRoutes.patch('/:postId', authMiddleware, requireRole('creator'), zValida
       title: parsed.title || 'Untitled article',
       excerpt,
       markdown: parsed.markdown,
-      status: parsed.status,
+      status: remainsPublished ? 'published' : 'draft',
       publishedAt,
       updatedAt: new Date(),
       ...coverFields,
@@ -292,16 +301,15 @@ articlesRoutes.patch('/:postId', authMiddleware, requireRole('creator'), zValida
     .where(eq(articles.postId, postId))
     .run()
 
-  const article = await getArticleByPostId(db, postId)
-  if (existing.status !== 'published' && parsed.status === 'published' && article) {
-    await notifySubscribersOfContent(db, c.env, {
-      creatorId: existing.authorId,
-      contentType: 'article',
-      entityId: postId,
-      title: article.title,
-      targetUrl: `/u/${article.authorUsername}/article/${article.slug}`,
-    }, new URL(c.req.url).origin)
+  if (!remainsPublished && parsed.status === 'published') {
+    try {
+      await publishContent(db, c.env, postId, { origin: new URL(c.req.url).origin })
+    } catch (error) {
+      if (error instanceof PublicationError) return publicationFailure(c, error)
+      throw error
+    }
   }
+  const article = await getArticleByPostId(db, postId)
   return c.json({ article: article ? serializeArticle(article) : null })
 })
 
@@ -312,29 +320,13 @@ articlesRoutes.post('/:postId/publish', authMiddleware, requireRole('creator'), 
   if (!existing) return notFound(c, 'Article not found')
   if (existing.authorId !== c.var.user.id) return forbidden(c, 'You cannot publish this article')
   if (!await isPostMemberVisible(db, existing.postId)) return forbidden(c, 'Moderated content cannot be published until it is restored')
-  if (!existing.title || !existing.markdown || !existing.coverR2Key) {
-    return errorResponse(c, 422, 'validation_failed', 'Published articles need a title, article body, and cover photo.')
+  try {
+    await publishContent(db, c.env, postId, { origin: new URL(c.req.url).origin })
+  } catch (error) {
+    if (error instanceof PublicationError) return publicationFailure(c, error)
+    throw error
   }
-
-  await db.update(articles)
-    .set({
-      status: 'published',
-      publishedAt: existing.publishedAt ? new Date(toUnixSeconds(existing.publishedAt)! * 1000) : new Date(),
-      updatedAt: new Date(),
-    })
-    .where(eq(articles.postId, postId))
-    .run()
-
   const article = await getArticleByPostId(db, postId)
-  if (existing.status !== 'published' && article) {
-    await notifySubscribersOfContent(db, c.env, {
-      creatorId: existing.authorId,
-      contentType: 'article',
-      entityId: postId,
-      title: article.title,
-      targetUrl: `/u/${article.authorUsername}/article/${article.slug}`,
-    }, new URL(c.req.url).origin)
-  }
   return c.json({ article: article ? serializeArticle(article) : null })
 })
 
@@ -450,6 +442,7 @@ export async function listPublishedArticlesForCreator(db: Db, viewerId: string, 
     .where(and(
       eq(posts.authorId, creatorId),
       eq(articles.status, 'published'),
+      isNotNull(posts.publishedAt),
       eq(posts.moderationStatus, 'active'),
       eq(users.accountStatus, 'active'),
     ))

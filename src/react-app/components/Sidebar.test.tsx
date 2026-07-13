@@ -96,7 +96,7 @@ describe('Sidebar', () => {
     renderSidebar()
 
     const linkNames = screen.getAllByRole('link').map((link) => link.textContent)
-    expect(linkNames).toEqual(['Feed', 'Library', 'Profile', 'Notifications', 'Become Creator', 'Settings'])
+    expect(linkNames).toEqual(['Feed', 'Explore', 'Library', 'Profile', 'Notifications', 'Become Creator', 'Settings'])
   })
 
   it('renders creator workspace entry for a creator', () => {
@@ -111,6 +111,7 @@ describe('Sidebar', () => {
     renderSidebar()
 
     expect(screen.getByRole('link', { name: 'Feed' })).toBeInTheDocument()
+    expect(screen.getByRole('link', { name: 'Explore' })).toBeInTheDocument()
     expect(screen.getByRole('link', { name: 'Studio' })).toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Subscriptions' })).not.toBeInTheDocument()
     expect(screen.queryByRole('link', { name: 'Money' })).not.toBeInTheDocument()

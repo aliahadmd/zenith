@@ -24,6 +24,7 @@ export const authOtpVerifySchema = z.object({
 
 export const postCreateSchema = z.object({
   body: z.string().trim().min(1, 'Post body must be between 1 and 500 characters').max(500, 'Post body must be between 1 and 500 characters'),
+  scheduledFor: z.string().datetime({ offset: true }).optional(),
 })
 
 export const postSlugParamSchema = z.object({

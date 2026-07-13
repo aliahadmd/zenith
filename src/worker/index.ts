@@ -15,9 +15,12 @@ import { coursesRoutes } from './routes/courses'
 import { adminRoutes } from './routes/admin'
 import { reportRoutes } from './routes/reports'
 import { libraryRoutes } from './routes/library'
+import { schedulesRoutes } from './routes/schedules'
+import { discoveryRoutes } from './routes/discovery'
 import { notFound, serverError } from './lib/http'
+import { processDueSchedules } from './lib/scheduling'
 
-const app = new Hono<HonoEnv>()
+export const app = new Hono<HonoEnv>()
 
 app.route('/api/auth', authRoutes)
 app.route('/api/feed', feedRoutes)
@@ -37,6 +40,8 @@ app.route('/api/courses', coursesRoutes)
 app.route('/api/reports', reportRoutes)
 app.route('/api/admin', adminRoutes)
 app.route('/api/library', libraryRoutes)
+app.route('/api/schedules', schedulesRoutes)
+app.route('/api/discovery', discoveryRoutes)
 
 app.onError((err, c) => {
   console.error(err)
@@ -53,4 +58,9 @@ app.notFound((c) => {
   return notFound(c)
 })
 
-export default app
+export default {
+  fetch: app.fetch,
+  scheduled(controller, env, ctx) {
+    ctx.waitUntil(processDueSchedules(env, controller.scheduledTime))
+  },
+} satisfies ExportedHandler<Env>

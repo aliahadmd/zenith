@@ -33,6 +33,7 @@ export type FeedPost = {
   slug: string
   body: string
   createdAt: number | null
+  publishedAt?: number | null
   author: {
     id: string
     displayName: string
@@ -89,6 +90,7 @@ export const postKeys = {
   creator: (username: string) => ['profile', username, 'posts'] as const,
   detail: (username: string, slug: string) => ['posts', username, slug] as const,
   replies: (postId: string) => ['posts', postId, 'replies'] as const,
+  draft: (postId: string) => ['posts', postId, 'draft'] as const,
 }
 
 export function feedQueryOptions() {
@@ -105,8 +107,23 @@ export function postDetailQueryOptions(username: string, slug: string) {
   })
 }
 
-export function createPost(values: FormData | { body: string }) {
+export function createPost(values: FormData | { body: string; scheduledFor?: string }) {
   return apiPostRequired('/api/posts', values)
+}
+
+export function draftPostQueryOptions(postId: string) {
+  return queryOptions({
+    queryKey: postKeys.draft(postId),
+    queryFn: () => apiGetRequired<{ post: FeedPost }>(`/api/posts/drafts/${postId}`),
+  })
+}
+
+export function updateDraftPost(postId: string, values: FormData | { body: string }) {
+  return apiPatchRequired<{ post: FeedPost | null }>(`/api/posts/${postId}`, values)
+}
+
+export function deleteDraftPost(postId: string) {
+  return apiDeleteRequired<{ deleted: true }>(`/api/posts/${postId}`)
 }
 
 export function createReply(postId: string, values: FormData | { body: string; parentReplyId?: string }) {

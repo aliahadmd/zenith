@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { and, desc, eq, gt, inArray, or } from 'drizzle-orm'
+import { and, desc, eq, gt, inArray, isNotNull, or } from 'drizzle-orm'
 import { createDb } from '../db/client'
 import { articles, audioCollections, audioItems, courses, photographyAlbums, photographyPhotos, posts, follows, users, subscriptionMemberships, membershipPlans } from '../db/schema'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
@@ -23,6 +23,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       slug: posts.slug,
       body: posts.body,
       createdAt: posts.createdAt,
+      publishedAt: posts.publishedAt,
       authorId: posts.authorId,
       authorDisplayName: users.displayName,
       authorUsername: users.username,
@@ -33,6 +34,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .innerJoin(users, eq(users.id, posts.authorId))
     .where(and(
       eq(posts.kind, 'post'),
+      isNotNull(posts.publishedAt),
       eq(posts.moderationStatus, 'active'),
       eq(users.accountStatus, 'active'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
@@ -41,7 +43,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
         and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
       ),
     ))
-    .orderBy(desc(posts.createdAt))
+    .orderBy(desc(posts.publishedAt))
     .limit(50)
     .all()
 
@@ -70,6 +72,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .innerJoin(users, eq(users.id, posts.authorId))
     .where(and(
       eq(posts.kind, 'article'),
+      isNotNull(posts.publishedAt),
       eq(posts.moderationStatus, 'active'),
       eq(users.accountStatus, 'active'),
       eq(articles.status, 'published'),
@@ -115,6 +118,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .innerJoin(users, eq(users.id, audioItems.creatorId))
     .where(and(
       eq(audioItems.status, 'published'),
+      isNotNull(posts.publishedAt),
       eq(posts.moderationStatus, 'active'),
       eq(users.accountStatus, 'active'),
       eq(audioCollections.status, 'published'),
@@ -153,6 +157,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .innerJoin(users, eq(users.id, photographyAlbums.creatorId))
     .where(and(
       eq(photographyAlbums.status, 'published'),
+      isNotNull(posts.publishedAt),
       eq(posts.moderationStatus, 'active'),
       eq(users.accountStatus, 'active'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
@@ -187,6 +192,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .innerJoin(users, eq(users.id, courses.creatorId))
     .where(and(
       eq(courses.status, 'published'),
+      isNotNull(posts.publishedAt),
       eq(posts.moderationStatus, 'active'),
       eq(users.accountStatus, 'active'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
@@ -245,6 +251,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       slug: row.slug,
       body: row.body,
       createdAt,
+      publishedAt: toUnixSeconds(row.publishedAt),
       author: {
         id: row.authorId,
         displayName: row.authorDisplayName,
@@ -396,8 +403,8 @@ feedRoutes.get('/', authMiddleware, async (c) => {
 
   const items = [...mappedPosts, ...mappedArticles, ...mappedAudio, ...mappedPhotography, ...mappedCourses]
     .sort((a, b) => {
-      const aTime = a.type === 'article' || a.type === 'audio' || a.type === 'photography' || a.type === 'course' ? (a.publishedAt ?? a.createdAt ?? 0) : (a.createdAt ?? 0)
-      const bTime = b.type === 'article' || b.type === 'audio' || b.type === 'photography' || b.type === 'course' ? (b.publishedAt ?? b.createdAt ?? 0) : (b.createdAt ?? 0)
+      const aTime = a.publishedAt ?? a.createdAt ?? 0
+      const bTime = b.publishedAt ?? b.createdAt ?? 0
       return bTime - aTime
     })
     .slice(0, 50)

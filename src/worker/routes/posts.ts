@@ -6,6 +6,7 @@ import { createDb, type Db } from '../db/client'
 import {
   audioItems,
   articles,
+  contentSchedules,
   courses,
   photographyAlbums,
   pollOptions,
@@ -71,6 +72,7 @@ type PostRow = {
   kind: 'post' | 'article' | 'audio' | 'photography' | 'course'
   slug: string
   body: string
+  publishedAt: Date | number | null
   createdAt: Date | number | null
   authorId: string
   authorDisplayName: string
@@ -222,6 +224,7 @@ async function getPostRowById(db: Db, postId: string) {
       kind: posts.kind,
       slug: posts.slug,
       body: posts.body,
+      publishedAt: posts.publishedAt,
       createdAt: posts.createdAt,
       authorId: posts.authorId,
       authorDisplayName: users.displayName,
@@ -252,6 +255,7 @@ async function getAccessiblePostById(db: Db, viewerId: string, postId: string) {
   if (post.moderationStatus !== 'active' || post.authorAccountStatus !== 'active') {
     return { post, allowed: false }
   }
+  if (!post.publishedAt) return { post, allowed: false }
   if (post.kind === 'article' && post.articleStatus !== 'published' && viewerId !== post.authorId) {
     return { post, allowed: false }
   }
@@ -281,6 +285,7 @@ function serializePost(post: PostRow, extras: Awaited<ReturnType<typeof buildPos
     type: post.kind,
     slug: post.slug,
     body: post.body,
+    publishedAt: toUnixSeconds(post.publishedAt),
     createdAt: toUnixSeconds(post.createdAt),
     author: {
       id: post.authorId,
@@ -418,6 +423,7 @@ postsRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
   let body = ''
   let images: File[] = []
   let poll: PollInput | null = null
+  let scheduledFor: Date | null = null
 
   if (contentType.includes('multipart/form-data')) {
     let formData: FormData
@@ -428,6 +434,13 @@ postsRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
     }
 
     body = String(formData.get('body') ?? '').trim()
+    const rawScheduledFor = String(formData.get('scheduledFor') ?? '').trim()
+    if (rawScheduledFor) {
+      scheduledFor = new Date(rawScheduledFor)
+      if (!Number.isFinite(scheduledFor.getTime()) || scheduledFor.getTime() < Date.now() + 60_000) {
+        return errorResponse(c, 422, 'schedule_too_soon', 'Choose a publication time at least one minute in the future.')
+      }
+    }
     if (body.length > 500) {
       return errorResponse(c, 422, 'validation_failed', 'Post body must be 500 characters or fewer.')
     }
@@ -451,6 +464,12 @@ postsRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
     const parsed = postCreateSchema.safeParse(await c.req.json().catch(() => null))
     if (!parsed.success) return errorResponse(c, 422, 'validation_failed', 'Validation failed', { issues: parsed.error.issues })
     body = parsed.data.body
+    if (parsed.data.scheduledFor) {
+      scheduledFor = new Date(parsed.data.scheduledFor)
+      if (scheduledFor.getTime() < Date.now() + 60_000) {
+        return errorResponse(c, 422, 'schedule_too_soon', 'Choose a publication time at least one minute in the future.')
+      }
+    }
   }
 
   const id = crypto.randomUUID()
@@ -458,12 +477,13 @@ postsRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
 
   const inserted = await db
     .insert(posts)
-    .values({ id, authorId, slug, body })
+    .values({ id, authorId, slug, body, publishedAt: scheduledFor ? null : new Date() })
     .returning({
       id: posts.id,
       slug: posts.slug,
       body: posts.body,
       createdAt: posts.createdAt,
+      publishedAt: posts.publishedAt,
     })
     .get()
 
@@ -484,12 +504,21 @@ postsRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
     }
   }
 
+  if (scheduledFor) {
+    await db.insert(contentSchedules).values({
+      postId: inserted.id,
+      creatorId: authorId,
+      scheduledFor,
+      nextAttemptAt: scheduledFor,
+    }).run()
+  }
+
   const author = await db
     .select({ username: users.username })
     .from(users)
     .where(eq(users.id, authorId))
     .get()
-  if (author) {
+  if (author && !scheduledFor) {
     await notifySubscribersOfContent(db, c.env, {
       creatorId: authorId,
       contentType: 'post',
@@ -505,9 +534,105 @@ postsRoutes.post('/', authMiddleware, requireRole('creator'), async (c) => {
       slug: inserted.slug,
       body: inserted.body,
       createdAt: toUnixSeconds(inserted.createdAt),
+      publishedAt: toUnixSeconds(inserted.publishedAt),
+      schedule: scheduledFor ? { status: 'pending', scheduledFor: toUnixSeconds(scheduledFor) } : null,
     },
     201,
   )
+})
+
+// ── Private scheduled short-post drafts ──────────────────────────────────
+
+postsRoutes.get('/drafts/:postId', authMiddleware, requireRole('creator'), zValidator('param', postIdParamSchema, zodHook), async (c) => {
+  const { postId } = c.req.valid('param')
+  const db = createDb(c.env.DB)
+  const post = await getPostRowById(db, postId)
+  if (!post || post.kind !== 'post' || post.authorId !== c.var.user.id || post.publishedAt) return notFound(c, 'Draft post not found')
+  const extras = await buildPostExtras(db, c.var.user.id, [postId])
+  return c.json({ post: serializePost(post, extras) })
+})
+
+postsRoutes.patch('/:postId', authMiddleware, requireRole('creator'), zValidator('param', postIdParamSchema, zodHook), async (c) => {
+  const { postId } = c.req.valid('param')
+  const db = createDb(c.env.DB)
+  const post = await getPostRowById(db, postId)
+  if (!post || post.kind !== 'post' || post.authorId !== c.var.user.id || post.publishedAt) return notFound(c, 'Draft post not found')
+  if (post.moderationStatus !== 'active') return forbidden(c, 'Moderated content cannot be edited until it is restored')
+  const schedule = await db.select({ status: contentSchedules.status }).from(contentSchedules).where(eq(contentSchedules.postId, postId)).get()
+  if (schedule?.status === 'processing') return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
+
+  const contentType = c.req.header('content-type') ?? ''
+  let body = ''
+  let images: File[] = []
+  let poll: PollInput | null = null
+  let removeAttachmentIds: string[] = []
+
+  if (contentType.includes('multipart/form-data')) {
+    const formData = await c.req.formData().catch(() => null)
+    if (!formData) return errorResponse(c, 422, 'validation_failed', 'Invalid multipart/form-data body')
+    body = String(formData.get('body') ?? '').trim()
+    if (body.length > 500) return errorResponse(c, 422, 'validation_failed', 'Post body must be 500 characters or fewer.')
+    images = getFiles(formData)
+    const imageError = validateImageFiles(images)
+    if (imageError?.status === 415) return unsupportedMediaType(c, imageError.message)
+    if (imageError?.status === 413) return payloadTooLarge(c, imageError.message)
+    if (imageError) return errorResponse(c, 422, 'validation_failed', imageError.message)
+    const parsedPoll = parsePoll(formData)
+    if (parsedPoll && 'error' in parsedPoll) return errorResponse(c, 422, 'validation_failed', parsedPoll.error)
+    poll = parsedPoll
+    try {
+      const parsed = JSON.parse(String(formData.get('removeAttachmentIds') ?? '[]'))
+      removeAttachmentIds = Array.isArray(parsed) ? parsed.filter((id): id is string => typeof id === 'string') : []
+    } catch {
+      return errorResponse(c, 422, 'validation_failed', 'Removed attachment IDs must be valid JSON.')
+    }
+  } else {
+    const parsed = postCreateSchema.safeParse(await c.req.json().catch(() => null))
+    if (!parsed.success) return errorResponse(c, 422, 'validation_failed', 'Validation failed', { issues: parsed.error.issues })
+    body = parsed.data.body
+  }
+
+  const existingAttachments = await db.select({ id: postAttachments.id, r2Key: postAttachments.r2Key }).from(postAttachments).where(eq(postAttachments.postId, postId)).all()
+  const removable = existingAttachments.filter((attachment) => removeAttachmentIds.includes(attachment.id))
+  if (existingAttachments.length - removable.length + images.length > MAX_IMAGES) {
+    return errorResponse(c, 422, 'validation_failed', `Upload ${MAX_IMAGES} images or fewer.`)
+  }
+  if (!body && existingAttachments.length - removable.length + images.length === 0 && !poll) {
+    return errorResponse(c, 422, 'validation_failed', 'Add post text, images, or a poll.')
+  }
+
+  await c.env.DB.batch([
+    c.env.DB.prepare('UPDATE posts SET body = ? WHERE id = ? AND published_at IS NULL').bind(body, postId),
+    c.env.DB.prepare('DELETE FROM post_polls WHERE post_id = ?').bind(postId),
+    ...(removable.length > 0
+      ? [c.env.DB.prepare(`DELETE FROM post_attachments WHERE id IN (${removable.map(() => '?').join(',')}) AND post_id = ?`).bind(...removable.map((attachment) => attachment.id), postId)]
+      : []),
+  ])
+
+  if (images.length > 0) await uploadPostAttachments(c, postId, c.var.user.id, images)
+  if (poll) {
+    const pollId = crypto.randomUUID()
+    await db.insert(postPolls).values({ id: pollId, postId, question: poll.question }).run()
+    await db.insert(pollOptions).values(poll.options.map((text, position) => ({ id: crypto.randomUUID(), pollId, text, position }))).run()
+  }
+  if (removable.length > 0) await Promise.allSettled(removable.map((attachment) => c.env.STORAGE.delete(attachment.r2Key)))
+
+  const updated = await getPostRowById(db, postId)
+  const extras = await buildPostExtras(db, c.var.user.id, [postId])
+  return c.json({ post: updated ? serializePost(updated, extras) : null })
+})
+
+postsRoutes.delete('/:postId', authMiddleware, requireRole('creator'), zValidator('param', postIdParamSchema, zodHook), async (c) => {
+  const { postId } = c.req.valid('param')
+  const db = createDb(c.env.DB)
+  const post = await getPostRowById(db, postId)
+  if (!post || post.kind !== 'post' || post.authorId !== c.var.user.id || post.publishedAt) return notFound(c, 'Draft post not found')
+  const schedule = await db.select({ status: contentSchedules.status }).from(contentSchedules).where(eq(contentSchedules.postId, postId)).get()
+  if (schedule?.status === 'processing') return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
+  const attachments = await db.select({ r2Key: postAttachments.r2Key }).from(postAttachments).where(eq(postAttachments.postId, postId)).all()
+  await db.delete(posts).where(eq(posts.id, postId)).run()
+  await Promise.allSettled(attachments.map((attachment) => c.env.STORAGE.delete(attachment.r2Key)))
+  return c.json({ deleted: true })
 })
 
 // ── GET /api/posts/by-slug/:username/:slug ────────────────────────────────
@@ -522,6 +647,7 @@ postsRoutes.get('/by-slug/:username/:slug', authMiddleware, zValidator('param', 
       kind: posts.kind,
       slug: posts.slug,
       body: posts.body,
+      publishedAt: posts.publishedAt,
       createdAt: posts.createdAt,
       authorId: posts.authorId,
       authorDisplayName: users.displayName,
@@ -540,6 +666,7 @@ postsRoutes.get('/by-slug/:username/:slug', authMiddleware, zValidator('param', 
     .get()
 
   if (!post) return notFound(c, 'Post not found')
+  if (!post.publishedAt) return notFound(c, 'Post not found')
   if (!await hasCreatorAccess(db, c.var.user.id, post.authorId)) return forbidden(c, 'You do not have access to this post')
 
   const [extras, replies] = await Promise.all([
@@ -803,6 +930,7 @@ pollsRoutes.post('/:pollId/vote', authMiddleware, zValidator('param', pollIdPara
       authorId: posts.authorId,
       moderationStatus: posts.moderationStatus,
       authorAccountStatus: users.accountStatus,
+      publishedAt: posts.publishedAt,
     })
     .from(postPolls)
     .innerJoin(posts, eq(posts.id, postPolls.postId))
@@ -812,6 +940,7 @@ pollsRoutes.post('/:pollId/vote', authMiddleware, zValidator('param', pollIdPara
 
   if (!poll) return notFound(c, 'Poll not found')
   if (poll.moderationStatus !== 'active' || poll.authorAccountStatus !== 'active') return notFound(c, 'Poll not found')
+  if (!poll.publishedAt) return notFound(c, 'Poll not found')
   if (!await hasCreatorAccess(db, c.var.user.id, poll.authorId)) return forbidden(c, 'You do not have access to this poll')
 
   const option = await db
@@ -850,6 +979,7 @@ mediaRoutes.get('/:attachmentId', authMiddleware, zValidator('param', attachment
       authorId: posts.authorId,
       postModerationStatus: posts.moderationStatus,
       authorAccountStatus: users.accountStatus,
+      publishedAt: posts.publishedAt,
     })
     .from(postAttachments)
     .innerJoin(posts, eq(posts.id, postAttachments.postId))
@@ -866,6 +996,7 @@ mediaRoutes.get('/:attachmentId', authMiddleware, zValidator('param', attachment
       authorId: posts.authorId,
       postModerationStatus: posts.moderationStatus,
       authorAccountStatus: users.accountStatus,
+      publishedAt: posts.publishedAt,
     })
     .from(replyAttachments)
     .innerJoin(postReplies, eq(postReplies.id, replyAttachments.replyId))
@@ -880,6 +1011,7 @@ mediaRoutes.get('/:attachmentId', authMiddleware, zValidator('param', attachment
 
   if (!attachment) return notFound(c, 'Media not found')
   if (attachment.postModerationStatus !== 'active' || attachment.authorAccountStatus !== 'active') return notFound(c, 'Media not found')
+  if (!attachment.publishedAt && attachment.authorId !== c.var.user.id) return notFound(c, 'Media not found')
   if (!await hasCreatorAccess(db, c.var.user.id, attachment.authorId)) return forbidden(c, 'You do not have access to this media')
 
   const object = await c.env.STORAGE.get(attachment.r2Key)

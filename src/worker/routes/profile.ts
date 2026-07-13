@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { and, desc, eq, gt, or } from 'drizzle-orm'
+import { and, desc, eq, gt, isNotNull, or } from 'drizzle-orm'
 import { createDb } from '../db/client'
 import { posts, users, subscriptionMemberships } from '../db/schema'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
@@ -59,6 +59,14 @@ profileRoutes.get('/:username', zValidator('param', usernameParamSchema, zodHook
 
   if (!user) return notFound(c)
 
+  const categories = user.role === 'creator'
+    ? await c.env.DB.prepare(`SELECT c.id, c.slug, c.name FROM creator_categories cc
+        JOIN discovery_categories c ON c.id = cc.category_id
+        WHERE cc.creator_id = ? AND c.active = 1
+        ORDER BY cc.display_order, c.display_order`).bind(user.id)
+      .all<{ id: string; slug: string; name: string }>()
+    : { results: [] as Array<{ id: string; slug: string; name: string }> }
+
   return c.json({
     id: user.id,
     displayName: user.displayName,
@@ -67,6 +75,7 @@ profileRoutes.get('/:username', zValidator('param', usernameParamSchema, zodHook
     tagline: user.tagline,
     avatarUrl: user.avatarUrl,
     socialLinks: user.socialLinks,
+    categories: categories.results,
     profileTabs: user.role === 'creator' ? await getCreatorProfileTabs(db, user.id) : null,
   })
 })
@@ -180,6 +189,7 @@ profileRoutes.get('/:username/posts', authMiddleware, zValidator('param', userna
       slug: posts.slug,
       body: posts.body,
       createdAt: posts.createdAt,
+      publishedAt: posts.publishedAt,
       authorId: posts.authorId,
       authorDisplayName: users.displayName,
       authorUsername: users.username,
@@ -190,10 +200,11 @@ profileRoutes.get('/:username/posts', authMiddleware, zValidator('param', userna
     .where(and(
       eq(posts.authorId, creator.id),
       eq(posts.kind, 'post'),
+      isNotNull(posts.publishedAt),
       eq(posts.moderationStatus, 'active'),
       eq(users.accountStatus, 'active'),
     ))
-    .orderBy(desc(posts.createdAt))
+    .orderBy(desc(posts.publishedAt))
     .limit(50)
     .all()
 
@@ -203,6 +214,7 @@ profileRoutes.get('/:username/posts', authMiddleware, zValidator('param', userna
     slug: row.slug,
     body: row.body,
     createdAt: toUnixSeconds(row.createdAt),
+    publishedAt: toUnixSeconds(row.publishedAt),
     author: {
       id: row.authorId,
       displayName: row.authorDisplayName,

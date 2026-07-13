@@ -1,15 +1,16 @@
 import { Link, useRouterState } from '@tanstack/react-router'
-import { BookOpen, Camera, CreditCard, GraduationCap, Headphones, LayoutDashboard, WalletCards, type LucideIcon } from 'lucide-react'
+import { BookOpen, CalendarClock, Camera, CreditCard, GraduationCap, Headphones, LayoutDashboard, WalletCards, type LucideIcon } from 'lucide-react'
 import { cn } from '../lib/utils'
 
 type StudioNavItem = {
-  to: '/studio' | '/studio/articles/new' | '/studio/photography' | '/studio/audio' | '/studio/courses' | '/studio/subscriptions' | '/studio/payouts'
+  to: '/studio' | '/studio/scheduled' | '/studio/articles/new' | '/studio/photography' | '/studio/audio' | '/studio/courses' | '/studio/subscriptions' | '/studio/payouts'
   label: string
   icon: LucideIcon
 }
 
 const studioNavItems: StudioNavItem[] = [
   { to: '/studio', label: 'Create', icon: LayoutDashboard },
+  { to: '/studio/scheduled', label: 'Scheduled', icon: CalendarClock },
   { to: '/studio/articles/new', label: 'Articles', icon: BookOpen },
   { to: '/studio/photography', label: 'Photography', icon: Camera },
   { to: '/studio/audio', label: 'Audio', icon: Headphones },

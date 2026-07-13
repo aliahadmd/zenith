@@ -18,7 +18,7 @@ import {
 import { CSS } from '@dnd-kit/utilities'
 import { zodResolver } from '@hookform/resolvers/zod'
 import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
-import { Camera, GripVertical, ImagePlus, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
+import { CalendarClock, Camera, GripVertical, ImagePlus, Loader2, Pencil, Plus, Trash2 } from 'lucide-react'
 import { useForm } from 'react-hook-form'
 import { toast } from 'sonner'
 import {
@@ -45,6 +45,7 @@ import {
 import { cn } from '../lib/utils'
 import { LoadingBlock } from '../components/LoadingBlock'
 import { StudioLayout } from '../components/StudioLayout'
+import { ScheduleDialog } from '../components/ScheduleDialog'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
@@ -373,6 +374,7 @@ function AlbumDialog({
   onOpenChange: (open: boolean) => void
   onSaved: () => Promise<void>
 }) {
+  const [scheduleOpen, setScheduleOpen] = useState(false)
   const form = useForm<PhotographyAlbumFormValues>({
     resolver: zodResolver(photographyAlbumSchema),
     values: album ? {
@@ -404,6 +406,7 @@ function AlbumDialog({
   })
 
   return (
+    <>
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-xl">
         <DialogHeader>
@@ -481,6 +484,9 @@ function AlbumDialog({
             )} />
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+              {album?.status === 'draft' && (
+                <Button type="button" variant="outline" onClick={() => setScheduleOpen(true)}><CalendarClock data-icon="inline-start" /> Schedule</Button>
+              )}
               <Button type="submit" disabled={saveMutation.isPending}>
                 {saveMutation.isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
                 Save
@@ -490,6 +496,8 @@ function AlbumDialog({
         </Form>
       </DialogContent>
     </Dialog>
+    {album && <ScheduleDialog postId={album.postId} open={scheduleOpen} onOpenChange={setScheduleOpen} onScheduled={onSaved} />}
+    </>
   )
 }
 

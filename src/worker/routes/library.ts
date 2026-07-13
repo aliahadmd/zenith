@@ -51,6 +51,7 @@ function currentAccessSql(viewerId: string, now: number) {
 function publishedVisibleSql() {
   return sql<number>`CASE WHEN ${posts.moderationStatus} = 'active'
     AND ${users.accountStatus} = 'active'
+    AND ${posts.publishedAt} IS NOT NULL
     AND CASE ${posts.kind}
       WHEN 'article' THEN ${articles.status} = 'published'
       WHEN 'audio' THEN ${audioItems.status} = 'published' AND ${audioCollections.status} = 'published'
@@ -170,13 +171,14 @@ function isRowPublishedAndVisible(row: {
   kind: string
   moderationStatus: string
   authorAccountStatus: string
+  postPublishedAt: Date | number | null
   articleStatus: string | null
   audioStatus: string | null
   audioCollectionStatus: string | null
   photographyStatus: string | null
   courseStatus: string | null
 }) {
-  if (row.moderationStatus !== 'active' || row.authorAccountStatus !== 'active') return false
+  if (row.moderationStatus !== 'active' || row.authorAccountStatus !== 'active' || !row.postPublishedAt) return false
   if (row.kind === 'article') return row.articleStatus === 'published'
   if (row.kind === 'audio') return row.audioStatus === 'published' && row.audioCollectionStatus === 'published'
   if (row.kind === 'photography') return row.photographyStatus === 'published'
@@ -201,6 +203,7 @@ async function getLibraryRows(
       postSlug: posts.slug,
       postBody: posts.body,
       postCreatedAt: posts.createdAt,
+      postPublishedAt: posts.publishedAt,
       moderationStatus: posts.moderationStatus,
       authorId: users.id,
       authorDisplayName: users.displayName,
@@ -273,6 +276,7 @@ async function getSavablePost(db: ReturnType<typeof createDb>, postId: string) {
     kind: posts.kind,
     authorId: posts.authorId,
     moderationStatus: posts.moderationStatus,
+    postPublishedAt: posts.publishedAt,
     authorAccountStatus: users.accountStatus,
     articleStatus: articles.status,
     audioStatus: audioItems.status,

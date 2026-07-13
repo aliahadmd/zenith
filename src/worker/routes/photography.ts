@@ -1,8 +1,8 @@
 import { Hono, type Context } from 'hono'
-import { and, asc, desc, eq, inArray, sql } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull, sql } from 'drizzle-orm'
 import { alias } from 'drizzle-orm/sqlite-core'
 import { createDb, type Db } from '../db/client'
-import { photographyAlbums, photographyPhotos, posts, users } from '../db/schema'
+import { contentSchedules, photographyAlbums, photographyPhotos, posts, users } from '../db/schema'
 import { authMiddleware, requireRole, type HonoEnv } from '../middleware/auth'
 import {
   errorResponse,
@@ -24,11 +24,17 @@ import {
   PHOTOGRAPHY_PREVIEW_TYPES,
   toUnixSeconds,
 } from '../lib/post-data'
-import { notifySubscribersOfContent } from '../lib/notifications'
 import { isPostMemberVisible } from '../lib/moderation'
+import { PublicationError, publishContent } from '../lib/publication'
 import { generatePostSlug, serializeReplies, slugify } from './posts'
 
 export const photographyRoutes = new Hono<HonoEnv>()
+
+function publicationFailure(c: Context<HonoEnv>, error: PublicationError) {
+  if (error.code === 'content_moderated' || error.code === 'account_suspended') return forbidden(c, error.message)
+  if (error.code === 'not_found') return notFound(c, error.message)
+  return errorResponse(c, 422, error.code, error.message)
+}
 
 type PublishStatus = 'draft' | 'published'
 
@@ -418,6 +424,16 @@ async function validatePublishedAlbum(db: Db, albumId: string, coverPhotoId: str
   return null
 }
 
+async function albumScheduleIsProcessing(db: Db, albumId: string) {
+  const row = await db
+    .select({ status: contentSchedules.status })
+    .from(photographyAlbums)
+    .innerJoin(contentSchedules, eq(contentSchedules.postId, photographyAlbums.postId))
+    .where(eq(photographyAlbums.id, albumId))
+    .get()
+  return row?.status === 'processing'
+}
+
 photographyRoutes.get('/albums/mine', authMiddleware, requireRole('creator'), async (c) => {
   const db = createDb(c.env.DB)
   const rows = await db
@@ -463,6 +479,7 @@ photographyRoutes.post('/albums', authMiddleware, requireRole('creator'), async 
     kind: 'photography',
     slug: postSlug,
     body: parsed.description || parsed.title,
+    publishedAt: null,
   }).run()
 
   await db.insert(photographyAlbums).values({
@@ -492,18 +509,21 @@ photographyRoutes.patch('/albums/:albumId', authMiddleware, requireRole('creator
   if (!existing) return notFound(c, 'Photography album not found')
   if (existing.creatorId !== c.var.user.id) return forbidden(c, 'You cannot edit this album')
   if (!await isPostMemberVisible(db, existing.postId)) return forbidden(c, 'Moderated content cannot be edited until it is restored')
+  const schedule = await db.select({ status: contentSchedules.status }).from(contentSchedules).where(eq(contentSchedules.postId, existing.postId)).get()
+  if (schedule?.status === 'processing') return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
 
   if (parsed.status === 'published') {
     const issue = await validatePublishedAlbum(db, albumId, parsed.coverPhotoId ?? existing.coverPhotoId)
     if (issue) return errorResponse(c, 422, 'validation_failed', issue)
   }
 
-  const publishedAt = parsed.status === 'published'
-    ? existing.publishedAt ? new Date(toUnixSeconds(existing.publishedAt)! * 1000) : new Date()
+  const remainsPublished = existing.status === 'published' && parsed.status === 'published'
+  const publishedAt = remainsPublished && existing.publishedAt
+    ? new Date(toUnixSeconds(existing.publishedAt)! * 1000)
     : null
 
   await db.update(posts)
-    .set({ body: parsed.description || parsed.title })
+    .set({ body: parsed.description || parsed.title, ...(parsed.status === 'draft' ? { publishedAt: null } : {}) })
     .where(eq(posts.id, existing.postId))
     .run()
 
@@ -511,7 +531,7 @@ photographyRoutes.patch('/albums/:albumId', authMiddleware, requireRole('creator
     .set({
       title: parsed.title,
       description: parsed.description || null,
-      status: parsed.status,
+      status: remainsPublished ? 'published' : 'draft',
       downloadsEnabled: parsed.downloadsEnabled,
       shootDate: parsed.shootDate,
       coverPhotoId: parsed.coverPhotoId ?? existing.coverPhotoId,
@@ -521,17 +541,16 @@ photographyRoutes.patch('/albums/:albumId', authMiddleware, requireRole('creator
     .where(eq(photographyAlbums.id, albumId))
     .run()
 
+  if (!remainsPublished && parsed.status === 'published') {
+    try {
+      await publishContent(db, c.env, existing.postId, { origin: new URL(c.req.url).origin })
+    } catch (error) {
+      if (error instanceof PublicationError) return publicationFailure(c, error)
+      throw error
+    }
+  }
   const album = await getAlbumById(db, albumId)
   const photos = album ? await getAlbumPhotos(db, album.id, true) : []
-  if (existing.status !== 'published' && parsed.status === 'published' && album) {
-    await notifySubscribersOfContent(db, c.env, {
-      creatorId: c.var.user.id,
-      contentType: 'photography',
-      entityId: album.id,
-      title: album.title,
-      targetUrl: `/u/${album.creatorUsername}/photography/${album.slug}`,
-    }, new URL(c.req.url).origin)
-  }
   return c.json({ album: album ? serializeAlbum(album, photos) : null })
 })
 
@@ -542,6 +561,8 @@ photographyRoutes.delete('/albums/:albumId', authMiddleware, requireRole('creato
   if (!existing) return notFound(c, 'Photography album not found')
   if (existing.creatorId !== c.var.user.id) return forbidden(c, 'You cannot delete this album')
   if (!await isPostMemberVisible(db, existing.postId)) return forbidden(c, 'Moderated content cannot be deleted until it is restored')
+  const schedule = await db.select({ status: contentSchedules.status }).from(contentSchedules).where(eq(contentSchedules.postId, existing.postId)).get()
+  if (schedule?.status === 'processing') return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
 
   const count = await db
     .select({ count: sql<number>`count(*)` })
@@ -586,6 +607,7 @@ photographyRoutes.post('/albums/:albumId/photos', authMiddleware, requireRole('c
   if (!album) return notFound(c, 'Photography album not found')
   if (album.creatorId !== c.var.user.id) return forbidden(c, 'You cannot add photos to this album')
   if (!await isPostMemberVisible(db, album.postId)) return forbidden(c, 'Moderated content cannot be edited until it is restored')
+  if (await albumScheduleIsProcessing(db, albumId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
 
   const [maxOrder] = await db
     .select({ value: sql<number>`coalesce(max(${photographyPhotos.displayOrder}), -1)` })
@@ -641,6 +663,7 @@ photographyRoutes.patch('/photos/:photoId', authMiddleware, requireRole('creator
   if (existing.creatorId !== c.var.user.id) return forbidden(c, 'You cannot edit this photo')
   const existingAlbum = await getAlbumById(db, existing.albumId)
   if (!existingAlbum || !await isPostMemberVisible(db, existingAlbum.postId)) return forbidden(c, 'Moderated content cannot be edited until it is restored')
+  if (await albumScheduleIsProcessing(db, existing.albumId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
 
   const preview = fileFromFormData(formData, 'preview')
   const original = fileFromFormData(formData, 'original')
@@ -691,12 +714,15 @@ photographyRoutes.delete('/photos/:photoId', authMiddleware, requireRole('creato
 
   const album = await getAlbumById(db, existing.albumId)
   if (!album || !await isPostMemberVisible(db, album.postId)) return forbidden(c, 'Moderated content cannot be deleted until it is restored')
+  if (await albumScheduleIsProcessing(db, existing.albumId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   await db.delete(photographyPhotos).where(eq(photographyPhotos.id, photoId)).run()
   if (album?.coverPhotoId === photoId) {
-    await db.update(photographyAlbums)
-      .set({ coverPhotoId: null, status: 'draft', publishedAt: null, updatedAt: new Date() })
-      .where(eq(photographyAlbums.id, existing.albumId))
-      .run()
+    await db.batch([
+      db.update(photographyAlbums)
+        .set({ coverPhotoId: null, status: 'draft', publishedAt: null, updatedAt: new Date() })
+        .where(eq(photographyAlbums.id, existing.albumId)),
+      db.update(posts).set({ publishedAt: null }).where(eq(posts.id, album.postId)),
+    ])
   }
   await Promise.all([
     c.env.STORAGE.delete(existing.previewR2Key),
@@ -718,6 +744,7 @@ photographyRoutes.put('/albums/:albumId/order', authMiddleware, requireRole('cre
   if (!album) return notFound(c, 'Photography album not found')
   if (album.creatorId !== c.var.user.id) return forbidden(c, 'You cannot reorder this album')
   if (!await isPostMemberVisible(db, album.postId)) return forbidden(c, 'Moderated content cannot be edited until it is restored')
+  if (await albumScheduleIsProcessing(db, albumId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
 
   const existing = await db
     .select({ id: photographyPhotos.id })
@@ -810,6 +837,7 @@ export async function listPublishedPhotographyForCreator(db: Db, viewerId: strin
     .where(and(
       eq(photographyAlbums.creatorId, creatorId),
       eq(photographyAlbums.status, 'published'),
+      isNotNull(posts.publishedAt),
       eq(posts.moderationStatus, 'active'),
       eq(albumCreators.accountStatus, 'active'),
     ))

@@ -14,6 +14,8 @@ import migration10 from '../../../drizzle/0010_courses.sql?raw'
 import migration11 from '../../../drizzle/0011_admin_dashboard.sql?raw'
 import migration12 from '../../../drizzle/0012_threaded_discussions.sql?raw'
 import migration13 from '../../../drizzle/0013_saved_library.sql?raw'
+import migration14 from '../../../drizzle/0014_content_scheduling.sql?raw'
+import migration15 from '../../../drizzle/0015_creator_discovery.sql?raw'
 import { createDb } from '../db/client'
 import { notifications, users } from '../db/schema'
 import { storeSignInOtp } from '../lib/auth-otp'
@@ -77,6 +79,8 @@ describe('notifications', () => {
     await applyMigration(migration11)
     await applyMigration(migration12)
     await applyMigration(migration13)
+    await applyMigration(migration14)
+    await applyMigration(migration15)
   })
 
   it('dedupes notifications and respects disabled email preferences', async () => {

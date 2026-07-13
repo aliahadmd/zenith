@@ -1,10 +1,11 @@
 import { Hono, type Context } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { and, asc, desc, eq, inArray } from 'drizzle-orm'
+import { and, asc, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import { z } from 'zod'
 import { createDb, type Db } from '../db/client'
 import {
   courseAttachments,
+  contentSchedules,
   courseLessonProgress,
   courseLessons,
   courseModules,
@@ -24,9 +25,9 @@ import {
   zodHook,
 } from '../lib/http'
 import { buildPostExtras, hasCreatorAccess, toUnixSeconds } from '../lib/post-data'
-import { notifySubscribersOfContent } from '../lib/notifications'
 import { attachmentIdParamSchema, postSlugParamSchema } from '../lib/schemas'
 import { generatePostSlug, serializeReplies } from './posts'
+import { PublicationError, publishContent } from '../lib/publication'
 
 export const coursesRoutes = new Hono<HonoEnv>()
 
@@ -322,21 +323,14 @@ async function deleteAttachmentObjects(c: Context<HonoEnv>, rows: Array<{ r2Key:
   }
 }
 
-async function validatePublishableCourse(db: Db, courseId: string) {
-  const lessons = await db
-    .select({ id: courseLessons.id, title: courseLessons.title, markdown: courseLessons.markdown })
-    .from(courseLessons)
-    .where(and(eq(courseLessons.courseId, courseId), eq(courseLessons.status, 'published')))
-    .all()
-  if (lessons.length === 0) return 'Add and publish at least one lesson before publishing the course.'
-
-  const modules = await db
-    .select({ id: courseModules.id })
-    .from(courseModules)
-    .where(eq(courseModules.courseId, courseId))
-    .all()
-  if (modules.length === 0) return 'Add at least one module before publishing the course.'
-  return null
+async function courseScheduleIsProcessing(db: Db, courseId: string) {
+  const row = await db
+    .select({ status: contentSchedules.status })
+    .from(courses)
+    .innerJoin(contentSchedules, eq(contentSchedules.postId, courses.postId))
+    .where(eq(courses.id, courseId))
+    .get()
+  return row?.status === 'processing'
 }
 
 async function validatePublishableLesson(db: Db, lessonId: string) {
@@ -354,22 +348,17 @@ async function validatePublishableLesson(db: Db, lessonId: string) {
 
 async function publishCourse(c: Context<HonoEnv>, course: CourseRow) {
   const db = createDb(c.env.DB)
-  const validationError = await validatePublishableCourse(db, course.id)
-  if (validationError) return errorResponse(c, 422, 'validation_failed', validationError)
-
-  const publishedAt = course.publishedAt ?? new Date()
-  await db.update(courses).set({ status: 'published', publishedAt, updatedAt: new Date() }).where(eq(courses.id, course.id)).run()
-
-  const updated = await getCourseById(db, course.id)
-  if (updated && course.status !== 'published') {
-    await notifySubscribersOfContent(db, c.env, {
-      creatorId: updated.creatorId,
-      contentType: 'course',
-      entityId: updated.id,
-      title: updated.title,
-      targetUrl: `/u/${updated.authorUsername}/course/${updated.slug}`,
-    }, new URL(c.req.url).origin)
+  try {
+    await publishContent(db, c.env, course.postId, { origin: new URL(c.req.url).origin })
+  } catch (error) {
+    if (error instanceof PublicationError) {
+      if (error.code === 'content_moderated' || error.code === 'account_suspended') return forbidden(c, error.message)
+      if (error.code === 'not_found') return notFound(c, error.message)
+      return errorResponse(c, 422, error.code, error.message)
+    }
+    throw error
   }
+  const updated = await getCourseById(db, course.id)
   return c.json({ course: updated ? await getCoursePayload(db, c.var.user.id, updated) : null })
 }
 
@@ -391,7 +380,7 @@ coursesRoutes.post('/', authMiddleware, requireRole('creator'), zValidator('json
   const postId = crypto.randomUUID()
   const slug = await generatePostSlug(db, c.var.user.id, values.title)
 
-  await db.insert(posts).values({ id: postId, authorId: c.var.user.id, kind: 'course', slug, body: values.description ?? '' }).run()
+  await db.insert(posts).values({ id: postId, authorId: c.var.user.id, kind: 'course', slug, body: values.description ?? '', publishedAt: null }).run()
   await db.insert(courses).values({
     id: courseId,
     postId,
@@ -430,6 +419,9 @@ coursesRoutes.patch('/:courseId', authMiddleware, requireRole('creator'), zValid
   const db = createDb(c.env.DB)
   const owned = await requireOwnedCourse(db, courseId, c.var.user.id)
   if ('error' in owned) return owned.error === 'not_found' ? notFound(c, 'Course not found') : forbidden(c, 'You cannot edit this course')
+  if (await courseScheduleIsProcessing(db, courseId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
+  const schedule = await db.select({ status: contentSchedules.status }).from(contentSchedules).where(eq(contentSchedules.postId, owned.course.postId)).get()
+  if (schedule?.status === 'processing') return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   const values = c.req.valid('json')
 
   if (values.status === 'published') return publishCourse(c, owned.course)
@@ -439,7 +431,12 @@ coursesRoutes.patch('/:courseId', authMiddleware, requireRole('creator'), zValid
     ...(values.status === 'draft' ? { status: 'draft', publishedAt: null } : {}),
     updatedAt: new Date(),
   }).where(eq(courses.id, courseId)).run()
-  if (values.description !== undefined) await db.update(posts).set({ body: values.description }).where(eq(posts.id, owned.course.postId)).run()
+  if (values.description !== undefined || values.status === 'draft') {
+    await db.update(posts).set({
+      ...(values.description === undefined ? {} : { body: values.description }),
+      ...(values.status === 'draft' ? { publishedAt: null } : {}),
+    }).where(eq(posts.id, owned.course.postId)).run()
+  }
 
   const updated = await getCourseById(db, courseId)
   return c.json({ course: updated ? await getCoursePayload(db, c.var.user.id, updated) : null })
@@ -456,7 +453,12 @@ coursesRoutes.post('/:courseId/unpublish', authMiddleware, requireRole('creator'
   const db = createDb(c.env.DB)
   const owned = await requireOwnedCourse(db, c.req.valid('param').courseId, c.var.user.id)
   if ('error' in owned) return owned.error === 'not_found' ? notFound(c, 'Course not found') : forbidden(c, 'You cannot edit this course')
-  await db.update(courses).set({ status: 'draft', publishedAt: null, updatedAt: new Date() }).where(eq(courses.id, owned.course.id)).run()
+  const schedule = await db.select({ status: contentSchedules.status }).from(contentSchedules).where(eq(contentSchedules.postId, owned.course.postId)).get()
+  if (schedule?.status === 'processing') return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
+  await db.batch([
+    db.update(courses).set({ status: 'draft', publishedAt: null, updatedAt: new Date() }).where(eq(courses.id, owned.course.id)),
+    db.update(posts).set({ publishedAt: null }).where(eq(posts.id, owned.course.postId)),
+  ])
   const updated = await getCourseById(db, owned.course.id)
   return c.json({ course: updated ? await getCoursePayload(db, c.var.user.id, updated) : null })
 })
@@ -465,6 +467,8 @@ coursesRoutes.delete('/:courseId', authMiddleware, requireRole('creator'), zVali
   const db = createDb(c.env.DB)
   const owned = await requireOwnedCourse(db, c.req.valid('param').courseId, c.var.user.id)
   if ('error' in owned) return owned.error === 'not_found' ? notFound(c, 'Course not found') : forbidden(c, 'You cannot delete this course')
+  const schedule = await db.select({ status: contentSchedules.status }).from(contentSchedules).where(eq(contentSchedules.postId, owned.course.postId)).get()
+  if (schedule?.status === 'processing') return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   const attachments = await db.select({ r2Key: courseAttachments.r2Key, r2UploadId: courseAttachments.r2UploadId }).from(courseAttachments).where(eq(courseAttachments.courseId, owned.course.id)).all()
   await deleteAttachmentObjects(c, attachments)
   await db.delete(courses).where(eq(courses.id, owned.course.id)).run()
@@ -490,6 +494,7 @@ coursesRoutes.patch('/modules/:moduleId', authMiddleware, requireRole('creator')
   if (!module) return notFound(c, 'Module not found')
   const owned = await requireOwnedCourse(db, module.courseId, c.var.user.id)
   if ('error' in owned) return forbidden(c, 'You cannot edit this module')
+  if (await courseScheduleIsProcessing(db, module.courseId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   const values = modulePayloadSchema.partial().safeParse(await c.req.json().catch(() => null))
   if (!values.success) return errorResponse(c, 422, 'validation_failed', 'Invalid module data', { issues: values.error.issues })
   await db.update(courseModules).set({
@@ -505,6 +510,7 @@ coursesRoutes.put('/:courseId/modules/order', authMiddleware, requireRole('creat
   const db = createDb(c.env.DB)
   const owned = await requireOwnedCourse(db, courseId, c.var.user.id)
   if ('error' in owned) return owned.error === 'not_found' ? notFound(c, 'Course not found') : forbidden(c, 'You cannot edit this course')
+  if (await courseScheduleIsProcessing(db, courseId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   const existing = await db.select({ id: courseModules.id }).from(courseModules).where(eq(courseModules.courseId, courseId)).all()
   if (existing.length !== c.req.valid('json').itemIds.length || !existing.every((row) => c.req.valid('json').itemIds.includes(row.id))) return badRequest(c, 'Module order does not match this course')
   for (const [index, id] of c.req.valid('json').itemIds.entries()) await db.update(courseModules).set({ displayOrder: index, updatedAt: new Date() }).where(eq(courseModules.id, id)).run()
@@ -518,6 +524,7 @@ coursesRoutes.delete('/modules/:moduleId', authMiddleware, requireRole('creator'
   if (!module) return notFound(c, 'Module not found')
   const owned = await requireOwnedCourse(db, module.courseId, c.var.user.id)
   if ('error' in owned) return forbidden(c, 'You cannot delete this module')
+  if (await courseScheduleIsProcessing(db, module.courseId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   const lessonIds = await db.select({ id: courseLessons.id }).from(courseLessons).where(eq(courseLessons.moduleId, moduleId)).all()
   const lessonSet = new Set(lessonIds.map((lesson) => lesson.id))
   if (lessonSet.size > 0) {
@@ -535,6 +542,7 @@ coursesRoutes.post('/modules/:moduleId/lessons', authMiddleware, requireRole('cr
   if (!module) return notFound(c, 'Module not found')
   const owned = await requireOwnedCourse(db, module.courseId, c.var.user.id)
   if ('error' in owned) return forbidden(c, 'You cannot edit this module')
+  if (await courseScheduleIsProcessing(db, module.courseId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   const parsed = lessonPayloadSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return errorResponse(c, 422, 'validation_failed', 'Invalid lesson data', { issues: parsed.error.issues })
   if (parsed.data.status === 'published') {
@@ -561,6 +569,7 @@ coursesRoutes.patch('/lessons/:lessonId', authMiddleware, requireRole('creator')
   if (!lesson) return notFound(c, 'Lesson not found')
   const owned = await requireOwnedCourse(db, lesson.courseId, c.var.user.id)
   if ('error' in owned) return forbidden(c, 'You cannot edit this lesson')
+  if (await courseScheduleIsProcessing(db, lesson.courseId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   const parsed = lessonPayloadSchema.partial().safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return errorResponse(c, 422, 'validation_failed', 'Invalid lesson data', { issues: parsed.error.issues })
   if (parsed.data.status === 'published') {
@@ -584,6 +593,7 @@ coursesRoutes.put('/modules/:moduleId/lessons/order', authMiddleware, requireRol
   if (!module) return notFound(c, 'Module not found')
   const owned = await requireOwnedCourse(db, module.courseId, c.var.user.id)
   if ('error' in owned) return forbidden(c, 'You cannot edit this module')
+  if (await courseScheduleIsProcessing(db, module.courseId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   const parsed = orderSchema.safeParse(await c.req.json().catch(() => null))
   if (!parsed.success) return errorResponse(c, 422, 'validation_failed', 'Invalid lesson order', { issues: parsed.error.issues })
   const existing = await db.select({ id: courseLessons.id }).from(courseLessons).where(eq(courseLessons.moduleId, moduleId)).all()
@@ -598,6 +608,7 @@ coursesRoutes.delete('/lessons/:lessonId', authMiddleware, requireRole('creator'
   if (!lesson) return notFound(c, 'Lesson not found')
   const owned = await requireOwnedCourse(db, lesson.courseId, c.var.user.id)
   if ('error' in owned) return forbidden(c, 'You cannot delete this lesson')
+  if (await courseScheduleIsProcessing(db, lesson.courseId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   const attachments = await db.select({ r2Key: courseAttachments.r2Key, r2UploadId: courseAttachments.r2UploadId }).from(courseAttachments).where(eq(courseAttachments.lessonId, lesson.id)).all()
   await deleteAttachmentObjects(c, attachments)
   await db.delete(courseLessons).where(eq(courseLessons.id, lesson.id)).run()
@@ -612,6 +623,7 @@ coursesRoutes.post('/uploads/start', authMiddleware, requireRole('creator'), zVa
   if (!lesson) return notFound(c, 'Lesson not found')
   const owned = await requireOwnedCourse(db, lesson.courseId, c.var.user.id)
   if ('error' in owned) return forbidden(c, 'You cannot upload to this lesson')
+  if (await courseScheduleIsProcessing(db, lesson.courseId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
 
   const expectedPrefix = values.kind === 'video' ? 'video/' : values.kind === 'audio' ? 'audio/' : ''
   if (expectedPrefix && !values.contentType.startsWith(expectedPrefix)) return unsupportedMediaType(c, `Use a ${values.kind} file.`)
@@ -647,6 +659,7 @@ coursesRoutes.put('/uploads/:attachmentId/parts/:partNumber', authMiddleware, re
   const attachment = await db.select().from(courseAttachments).where(eq(courseAttachments.id, attachmentId)).get()
   if (!attachment) return notFound(c, 'Attachment upload not found')
   if (attachment.uploaderId !== c.var.user.id) return forbidden(c, 'You cannot upload this attachment')
+  if (await courseScheduleIsProcessing(db, attachment.courseId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   if (attachment.status !== 'pending' || !attachment.r2UploadId) return conflict(c, 'Attachment upload is no longer active')
   if (!c.req.raw.body) return badRequest(c, 'Missing upload part body')
   const upload = c.env.STORAGE.resumeMultipartUpload(attachment.r2Key, attachment.r2UploadId)
@@ -664,6 +677,7 @@ coursesRoutes.post('/uploads/:attachmentId/complete', authMiddleware, requireRol
   const attachment = await db.select().from(courseAttachments).where(eq(courseAttachments.id, attachmentId)).get()
   if (!attachment) return notFound(c, 'Attachment upload not found')
   if (attachment.uploaderId !== c.var.user.id) return forbidden(c, 'You cannot complete this attachment')
+  if (await courseScheduleIsProcessing(db, attachment.courseId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   if (attachment.status !== 'pending' || !attachment.r2UploadId) return conflict(c, 'Attachment upload is no longer active')
   try {
     const upload = c.env.STORAGE.resumeMultipartUpload(attachment.r2Key, attachment.r2UploadId)
@@ -686,6 +700,7 @@ coursesRoutes.delete('/attachments/:attachmentId', authMiddleware, requireRole('
   const attachment = await db.select().from(courseAttachments).where(eq(courseAttachments.id, c.req.valid('param').attachmentId)).get()
   if (!attachment) return notFound(c, 'Attachment not found')
   if (attachment.uploaderId !== c.var.user.id) return forbidden(c, 'You cannot delete this attachment')
+  if (await courseScheduleIsProcessing(db, attachment.courseId)) return errorResponse(c, 409, 'schedule_processing', 'This content is being published now.')
   await deleteAttachmentObjects(c, [attachment])
   await db.delete(courseAttachments).where(eq(courseAttachments.id, attachment.id)).run()
   return c.json({ ok: true })
@@ -750,7 +765,7 @@ coursesRoutes.put('/lessons/:lessonId/progress', authMiddleware, zValidator('par
 })
 
 export async function listPublishedCoursesForCreator(db: Db, viewerId: string, creatorId: string) {
-  const rows = await db.select({ id: courses.id }).from(courses).where(and(eq(courses.creatorId, creatorId), eq(courses.status, 'published'))).orderBy(desc(courses.publishedAt)).limit(100).all()
+  const rows = await db.select({ id: courses.id }).from(courses).innerJoin(posts, eq(posts.id, courses.postId)).where(and(eq(courses.creatorId, creatorId), eq(courses.status, 'published'), isNotNull(posts.publishedAt))).orderBy(desc(courses.publishedAt)).limit(100).all()
   const result = []
   for (const row of rows) {
     const course = await getCourseById(db, row.id)

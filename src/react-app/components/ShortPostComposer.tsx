@@ -1,13 +1,14 @@
-import { useEffect, useId, useMemo, useRef } from 'react'
+import { useEffect, useId, useMemo, useRef, useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
-import { useMutation, useQueryClient } from '@tanstack/react-query'
+import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import { useForm, useWatch } from 'react-hook-form'
 import { toast } from 'sonner'
-import { BarChart3, ImagePlus, Loader2, Plus, Trash2, X } from 'lucide-react'
+import { BarChart3, CalendarClock, ImagePlus, Loader2, Plus, Trash2, X } from 'lucide-react'
 import { useAuth } from '../context/AuthContext'
-import { createPost, postKeys } from '../lib/posts'
+import { createPost, draftPostQueryOptions, postKeys, updateDraftPost } from '../lib/posts'
 import { richPostSchema, type RichPostFormValues } from '../lib/schemas'
 import { cn } from '../lib/utils'
+import { scheduleKeys } from '../lib/schedules'
 import { Avatar, AvatarFallback, AvatarImage } from './ui/avatar'
 import { Button } from './ui/button'
 import {
@@ -29,6 +30,7 @@ const EMPTY_POLL_OPTIONS: RichPostFormValues['pollOptions'] = []
 type ShortPostComposerProps = {
   open: boolean
   onClose: () => void
+  postId?: string | null
 }
 
 const defaultValues: RichPostFormValues = {
@@ -39,11 +41,15 @@ const defaultValues: RichPostFormValues = {
   pollOptions: [{ value: '' }, { value: '' }],
 }
 
-export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
+export function ShortPostComposer({ open, onClose, postId = null }: ShortPostComposerProps) {
   const queryClient = useQueryClient()
   const { currentUser } = useAuth()
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const imageInputId = useId()
+  const [publishMode, setPublishMode] = useState<'now' | 'schedule'>('now')
+  const [scheduledLocal, setScheduledLocal] = useState('')
+  const [removeAttachmentIds, setRemoveAttachmentIds] = useState<string[]>([])
+  const draftQuery = useQuery({ ...draftPostQueryOptions(postId ?? ''), enabled: Boolean(postId && open) })
   const form = useForm<RichPostFormValues>({
     resolver: zodResolver(richPostSchema),
     defaultValues,
@@ -57,13 +63,13 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
     [images],
   )
   const publishMutation = useMutation({
-    mutationFn: (values: RichPostFormValues) => {
+    mutationFn: ({ values, scheduledFor }: { values: RichPostFormValues; scheduledFor?: string }) => {
       const enabledPollOptions = values.pollEnabled
         ? values.pollOptions.map((option) => option.value.trim()).filter(Boolean)
         : []
 
-      if (values.images.length === 0 && !values.pollEnabled) {
-        return createPost({ body: values.body })
+      if (!postId && values.images.length === 0 && !values.pollEnabled) {
+        return createPost({ body: values.body, scheduledFor })
       }
 
       const formData = new FormData()
@@ -73,10 +79,16 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
         formData.append('pollQuestion', values.pollQuestion)
         formData.append('pollOptions', JSON.stringify(enabledPollOptions))
       }
-      return createPost(formData)
+      if (scheduledFor) formData.append('scheduledFor', scheduledFor)
+      if (postId) formData.append('removeAttachmentIds', JSON.stringify(removeAttachmentIds))
+      return postId ? updateDraftPost(postId, formData) : createPost(formData)
     },
     onSuccess: async () => {
-      await queryClient.invalidateQueries({ queryKey: postKeys.feed })
+      await Promise.all([
+        queryClient.invalidateQueries({ queryKey: postKeys.feed }),
+        queryClient.invalidateQueries({ queryKey: scheduleKeys.all }),
+        ...(postId ? [queryClient.invalidateQueries({ queryKey: postKeys.draft(postId) })] : []),
+      ])
     },
   })
 
@@ -86,31 +98,56 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
     }
   }, [open])
 
+  useEffect(() => {
+    const draft = draftQuery.data?.post
+    if (!open || !draft) return
+    form.reset({
+      body: draft.body,
+      images: [],
+      pollEnabled: Boolean(draft.poll),
+      pollQuestion: draft.poll?.question ?? '',
+      pollOptions: draft.poll?.options.map((option) => ({ value: option.text })) ?? [{ value: '' }, { value: '' }],
+    })
+  }, [draftQuery.data?.post, form, open])
+
   useEffect(() => () => {
     for (const preview of imagePreviews) URL.revokeObjectURL(preview.url)
   }, [imagePreviews])
 
   const remaining = MAX_BODY_LENGTH - body.length
-  const hasContent = body.trim().length > 0 || images.length > 0 || pollEnabled
+  const existingAttachments = (draftQuery.data?.post.attachments ?? []).filter((attachment) => !removeAttachmentIds.includes(attachment.id))
+  const hasContent = body.trim().length > 0 || images.length > 0 || existingAttachments.length > 0 || pollEnabled
   const isPublishDisabled = !hasContent || form.formState.isSubmitting
   const displayName = currentUser?.displayName ?? 'Creator'
   const username = currentUser?.username ?? 'creator'
   const avatarFallback = displayName.slice(0, 2).toUpperCase()
 
   async function handlePublish(values: RichPostFormValues) {
+    let scheduledFor: string | undefined
+    if (!postId && publishMode === 'schedule') {
+      const date = new Date(scheduledLocal)
+      if (!scheduledLocal || !Number.isFinite(date.getTime()) || date.getTime() < Date.now() + 60_000) {
+        toast.error('Choose a publication time at least one minute in the future.')
+        return
+      }
+      scheduledFor = date.toISOString()
+    }
     try {
-      await publishMutation.mutateAsync(values)
+      await publishMutation.mutateAsync({ values, scheduledFor })
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Post failed.')
       return
     }
 
-    toast.success('Post published!')
+    toast.success(postId ? 'Scheduled post updated.' : publishMode === 'schedule' ? 'Post scheduled.' : 'Post published!')
     handleClose()
   }
 
   function handleClose() {
     form.reset(defaultValues)
+    setPublishMode('now')
+    setScheduledLocal('')
+    setRemoveAttachmentIds([])
     onClose()
   }
 
@@ -145,8 +182,8 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
         <DialogHeader className="border-b px-5 py-4 sm:px-6">
           <div className="flex items-start justify-between gap-4">
             <div>
-              <DialogTitle className="font-sans text-base font-semibold">Short post composer</DialogTitle>
-              <DialogDescription>Publish a private update for entitled members.</DialogDescription>
+              <DialogTitle className="font-sans text-base font-semibold">{postId ? 'Edit scheduled post' : 'Short post composer'}</DialogTitle>
+              <DialogDescription>{postId ? 'Changes are used when this post publishes.' : 'Publish a private update for entitled members.'}</DialogDescription>
             </div>
             <Button variant="ghost" size="icon-sm" onClick={handleClose} aria-label="Close composer">
               <X data-icon="inline-start" />
@@ -239,6 +276,16 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
                           ))}
                         </div>
                       )}
+                      {existingAttachments.length > 0 && (
+                        <div className={cn('grid overflow-hidden rounded-xl border', existingAttachments.length === 1 ? 'grid-cols-1' : 'grid-cols-2')}>
+                          {existingAttachments.map((attachment) => (
+                            <div key={attachment.id} className="relative">
+                              <img src={attachment.url} alt={attachment.fileName} className="aspect-video w-full object-cover" />
+                              <Button type="button" variant="secondary" size="icon-sm" className="absolute right-2 top-2 shadow-sm" onClick={() => setRemoveAttachmentIds((ids) => [...ids, attachment.id])} aria-label={`Remove ${attachment.fileName}`}><X /></Button>
+                            </div>
+                          ))}
+                        </div>
+                      )}
                       <FormMessage className="text-xs" />
                     </FormItem>
                   )}
@@ -317,6 +364,19 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
                 {form.formState.errors.root?.message && (
                   <p role="alert" className="text-xs text-destructive">{form.formState.errors.root.message}</p>
                 )}
+                {!postId && publishMode === 'schedule' && (
+                  <div className="grid gap-2 border-t pt-4">
+                    <label htmlFor="post-scheduled-for" className="text-sm font-medium">Publication time</label>
+                    <Input
+                      id="post-scheduled-for"
+                      type="datetime-local"
+                      min={new Date(Date.now() + 60_000 - new Date().getTimezoneOffset() * 60_000).toISOString().slice(0, 16)}
+                      value={scheduledLocal}
+                      onChange={(event) => setScheduledLocal(event.target.value)}
+                    />
+                    <p className="text-xs text-muted-foreground">{Intl.DateTimeFormat().resolvedOptions().timeZone}</p>
+                  </div>
+                )}
               </div>
 
               <div className="sticky bottom-0 flex flex-wrap items-center justify-between gap-3 border-t bg-background/95 px-5 py-4 backdrop-blur sm:px-6">
@@ -329,7 +389,7 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
                     onClick={() => document.getElementById(imageInputId)?.click()}
                   >
                     <ImagePlus data-icon="inline-start" />
-                    {images.length > 0 ? `${images.length} photo${images.length === 1 ? '' : 's'}` : 'Photo'}
+                    {images.length + existingAttachments.length > 0 ? `${images.length + existingAttachments.length} photo${images.length + existingAttachments.length === 1 ? '' : 's'}` : 'Photo'}
                   </Button>
                   <p
                     id="char-count"
@@ -340,6 +400,16 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
                 </div>
 
                 <div className="flex justify-end gap-3">
+                  {!postId && <Button
+                    type="button"
+                    variant={publishMode === 'schedule' ? 'secondary' : 'outline'}
+                    size="sm"
+                    onClick={() => setPublishMode((mode) => mode === 'schedule' ? 'now' : 'schedule')}
+                    disabled={form.formState.isSubmitting}
+                  >
+                    <CalendarClock data-icon="inline-start" />
+                    {publishMode === 'schedule' ? 'Publish now' : 'Schedule'}
+                  </Button>}
                   <Button type="button" variant="outline" size="sm" onClick={handleClose} disabled={form.formState.isSubmitting}>
                     Cancel
                   </Button>
@@ -352,10 +422,10 @@ export function ShortPostComposer({ open, onClose }: ShortPostComposerProps) {
                     {form.formState.isSubmitting ? (
                       <>
                         <Loader2 className="animate-spin" data-icon="inline-start" />
-                        Publishing
+                        {postId ? 'Saving' : publishMode === 'schedule' ? 'Scheduling' : 'Publishing'}
                       </>
                     ) : (
-                      'Publish'
+                      postId ? 'Save changes' : publishMode === 'schedule' ? 'Schedule post' : 'Publish'
                     )}
                   </Button>
                 </div>

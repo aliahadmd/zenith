@@ -6,6 +6,7 @@ import { createDb } from '../db/client'
 import {
   adminMemberships,
   courseAttachments,
+  contentSchedules,
   creatorApplications,
   moderationCases,
   notifications,
@@ -17,6 +18,12 @@ import {
   users,
 } from '../db/schema'
 import { assertOwnerWillRemain, writeAdminAuditLog } from '../lib/admin'
+import {
+  getEligibleCreatorCards,
+  getFeaturedCreatorCards,
+  isEligibleCreator,
+  MAX_FEATURED_CREATORS,
+} from '../lib/discovery'
 import { createNotification } from '../lib/notifications'
 import { badRequest, conflict, forbidden, notFound, zodHook } from '../lib/http'
 import { adminMiddleware, ownerMiddleware } from '../middleware/admin'
@@ -30,6 +37,27 @@ const reportActionSchema = z.object({
   note: z.string().trim().max(1000).optional(),
 })
 const adminRoleSchema = z.object({ role: z.enum(['owner', 'moderator']), reason: reasonSchema })
+const categoryCreateSchema = z.object({
+  name: z.string().trim().min(2).max(60),
+  description: z.string().trim().max(200).optional(),
+  reason: reasonSchema,
+})
+const categoryUpdateSchema = categoryCreateSchema.extend({ active: z.boolean() })
+const categoryOrderSchema = z.object({
+  categoryIds: z.array(z.string().min(1).max(100)).max(100)
+    .refine((ids) => new Set(ids).size === ids.length, 'Category IDs must be unique'),
+  reason: reasonSchema,
+})
+const featuredCreatorsSchema = z.object({
+  creatorIds: z.array(z.string().min(1).max(100)).max(MAX_FEATURED_CREATORS)
+    .refine((ids) => new Set(ids).size === ids.length, 'Featured creators must be unique'),
+  reason: reasonSchema,
+})
+
+function categorySlug(name: string) {
+  return name.normalize('NFKD').replace(/[\u0300-\u036f]/g, '').toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '')
+}
 
 function pagination(c: { req: { query(name: string): string | undefined } }) {
   const page = Math.max(1, Number.parseInt(c.req.query('page') || '1', 10) || 1)
@@ -73,13 +101,15 @@ adminRoutes.get('/overview', async (c) => {
 adminRoutes.get('/health', async (c) => {
   const db = createDb(c.env.DB)
   const dayAgo = Math.floor(Date.now() / 1000) - 86400
-  const [failedEmails, staleUploads, memberships, webhook, pendingApplications, openReports] = await Promise.all([
+  const [failedEmails, staleUploads, memberships, webhook, pendingApplications, openReports, failedSchedules, overdueSchedules] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(notifications).where(and(eq(notifications.emailStatus, 'failed'), sql`${notifications.createdAt} >= ${dayAgo}`)).get(),
     db.select({ count: sql<number>`count(*)` }).from(courseAttachments).where(and(eq(courseAttachments.status, 'pending'), sql`${courseAttachments.createdAt} < ${dayAgo}`)).get(),
     db.select({ count: sql<number>`count(*)` }).from(subscriptionMemberships).where(sql`${subscriptionMemberships.status} in ('past_due', 'incomplete')`).get(),
     db.select({ processedAt: paymentWebhookEvents.processedAt }).from(paymentWebhookEvents).orderBy(sql`${paymentWebhookEvents.processedAt} desc`).limit(1).get(),
     db.select({ count: sql<number>`count(*)` }).from(creatorApplications).where(eq(creatorApplications.status, 'pending')).get(),
     db.select({ count: sql<number>`count(*)` }).from(moderationCases).where(sql`${moderationCases.status} in ('open', 'reviewing')`).get(),
+    db.select({ count: sql<number>`count(*)` }).from(contentSchedules).where(eq(contentSchedules.status, 'failed')).get(),
+    db.select({ count: sql<number>`count(*)` }).from(contentSchedules).where(and(eq(contentSchedules.status, 'pending'), sql`${contentSchedules.nextAttemptAt} < unixepoch() - 300`)).get(),
   ])
 
   const signals = {
@@ -87,6 +117,10 @@ adminRoutes.get('/health', async (c) => {
     failedNotificationEmails: { status: Number(failedEmails?.count ?? 0) ? 'attention' as const : 'healthy' as const, value: Number(failedEmails?.count ?? 0) },
     staleCourseUploads: { status: Number(staleUploads?.count ?? 0) ? 'attention' as const : 'healthy' as const, value: Number(staleUploads?.count ?? 0) },
     incompleteMemberships: { status: Number(memberships?.count ?? 0) ? 'attention' as const : 'healthy' as const, value: Number(memberships?.count ?? 0) },
+    contentSchedules: {
+      status: Number(failedSchedules?.count ?? 0) + Number(overdueSchedules?.count ?? 0) ? 'attention' as const : 'healthy' as const,
+      value: { failed: Number(failedSchedules?.count ?? 0), overdue: Number(overdueSchedules?.count ?? 0) },
+    },
     stripeWebhooks: webhook ? { status: 'healthy' as const, value: webhook.processedAt } : { status: 'no_data' as const, value: null },
     reviewWorkload: {
       status: Number(pendingApplications?.count ?? 0) + Number(openReports?.count ?? 0) > 20 ? 'attention' as const : 'healthy' as const,
@@ -289,6 +323,116 @@ adminRoutes.post('/users/:id/revoke-sessions', zValidator('json', decisionSchema
   await db.delete(session).where(eq(session.userId, user.id)).run()
   await writeAdminAuditLog(db, { actorId: c.var.user.id, action: 'sessions_revoked', targetType: 'user', targetId: user.id, reason })
   return c.json({ revoked: true })
+})
+
+adminRoutes.get('/discovery/categories', ownerMiddleware, async (c) => {
+  const rows = await c.env.DB.prepare(`SELECT c.id, c.slug, c.name, c.description,
+    c.display_order AS displayOrder, c.active, count(cc.creator_id) AS assignmentCount
+    FROM discovery_categories c LEFT JOIN creator_categories cc ON cc.category_id = c.id
+    GROUP BY c.id ORDER BY c.display_order, lower(c.name)`).all()
+  return c.json({ categories: rows.results })
+})
+
+adminRoutes.post('/discovery/categories', ownerMiddleware, zValidator('json', categoryCreateSchema, zodHook), async (c) => {
+  const input = c.req.valid('json')
+  const slug = categorySlug(input.name)
+  if (!slug) return badRequest(c, 'Category name must contain letters or numbers')
+  const duplicate = await c.env.DB.prepare('SELECT id FROM discovery_categories WHERE lower(name) = lower(?) OR slug = ?')
+    .bind(input.name, slug).first<{ id: string }>()
+  if (duplicate) return conflict(c, 'A category with this name or slug already exists')
+  const order = await c.env.DB.prepare('SELECT coalesce(max(display_order), -1) + 1 AS nextOrder FROM discovery_categories')
+    .first<{ nextOrder: number }>()
+  const id = crypto.randomUUID()
+  await c.env.DB.prepare(`INSERT INTO discovery_categories
+    (id, slug, name, description, display_order) VALUES (?, ?, ?, ?, ?)`)
+    .bind(id, slug, input.name, input.description || null, Number(order?.nextOrder ?? 0)).run()
+  await writeAdminAuditLog(createDb(c.env.DB), {
+    actorId: c.var.user.id,
+    action: 'discovery_category_created',
+    targetType: 'discovery_category',
+    targetId: id,
+    reason: input.reason,
+    metadata: { name: input.name, slug },
+  })
+  return c.json({ id, slug, name: input.name }, 201)
+})
+
+adminRoutes.put('/discovery/categories/order', ownerMiddleware, zValidator('json', categoryOrderSchema, zodHook), async (c) => {
+  const input = c.req.valid('json')
+  const total = await c.env.DB.prepare('SELECT count(*) AS count FROM discovery_categories').first<{ count: number }>()
+  if (input.categoryIds.length !== Number(total?.count ?? 0)) return badRequest(c, 'The complete category order is required')
+  if (input.categoryIds.length > 0) {
+    const placeholders = input.categoryIds.map(() => '?').join(',')
+    const matches = await c.env.DB.prepare(`SELECT count(*) AS count FROM discovery_categories WHERE id IN (${placeholders})`)
+      .bind(...input.categoryIds).first<{ count: number }>()
+    if (Number(matches?.count ?? 0) !== input.categoryIds.length) return badRequest(c, 'Category order contains an unknown category')
+  }
+  await c.env.DB.batch(input.categoryIds.map((id, index) => c.env.DB
+    .prepare('UPDATE discovery_categories SET display_order = ?, updated_at = unixepoch() WHERE id = ?')
+    .bind(index, id)))
+  await writeAdminAuditLog(createDb(c.env.DB), {
+    actorId: c.var.user.id,
+    action: 'discovery_categories_reordered',
+    targetType: 'discovery_category',
+    targetId: 'all',
+    reason: input.reason,
+    metadata: { categoryIds: input.categoryIds },
+  })
+  return c.json({ categoryIds: input.categoryIds })
+})
+
+adminRoutes.put('/discovery/categories/:id', ownerMiddleware, zValidator('json', categoryUpdateSchema, zodHook), async (c) => {
+  const input = c.req.valid('json')
+  const category = await c.env.DB.prepare('SELECT id, slug, name, active FROM discovery_categories WHERE id = ?')
+    .bind(c.req.param('id')).first<{ id: string; slug: string; name: string; active: number }>()
+  if (!category) return notFound(c, 'Discovery category not found')
+  const duplicate = await c.env.DB.prepare('SELECT id FROM discovery_categories WHERE lower(name) = lower(?) AND id <> ?')
+    .bind(input.name, category.id).first<{ id: string }>()
+  if (duplicate) return conflict(c, 'A category with this name already exists')
+  await c.env.DB.prepare(`UPDATE discovery_categories SET name = ?, description = ?, active = ?, updated_at = unixepoch()
+    WHERE id = ?`).bind(input.name, input.description || null, input.active ? 1 : 0, category.id).run()
+  await writeAdminAuditLog(createDb(c.env.DB), {
+    actorId: c.var.user.id,
+    action: 'discovery_category_updated',
+    targetType: 'discovery_category',
+    targetId: category.id,
+    reason: input.reason,
+    metadata: { previous: { name: category.name, active: Boolean(category.active) }, next: { name: input.name, active: input.active } },
+  })
+  return c.json({ id: category.id, slug: category.slug, name: input.name, active: input.active })
+})
+
+adminRoutes.get('/discovery/eligible-creators', ownerMiddleware, async (c) => {
+  const query = (c.req.query('q') || '').trim().slice(0, 100)
+  return c.json({ creators: await getEligibleCreatorCards(c.env.DB, c.var.user.id, query, 20) })
+})
+
+adminRoutes.get('/discovery/featured', ownerMiddleware, async (c) => {
+  return c.json({ creators: await getFeaturedCreatorCards(c.env.DB, c.var.user.id) })
+})
+
+adminRoutes.put('/discovery/featured', ownerMiddleware, zValidator('json', featuredCreatorsSchema, zodHook), async (c) => {
+  const input = c.req.valid('json')
+  for (const creatorId of input.creatorIds) {
+    if (!await isEligibleCreator(c.env.DB, creatorId)) return badRequest(c, 'Every featured account must be an eligible creator')
+  }
+  const previous = await c.env.DB.prepare('SELECT creator_id AS creatorId FROM featured_creators ORDER BY display_order')
+    .all<{ creatorId: string }>()
+  const statements = [c.env.DB.prepare('DELETE FROM featured_creators')]
+  input.creatorIds.forEach((creatorId, index) => {
+    statements.push(c.env.DB.prepare(`INSERT INTO featured_creators
+      (creator_id, display_order, featured_by) VALUES (?, ?, ?)`).bind(creatorId, index, c.var.user.id))
+  })
+  await c.env.DB.batch(statements)
+  await writeAdminAuditLog(createDb(c.env.DB), {
+    actorId: c.var.user.id,
+    action: 'featured_creators_replaced',
+    targetType: 'featured_creators',
+    targetId: 'platform',
+    reason: input.reason,
+    metadata: { previous: previous.results.map((row) => row.creatorId), next: input.creatorIds },
+  })
+  return c.json({ creatorIds: input.creatorIds })
 })
 
 adminRoutes.get('/audit-log', async (c) => {

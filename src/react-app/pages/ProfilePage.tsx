@@ -63,6 +63,7 @@ type ProfileData = {
   avatarUrl: string | null
   socialLinks: string | null
   profileTabs: ProfileTabSetting[] | null
+  categories: Array<{ id: string; slug: string; name: string }>
 }
 
 type Subscription = {
@@ -280,6 +281,11 @@ export function ProfilePage({ username }: { username: string }) {
             <p className="text-muted-foreground">@{profile.username}</p>
             {profile.tagline && (
               <p className="mt-3 max-w-prose text-sm leading-6">{profile.tagline}</p>
+            )}
+            {(profile.categories ?? []).length > 0 && (
+              <div className="mt-3 flex flex-wrap gap-1.5">
+                {(profile.categories ?? []).map((category) => <Badge key={category.id} variant="outline">{category.name}</Badge>)}
+              </div>
             )}
           </div>
           {!isOwnProfile ? <ReportDialog targetType="user" targetId={profile.id} /> : null}

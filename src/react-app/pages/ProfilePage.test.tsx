@@ -151,6 +151,7 @@ describe('ProfilePage', () => {
         role: 'creator',
         tagline: 'Design notes and field guides.',
         avatarUrl: null,
+        categories: [{ id: 'cat-design', slug: 'design', name: 'Art & Design' }],
         profileTabs: null,
         socialLinks: JSON.stringify({
           github: 'https://github.com/creatorone',
@@ -181,6 +182,11 @@ describe('ProfilePage', () => {
       'https://creator.example',
     )
     expect(screen.queryByRole('link', { name: 'github' })).not.toBeInTheDocument()
+  })
+
+  it('shows public creator category tags', async () => {
+    renderProfilePage()
+    expect(await screen.findByText('Art & Design')).toBeInTheDocument()
   })
 
   it('adds creator posts, photography, audio, and subscribers tabs', async () => {

@@ -6,6 +6,7 @@ import {
   ArrowDown,
   ArrowUp,
   BookOpenCheck,
+  CalendarClock,
   File,
   FileAudio,
   FileVideo,
@@ -18,6 +19,7 @@ import {
 } from 'lucide-react'
 import { toast } from 'sonner'
 import { StudioLayout } from '../components/StudioLayout'
+import { ScheduleDialog } from '../components/ScheduleDialog'
 import { Badge } from '../components/ui/badge'
 import { Button } from '../components/ui/button'
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
@@ -162,6 +164,7 @@ function CourseEditor({ course }: { course: CourseSummary }) {
   const [newModuleTitle, setNewModuleTitle] = useState('')
   const [newLessonTitles, setNewLessonTitles] = useState<Record<string, string>>({})
   const [uploadProgress, setUploadProgress] = useState<{ lessonId: string; percent: number } | null>(null)
+  const [scheduleOpen, setScheduleOpen] = useState(false)
 
   const selectedLesson = useMemo(() => course.modules?.flatMap((module) => module.lessons).find((lesson) => lesson.id === selectedLessonId) ?? null, [course, selectedLessonId])
   const invalidate = () => queryClient.invalidateQueries({ queryKey: courseKeys.mine })
@@ -199,7 +202,7 @@ function CourseEditor({ course }: { course: CourseSummary }) {
     <StudioLayout
       title="Edit course"
       description="Save drafts while you build. Publish when the course has ready lessons."
-      action={<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}><Save data-icon="inline-start" /> Save draft</Button><Button type="button" onClick={() => publishMutation.mutate()} disabled={publishMutation.isPending}>{publishMutation.isPending ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Send data-icon="inline-start" />}{course.status === 'published' ? 'Move to draft' : 'Publish'}</Button></div>}
+      action={<div className="flex flex-wrap gap-2"><Button type="button" variant="outline" onClick={() => saveMutation.mutate()} disabled={saveMutation.isPending}><Save data-icon="inline-start" /> Save draft</Button>{course.status === 'draft' && <Button type="button" variant="outline" onClick={() => setScheduleOpen(true)}><CalendarClock data-icon="inline-start" /> Schedule</Button>}<Button type="button" onClick={() => publishMutation.mutate()} disabled={publishMutation.isPending}>{publishMutation.isPending ? <Loader2 data-icon="inline-start" className="animate-spin" /> : <Send data-icon="inline-start" />}{course.status === 'published' ? 'Move to draft' : 'Publish'}</Button></div>}
       contentClassName="max-w-5xl"
     >
       <div className="grid gap-6 xl:grid-cols-[minmax(0,1fr)_20rem]">
@@ -266,6 +269,7 @@ function CourseEditor({ course }: { course: CourseSummary }) {
           </Card>
         </aside>
       </div>
+      <ScheduleDialog postId={course.postId} open={scheduleOpen} onOpenChange={setScheduleOpen} onScheduled={invalidate} />
     </StudioLayout>
   )
 }

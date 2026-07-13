@@ -26,6 +26,7 @@ export type NotificationType =
   | 'content_restored'
   | 'account_suspended'
   | 'account_restored'
+  | 'content_schedule_failed'
 
 export type NotificationPreferencesInput = {
   emailEnabled: boolean
@@ -297,6 +298,33 @@ export async function notifySubscribersOfContent(
       dedupeKey: `content:${input.contentType}:${input.entityId}:recipient:${row.subscriberId}`,
     }, origin)
   }
+}
+
+export async function notifyCreatorOfScheduleFailure(
+  db: Db,
+  env: Env,
+  input: {
+    creatorId: string
+    postId: string
+    revision: number
+    title: string
+    reason: string
+  },
+  origin?: string,
+) {
+  await safeCreateNotification(db, env, {
+    recipientId: input.creatorId,
+    type: 'content_schedule_failed',
+    category: 'account',
+    title: `Scheduled publication failed: ${input.title}`,
+    body: input.reason,
+    targetUrl: '/studio/scheduled',
+    entityType: 'content_schedule',
+    entityId: input.postId,
+    metadata: { postId: input.postId, revision: input.revision },
+    dedupeKey: `content-schedule:${input.postId}:revision:${input.revision}:failed`,
+    forceEmail: true,
+  }, origin)
 }
 
 export async function notifyUserOfReply(

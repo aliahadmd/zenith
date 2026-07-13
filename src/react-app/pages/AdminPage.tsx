@@ -7,6 +7,7 @@ import {
   ChevronLeft,
   ChevronRight,
   ClipboardCheck,
+  Compass,
   ExternalLink,
   FileClock,
   HeartPulse,
@@ -64,6 +65,7 @@ import {
   TableRow,
 } from "../components/ui/table";
 import { Textarea } from "../components/ui/textarea";
+import { AdminDiscoveryPanel } from "../components/AdminDiscoveryPanel";
 
 export type AdminSection =
   | "overview"
@@ -72,7 +74,8 @@ export type AdminSection =
   | "users"
   | "health"
   | "audit"
-  | "administrators";
+  | "administrators"
+  | "discovery";
 
 const sections: Array<{
   key: AdminSection;
@@ -84,6 +87,7 @@ const sections: Array<{
   { key: "applications", label: "Creator Applications", icon: ClipboardCheck },
   { key: "reports", label: "Reports", icon: FileClock },
   { key: "users", label: "Users", icon: Users },
+  { key: "discovery", label: "Discovery", icon: Compass, ownerOnly: true },
   { key: "health", label: "Platform Health", icon: HeartPulse },
   { key: "audit", label: "Audit Log", icon: ShieldCheck },
   {
@@ -304,6 +308,7 @@ export function AdminPage({ section }: { section: AdminSection }) {
           {section === "applications" ? <Applications /> : null}
           {section === "reports" ? <Reports /> : null}
           {section === "users" ? <UsersPage /> : null}
+          {section === "discovery" && currentUser?.adminRole === "owner" ? <AdminDiscoveryPanel /> : null}
           {section === "health" ? <Health /> : null}
           {section === "audit" ? <AuditLog /> : null}
           {section === "administrators" &&
