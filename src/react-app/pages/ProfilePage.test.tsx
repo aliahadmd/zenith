@@ -259,16 +259,18 @@ describe('ProfilePage', () => {
       if (path.endsWith('/options')) {
         return {
           plan: {
+            id: null,
             name: 'Membership',
             description: '',
-            freePermanentEnabled: false,
-            freeTrialEnabled: false,
+            mode: 'disabled',
+            revision: 0,
             freeTrialDays: null,
-            paidEnabled: false,
             prices: { monthly: null, yearly: null },
-            currency: 'USD',
+            currency: 'usd',
+            sandbox: true,
           },
           viewerMembership: null,
+          trialAvailable: false,
         }
       }
       throw new Error(`Unexpected request: ${path}`)

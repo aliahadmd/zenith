@@ -16,6 +16,7 @@ import migration12 from '../../../drizzle/0012_threaded_discussions.sql?raw'
 import migration13 from '../../../drizzle/0013_saved_library.sql?raw'
 import migration14 from '../../../drizzle/0014_content_scheduling.sql?raw'
 import migration15 from '../../../drizzle/0015_creator_discovery.sql?raw'
+import migration16 from '../../../drizzle/0016_stripe_membership_modes.sql?raw'
 import { createDb } from '../db/client'
 import { subscriptionMemberships, users } from '../db/schema'
 import { storeSignInOtp } from '../lib/auth-otp'
@@ -51,7 +52,7 @@ async function registerUser(prefix: string) {
 
 describe('courses routes', () => {
   beforeAll(async () => {
-    for (const migration of [migration0, migration1, migration2, migration3, migration4, migration5, migration6, migration7, migration8, migration9, migration10, migration11, migration12, migration13, migration14, migration15]) {
+    for (const migration of [migration0, migration1, migration2, migration3, migration4, migration5, migration6, migration7, migration8, migration9, migration10, migration11, migration12, migration13, migration14, migration15, migration16]) {
       await applyMigration(migration)
     }
   })

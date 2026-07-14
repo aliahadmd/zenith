@@ -26,6 +26,7 @@ import {
   photographyPhotoPreviewUrl,
   toUnixSeconds,
 } from '../lib/post-data'
+import { membershipEntitlementSql } from '../lib/memberships'
 
 export const libraryRoutes = new Hono<HonoEnv>()
 
@@ -44,7 +45,7 @@ function currentAccessSql(viewerId: string, now: number) {
     SELECT 1 FROM subscription_memberships sm
     WHERE sm.subscriber_id = ${viewerId}
       AND sm.creator_id = ${posts.authorId}
-      AND (sm.status = 'active' OR (sm.status = 'trialing' AND sm.trial_ends_at > ${now}))
+      AND ${membershipEntitlementSql('sm', now)}
   ) THEN 1 ELSE 0 END`
 }
 

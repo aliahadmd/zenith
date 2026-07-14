@@ -7,10 +7,11 @@ export type ConnectedAccountSnapshot = {
   provider: PaymentProviderName
   providerAccountId: string
   status: ConnectedAccountStatus
-  chargesEnabled: boolean
+  transfersEnabled: boolean
   payoutsEnabled: boolean
   detailsSubmitted: boolean
   requirementsDue: string[]
+  sandbox: true
 }
 
 export type ProviderPrice = {
@@ -21,14 +22,22 @@ export type ProviderPrice = {
   currency: string
 }
 
-export type CreatePricesInput = {
+export type ProductInput = {
   creatorId: string
-  displayName: string
+  productId?: string | null
   planName: string
   description?: string
-  monthlyAmountCents: number
-  yearlyAmountCents: number
+  revision: number
+}
+
+export type PriceInput = {
+  creatorId: string
+  planId: string
+  productId: string
+  interval: MembershipInterval
+  amountCents: number
   currency: 'usd'
+  revision: number
 }
 
 export type CheckoutSessionInput = {
@@ -38,10 +47,12 @@ export type CheckoutSessionInput = {
   customerId: string
   connectedAccountId: string
   priceId: string
+  planPriceId: string
   interval: MembershipInterval
   successUrl: string
   cancelUrl: string
   platformFeeBps: number
+  idempotencyKey: string
 }
 
 export type CheckoutSessionResult = {
@@ -67,10 +78,9 @@ export type PayoutSummary = {
 
 export interface PaymentProvider {
   readonly name: PaymentProviderName
+  verifySandboxConfiguration(): Promise<{ accountId: string; sandbox: true }>
   createConnectedAccount(input: {
     creatorId: string
-    email: string
-    displayName: string
   }): Promise<ConnectedAccountSnapshot>
   retrieveConnectedAccount(providerAccountId: string): Promise<ConnectedAccountSnapshot>
   createOnboardingLink(input: {
@@ -79,10 +89,13 @@ export interface PaymentProvider {
     returnUrl: string
   }): Promise<{ url: string }>
   createDashboardLink(providerAccountId: string): Promise<{ url: string }>
-  createPrices(input: CreatePricesInput): Promise<ProviderPrice[]>
-  createCustomer(input: { userId: string; email: string; displayName: string }): Promise<{ id: string }>
+  upsertProduct(input: ProductInput): Promise<{ id: string }>
+  createPrice(input: PriceInput): Promise<ProviderPrice>
+  archivePrice(providerPriceId: string): Promise<void>
+  createCustomer(input: { userId: string }): Promise<{ id: string }>
   createCheckoutSession(input: CheckoutSessionInput): Promise<CheckoutSessionResult>
+  createCustomerPortalSession(input: { customerId: string; returnUrl: string }): Promise<{ url: string }>
+  cancelSubscriptionAtPeriodEnd(providerSubscriptionId: string): Promise<{ cancelAt: number | null }>
   retrieveBalance(providerAccountId: string): Promise<ConnectedBalance>
   listPayouts(providerAccountId: string): Promise<PayoutSummary[]>
 }
-

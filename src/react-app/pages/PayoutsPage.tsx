@@ -89,24 +89,30 @@ export function PayoutsPage() {
   return (
     <StudioLayout
       title="Money"
-      description="Track subscription revenue, payout readiness, and paying members."
+      description="Track simulated revenue, balances, and test payouts."
       action={
-        <Button
-          type="button"
-          variant={stripeReady ? 'default' : 'outline'}
-          className="normal-case tracking-normal"
-          disabled={!analytics.account.providerAccountId || dashboardMutation.isPending}
-          onClick={() => dashboardMutation.mutate()}
-        >
-          {dashboardMutation.isPending ? (
-            <Loader2 data-icon="inline-start" className="animate-spin" />
-          ) : (
-            <ExternalLink data-icon="inline-start" />
-          )}
-          Open Stripe Dashboard
-        </Button>
+        <div className="flex items-center gap-2">
+          <Badge variant="secondary" className="normal-case tracking-normal">Test mode</Badge>
+          <Button
+            type="button"
+            variant={stripeReady ? 'default' : 'outline'}
+            className="normal-case tracking-normal"
+            disabled={!analytics.account.providerAccountId || dashboardMutation.isPending}
+            onClick={() => dashboardMutation.mutate()}
+          >
+            {dashboardMutation.isPending ? (
+              <Loader2 data-icon="inline-start" className="animate-spin" />
+            ) : (
+              <ExternalLink data-icon="inline-start" />
+            )}
+            Express Dashboard
+          </Button>
+        </div>
       }
     >
+      <div className="rounded-md border bg-muted/30 px-4 py-3 text-sm text-muted-foreground">
+        All balances, revenue, and payouts on this page are simulated in the Zenith Stripe Sandbox.
+      </div>
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <MetricCard label="Available balance" value={formatCurrency(analytics.balance.availableCents, currency)} />
         <MetricCard label="Pending balance" value={formatCurrency(analytics.balance.pendingCents, currency)} />

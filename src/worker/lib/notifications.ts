@@ -1,4 +1,4 @@
-import { and, eq, gt, or } from 'drizzle-orm'
+import { and, eq } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import {
   notificationPreferences,
@@ -9,6 +9,7 @@ import {
   type NotificationPreference,
 } from '../db/schema'
 import { absoluteEmailUrl, hasTransactionalEmail, sendTransactionalEmail } from './email'
+import { membershipEntitlementCondition } from './memberships'
 
 export type NotificationCategory = 'content' | 'interaction' | 'subscription' | 'account'
 
@@ -267,10 +268,7 @@ export async function notifySubscribersOfContent(
     .from(subscriptionMemberships)
     .where(and(
       eq(subscriptionMemberships.creatorId, input.creatorId),
-      or(
-        eq(subscriptionMemberships.status, 'active'),
-        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, nowSeconds())),
-      ),
+      membershipEntitlementCondition(),
     ))
     .all()
 

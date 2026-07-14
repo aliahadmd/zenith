@@ -16,11 +16,12 @@ import { normalizeCreatorAllItems, shuffleCreatorAllItems, type CreatorAllItem }
 import { cn } from '../lib/utils'
 import { defaultProfileTabs, type ProfileTabKey, type ProfileTabSetting } from '../lib/profile-tabs'
 import {
+  cancelFreeMembership,
   formatCurrency,
   formatUnixDate,
+  openBillingPortal,
   paymentKeys,
-  startCheckout,
-  subscribeFree,
+  startMembership,
   subscriptionOptionsQueryOptions,
   type SubscriptionOptionsResponse,
 } from '../lib/payments'
@@ -34,7 +35,7 @@ import {
   DropdownMenuTrigger,
 } from '../components/ui/dropdown-menu'
 import { Badge } from '../components/ui/badge'
-import { Card, CardContent, CardDescription, CardFooter, CardHeader, CardTitle } from '../components/ui/card'
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '../components/ui/card'
 import { Button } from '../components/ui/button'
 import {
   Dialog,
@@ -45,6 +46,7 @@ import {
   DialogTitle,
 } from '../components/ui/dialog'
 import { Skeleton } from '../components/ui/skeleton'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '../components/ui/select'
 import { LoadingBlock } from '../components/LoadingBlock'
 import { ArticleCard } from '../components/ArticleCard'
 import { AudioCard } from '../components/AudioCard'
@@ -98,7 +100,7 @@ type CreatorPostsResponse = {
 export function ProfilePage({ username }: { username: string }) {
   const { currentUser } = useAuth()
   const queryClient = useQueryClient()
-  const [pendingFreeKind, setPendingFreeKind] = useState<'free' | 'trial' | null>(null)
+  const [confirmingMembership, setConfirmingMembership] = useState(false)
   const [allVisitToken, setAllVisitToken] = useState(0)
 
   const isOwnProfile = currentUser?.username === username
@@ -158,9 +160,13 @@ export function ProfilePage({ username }: { username: string }) {
     username,
     Boolean(isCreatorProfile && !isOwnProfile),
   ))
-  const freeSubscribeMutation = useMutation({
-    mutationFn: subscribeFree,
-    onSuccess: async () => {
+  const membershipMutation = useMutation({
+    mutationFn: startMembership,
+    onSuccess: async (result) => {
+      if (result.kind === 'checkout') {
+        window.location.href = result.url
+        return
+      }
       await Promise.all([
                 queryClient.invalidateQueries({ queryKey: paymentKeys.subscriptionOptions(username) }),
                 queryClient.invalidateQueries({ queryKey: ['feed'] }),
@@ -169,21 +175,29 @@ export function ProfilePage({ username }: { username: string }) {
                 queryClient.invalidateQueries({ queryKey: audioKeys.profile(username) }),
                 queryClient.invalidateQueries({ queryKey: courseKeys.creator(username) }),
       ])
-      setPendingFreeKind(null)
-      toast.success('Subscription activated.')
+      setConfirmingMembership(false)
+      toast.success('Membership activated.')
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Subscription could not be activated.')
+      toast.error(error instanceof Error ? error.message : 'Membership could not be activated.')
     },
   })
-  const checkoutMutation = useMutation({
-    mutationFn: startCheckout,
+  const portalMutation = useMutation({
+    mutationFn: openBillingPortal,
     onSuccess: ({ url }) => {
       window.location.href = url
     },
     onError: (error) => {
-      toast.error(error instanceof Error ? error.message : 'Checkout could not be started.')
+      toast.error(error instanceof Error ? error.message : 'Billing management could not be opened.')
     },
+  })
+  const cancelMembershipMutation = useMutation({
+    mutationFn: cancelFreeMembership,
+    onSuccess: async () => {
+      await queryClient.invalidateQueries({ queryKey: paymentKeys.subscriptionOptions(username) })
+      toast.success('Membership ended.')
+    },
+    onError: (error) => toast.error(error instanceof Error ? error.message : 'Membership could not be ended.'),
   })
 
   const allItems = useMemo(() => normalizeCreatorAllItems({
@@ -236,9 +250,16 @@ export function ProfilePage({ username }: { username: string }) {
       options={subscriptionOptionsQuery.data}
       isLoading={subscriptionOptionsQuery.isPending}
       error={subscriptionOptionsQuery.isError ? subscriptionOptionsQuery.error.message : null}
-      onChooseFree={setPendingFreeKind}
-      onChoosePaid={(interval) => checkoutMutation.mutate({ creatorId: profile.id, interval })}
-      isStartingCheckout={checkoutMutation.isPending}
+      onSubscribe={(interval) => {
+        if (subscriptionOptionsQuery.data?.plan.mode === 'paid') {
+          membershipMutation.mutate({ creatorId: profile.id, interval })
+        } else {
+          setConfirmingMembership(true)
+        }
+      }}
+      onManage={() => portalMutation.mutate(profile.id)}
+      onCancel={() => cancelMembershipMutation.mutate(profile.id)}
+      isPending={membershipMutation.isPending || portalMutation.isPending || cancelMembershipMutation.isPending}
     />
   ) : null
   const selectProfileTab = (tab: ProfileTabKey) => {
@@ -473,11 +494,11 @@ export function ProfilePage({ username }: { username: string }) {
         </aside>
       )}
 
-      <Dialog open={pendingFreeKind !== null} onOpenChange={(open) => !open && setPendingFreeKind(null)}>
+      <Dialog open={confirmingMembership} onOpenChange={setConfirmingMembership}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>
-              {pendingFreeKind === 'trial' ? 'Start free trial?' : 'Start free subscription?'}
+              {subscriptionOptionsQuery.data?.plan.mode === 'free_trial' ? 'Start free trial?' : 'Join this creator?'}
             </DialogTitle>
             <DialogDescription>
               This will add the creator to your feed immediately without opening Stripe Checkout.
@@ -488,20 +509,17 @@ export function ProfilePage({ username }: { username: string }) {
               type="button"
               variant="outline"
               className="normal-case tracking-normal"
-              onClick={() => setPendingFreeKind(null)}
+              onClick={() => setConfirmingMembership(false)}
             >
               Cancel
             </Button>
             <Button
               type="button"
               className="normal-case tracking-normal"
-              disabled={!pendingFreeKind || freeSubscribeMutation.isPending}
-              onClick={() => {
-                if (!pendingFreeKind) return
-                freeSubscribeMutation.mutate({ creatorId: profile.id, kind: pendingFreeKind })
-              }}
+              disabled={membershipMutation.isPending}
+              onClick={() => membershipMutation.mutate({ creatorId: profile.id })}
             >
-              {freeSubscribeMutation.isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
+              {membershipMutation.isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
               Confirm
             </Button>
           </DialogFooter>
@@ -1053,17 +1071,21 @@ function SubscriptionOptionsCard({
   options,
   isLoading,
   error,
-  onChooseFree,
-  onChoosePaid,
-  isStartingCheckout,
+  onSubscribe,
+  onManage,
+  onCancel,
+  isPending,
 }: {
   options: SubscriptionOptionsResponse | undefined
   isLoading: boolean
   error: string | null
-  onChooseFree: (kind: 'free' | 'trial') => void
-  onChoosePaid: (interval: 'monthly' | 'yearly') => void
-  isStartingCheckout: boolean
+  onSubscribe: (interval?: 'monthly' | 'yearly') => void
+  onManage: () => void
+  onCancel: () => void
+  isPending: boolean
 }) {
+  const [interval, setInterval] = useState<'monthly' | 'yearly'>('monthly')
+
   if (isLoading) {
     return (
       <Card size="sm">
@@ -1089,7 +1111,9 @@ function SubscriptionOptionsCard({
   if (!options) return null
 
   const { plan, viewerMembership } = options
-  const hasOptions = plan.freePermanentEnabled || plan.freeTrialEnabled || plan.paidEnabled
+  const hasOptions = plan.mode !== 'disabled'
+  const selectedPrice = plan.prices[interval]
+  const trialUnavailable = plan.mode === 'free_trial' && !options.trialAvailable
 
   return (
     <Card size="sm">
@@ -1114,66 +1138,57 @@ function SubscriptionOptionsCard({
           </div>
         )}
 
-        {!hasOptions && (
+        {!hasOptions && !viewerMembership?.entitled && (
           <p className="text-sm text-muted-foreground">This creator has not opened subscriptions yet.</p>
         )}
 
-        <div className="grid gap-3 xl:grid-cols-2">
-          {plan.freePermanentEnabled && (
-            <Button
-              type="button"
-              variant="outline"
-              className="normal-case tracking-normal"
-              disabled={viewerMembership?.entitled}
-              onClick={() => onChooseFree('free')}
-            >
-              Free access
-            </Button>
-          )}
-          {plan.freeTrialEnabled && (
-            <Button
-              type="button"
-              variant="outline"
-              className="normal-case tracking-normal"
-              disabled={viewerMembership?.entitled}
-              onClick={() => onChooseFree('trial')}
-            >
-              {plan.freeTrialDays ?? 7}-day trial
-            </Button>
-          )}
-        </div>
+        {!viewerMembership?.entitled && plan.mode === 'paid' && plan.prices.yearly && (
+          <Select value={interval} onValueChange={(value) => setInterval(value as 'monthly' | 'yearly')}>
+            <SelectTrigger className="w-full"><SelectValue /></SelectTrigger>
+            <SelectContent>
+              {plan.prices.monthly && (
+                <SelectItem value="monthly">{formatCurrency(plan.prices.monthly.amountCents, plan.currency)} monthly</SelectItem>
+              )}
+              <SelectItem value="yearly">{formatCurrency(plan.prices.yearly.amountCents, plan.currency)} annually</SelectItem>
+            </SelectContent>
+          </Select>
+        )}
 
-        {plan.paidEnabled && (
-          <div className="grid gap-3 xl:grid-cols-2">
-            {plan.prices.monthly && (
-              <Button
-                type="button"
-                className="normal-case tracking-normal"
-                disabled={isStartingCheckout || viewerMembership?.accessType === 'paid'}
-                onClick={() => onChoosePaid('monthly')}
-              >
-                {isStartingCheckout && <Loader2 data-icon="inline-start" className="animate-spin" />}
-                {formatCurrency(plan.prices.monthly.amountCents, plan.currency)} / month
-              </Button>
-            )}
-            {plan.prices.yearly && (
-              <Button
-                type="button"
-                className="normal-case tracking-normal"
-                disabled={isStartingCheckout || viewerMembership?.accessType === 'paid'}
-                onClick={() => onChoosePaid('yearly')}
-              >
-                {formatCurrency(plan.prices.yearly.amountCents, plan.currency)} / year
-              </Button>
-            )}
-          </div>
+        {!viewerMembership?.entitled && hasOptions && (
+          <Button
+            type="button"
+            className="w-full normal-case tracking-normal"
+            disabled={isPending || trialUnavailable || (plan.mode === 'paid' && !selectedPrice)}
+            onClick={() => onSubscribe(plan.mode === 'paid' ? interval : undefined)}
+          >
+            {isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
+            {plan.mode === 'free_permanent'
+              ? 'Join free'
+              : plan.mode === 'free_trial'
+                ? trialUnavailable ? 'Trial already used' : `Start ${plan.freeTrialDays ?? 7}-day trial`
+                : 'Test subscribe'}
+          </Button>
+        )}
+
+        {viewerMembership?.entitled && (
+          <Button
+            type="button"
+            variant="outline"
+            className="w-full normal-case tracking-normal"
+            disabled={isPending}
+            onClick={viewerMembership.accessType === 'paid' ? onManage : onCancel}
+          >
+            {isPending && <Loader2 data-icon="inline-start" className="animate-spin" />}
+            {viewerMembership.accessType === 'paid' ? 'Manage billing' : 'Leave membership'}
+          </Button>
+        )}
+
+        {plan.mode === 'paid' && !viewerMembership?.entitled && (
+          <p className="text-xs leading-5 text-muted-foreground">
+            Stripe Sandbox only. Use test card 4242 4242 4242 4242 and test identity data.
+          </p>
         )}
       </CardContent>
-      {viewerMembership?.entitled && (
-        <CardFooter>
-          <p className="text-sm text-muted-foreground">You already have feed access for this creator.</p>
-        </CardFooter>
-      )}
     </Card>
   )
 }

@@ -1,18 +1,19 @@
 import Stripe from 'stripe'
-import { getStripeSecretKey } from './config'
+import { getExpectedStripeAccountId, getStripeApiKey, getStripeMode, PaymentConfigurationError } from './config'
 import type {
   CheckoutSessionInput,
   CheckoutSessionResult,
   ConnectedAccountSnapshot,
   ConnectedBalance,
-  CreatePricesInput,
   PaymentProvider,
   PayoutSummary,
+  PriceInput,
   ProviderPrice,
+  ProductInput,
 } from './types'
 
 function createStripe(env: Env) {
-  return new Stripe(getStripeSecretKey(env), {
+  return new Stripe(getStripeApiKey(env), {
     httpClient: Stripe.createFetchHttpClient(),
     telemetry: false,
   })
@@ -32,7 +33,6 @@ function requirementEntriesDue(
 }
 
 function mapAccount(account: Stripe.V2.Core.Account): ConnectedAccountSnapshot {
-  const cardPaymentsStatus = account.configuration?.merchant?.capabilities?.card_payments?.status
   const transfersStatus = account.configuration?.recipient?.capabilities?.stripe_balance?.stripe_transfers?.status
   const payoutsStatus = account.configuration?.recipient?.capabilities?.stripe_balance?.payouts?.status
   const requirementsDue = [
@@ -40,11 +40,11 @@ function mapAccount(account: Stripe.V2.Core.Account): ConnectedAccountSnapshot {
     ...requirementEntriesDue(account.future_requirements?.entries),
   ]
 
-  const chargesEnabled = cardPaymentsStatus === 'active'
-  const payoutsEnabled = payoutsStatus === 'active' || transfersStatus === 'active'
-  const detailsSubmitted = requirementsDue.length === 0 && account.applied_configurations.includes('merchant')
+  const transfersEnabled = transfersStatus === 'active'
+  const payoutsEnabled = payoutsStatus === 'active'
+  const detailsSubmitted = requirementsDue.length === 0 && account.applied_configurations.includes('recipient')
   const status =
-    chargesEnabled && payoutsEnabled
+    transfersEnabled && payoutsEnabled && detailsSubmitted
       ? 'active'
       : detailsSubmitted || requirementsDue.length > 0
         ? 'restricted'
@@ -54,10 +54,11 @@ function mapAccount(account: Stripe.V2.Core.Account): ConnectedAccountSnapshot {
     provider: 'stripe',
     providerAccountId: account.id,
     status,
-    chargesEnabled,
+    transfersEnabled,
     payoutsEnabled,
     detailsSubmitted,
     requirementsDue,
+    sandbox: true,
   }
 }
 
@@ -68,23 +69,48 @@ function firstCurrencyAmount(
   return amounts.find((item) => item.currency === currency)?.amount ?? amounts[0]?.amount ?? 0
 }
 
+async function syntheticToken(value: string) {
+  const bytes = new TextEncoder().encode(value)
+  const digest = await crypto.subtle.digest('SHA-256', bytes)
+  return Array.from(new Uint8Array(digest), (byte) => byte.toString(16).padStart(2, '0')).join('').slice(0, 24)
+}
+
 export class StripePaymentProvider implements PaymentProvider {
   readonly name = 'stripe' as const
 
   constructor(private readonly env: Env) {}
 
+  private platformVerification?: Promise<{ accountId: string; sandbox: true }>
+
   private stripe() {
     return createStripe(this.env)
   }
 
+  verifySandboxConfiguration() {
+    if (!this.platformVerification) {
+      this.platformVerification = this.verifyPlatformAccount()
+    }
+    return this.platformVerification
+  }
+
+  private async verifyPlatformAccount() {
+    getStripeMode(this.env)
+    const expectedAccountId = getExpectedStripeAccountId(this.env)
+    const account = await this.stripe().accounts.retrieveCurrent()
+    if (account.id !== expectedAccountId) {
+      throw new PaymentConfigurationError('Stripe API key belongs to an unexpected sandbox account')
+    }
+    return { accountId: account.id, sandbox: true as const }
+  }
+
   async createConnectedAccount(input: {
     creatorId: string
-    email: string
-    displayName: string
   }): Promise<ConnectedAccountSnapshot> {
+    await this.verifySandboxConfiguration()
+    const identity = await syntheticToken(input.creatorId)
     const account = await this.stripe().v2.core.accounts.create({
-      contact_email: input.email,
-      display_name: input.displayName,
+      contact_email: `creator-${identity}@noreply.aliahad.com`,
+      display_name: `Zenith test creator ${identity.slice(0, 8)}`,
       dashboard: 'express',
       defaults: {
         currency: 'usd',
@@ -96,12 +122,10 @@ export class StripePaymentProvider implements PaymentProvider {
           losses_collector: 'application',
         },
       },
+      identity: {
+        country: 'us',
+      },
       configuration: {
-        merchant: {
-          capabilities: {
-            card_payments: { requested: true },
-          },
-        },
         recipient: {
           capabilities: {
             stripe_balance: {
@@ -110,9 +134,9 @@ export class StripePaymentProvider implements PaymentProvider {
           },
         },
       },
-      include: ['configuration.merchant', 'configuration.recipient', 'defaults', 'future_requirements', 'requirements'],
+      include: ['configuration.recipient', 'defaults', 'future_requirements', 'requirements'],
       metadata: {
-        creatorId: input.creatorId,
+        zenithIdentity: identity,
       },
     })
 
@@ -120,8 +144,9 @@ export class StripePaymentProvider implements PaymentProvider {
   }
 
   async retrieveConnectedAccount(providerAccountId: string): Promise<ConnectedAccountSnapshot> {
+    await this.verifySandboxConfiguration()
     return mapAccount(await this.stripe().v2.core.accounts.retrieve(providerAccountId, {
-      include: ['configuration.merchant', 'configuration.recipient', 'defaults', 'future_requirements', 'requirements'],
+      include: ['configuration.recipient', 'defaults', 'future_requirements', 'requirements'],
     }))
   }
 
@@ -130,12 +155,13 @@ export class StripePaymentProvider implements PaymentProvider {
     refreshUrl: string
     returnUrl: string
   }): Promise<{ url: string }> {
+    await this.verifySandboxConfiguration()
     const link = await this.stripe().v2.core.accountLinks.create({
       account: input.providerAccountId,
       use_case: {
         type: 'account_onboarding',
         account_onboarding: {
-          configurations: ['merchant', 'recipient'],
+          configurations: ['recipient'],
           refresh_url: input.refreshUrl,
           return_url: input.returnUrl,
           collection_options: {
@@ -150,74 +176,79 @@ export class StripePaymentProvider implements PaymentProvider {
   }
 
   async createDashboardLink(providerAccountId: string): Promise<{ url: string }> {
+    await this.verifySandboxConfiguration()
     const link = await this.stripe().accounts.createLoginLink(providerAccountId)
     return { url: link.url }
   }
 
-  async createPrices(input: CreatePricesInput): Promise<ProviderPrice[]> {
+  async upsertProduct(input: ProductInput): Promise<{ id: string }> {
+    await this.verifySandboxConfiguration()
     const stripe = this.stripe()
+    if (input.productId) {
+      const product = await stripe.products.update(input.productId, {
+        name: input.planName,
+        description: input.description || null,
+        metadata: {
+          revision: String(input.revision),
+        },
+      }, { idempotencyKey: `zenith-product-${input.creatorId}-${input.revision}` })
+      return { id: product.id }
+    }
+
     const product = await stripe.products.create({
-      name: `${input.displayName} ${input.planName}`,
+      name: input.planName,
       description: input.description,
       metadata: {
-        creatorId: input.creatorId,
+        revision: String(input.revision),
       },
-    })
-
-    const [monthly, yearly] = await Promise.all([
-      stripe.prices.create({
-        product: product.id,
-        unit_amount: input.monthlyAmountCents,
-        currency: input.currency,
-        recurring: { interval: 'month' },
-        metadata: {
-          creatorId: input.creatorId,
-          interval: 'monthly',
-        },
-      }),
-      stripe.prices.create({
-        product: product.id,
-        unit_amount: input.yearlyAmountCents,
-        currency: input.currency,
-        recurring: { interval: 'year' },
-        metadata: {
-          creatorId: input.creatorId,
-          interval: 'yearly',
-        },
-      }),
-    ])
-
-    return [
-      {
-        interval: 'monthly',
-        providerProductId: product.id,
-        providerPriceId: monthly.id,
-        amountCents: input.monthlyAmountCents,
-        currency: input.currency,
-      },
-      {
-        interval: 'yearly',
-        providerProductId: product.id,
-        providerPriceId: yearly.id,
-        amountCents: input.yearlyAmountCents,
-        currency: input.currency,
-      },
-    ]
+    }, { idempotencyKey: `zenith-product-${input.creatorId}-${input.revision}` })
+    return { id: product.id }
   }
 
-  async createCustomer(input: { userId: string; email: string; displayName: string }) {
-    const customer = await this.stripe().customers.create({
-      email: input.email,
-      name: input.displayName,
+  async createPrice(input: PriceInput): Promise<ProviderPrice> {
+    await this.verifySandboxConfiguration()
+    const price = await this.stripe().prices.create({
+      product: input.productId,
+      unit_amount: input.amountCents,
+      currency: input.currency,
+      recurring: { interval: input.interval === 'monthly' ? 'month' : 'year' },
       metadata: {
-        userId: input.userId,
+        planId: input.planId,
+        interval: input.interval,
+        revision: String(input.revision),
       },
-    })
+    }, { idempotencyKey: `zenith-price-${input.planId}-${input.interval}-${input.revision}` })
+
+    return {
+      interval: input.interval,
+      providerProductId: input.productId,
+      providerPriceId: price.id,
+      amountCents: input.amountCents,
+      currency: input.currency,
+    }
+  }
+
+  async archivePrice(providerPriceId: string) {
+    await this.verifySandboxConfiguration()
+    await this.stripe().prices.update(providerPriceId, { active: false })
+  }
+
+  async createCustomer(input: { userId: string }) {
+    await this.verifySandboxConfiguration()
+    const identity = await syntheticToken(input.userId)
+    const customer = await this.stripe().customers.create({
+      email: `member-${identity}@noreply.aliahad.com`,
+      name: `Zenith test member ${identity.slice(0, 8)}`,
+      metadata: {
+        zenithIdentity: identity,
+      },
+    }, { idempotencyKey: `zenith-customer-${identity}` })
 
     return { id: customer.id }
   }
 
   async createCheckoutSession(input: CheckoutSessionInput): Promise<CheckoutSessionResult> {
+    await this.verifySandboxConfiguration()
     const feePercent = input.platformFeeBps / 100
     const session = await this.stripe().checkout.sessions.create({
       mode: 'subscription',
@@ -228,9 +259,8 @@ export class StripePaymentProvider implements PaymentProvider {
       cancel_url: input.cancelUrl,
       metadata: {
         membershipId: input.membershipId,
-        creatorId: input.creatorId,
-        subscriberId: input.subscriberId,
         interval: input.interval,
+        planPriceId: input.planPriceId,
       },
       subscription_data: {
         application_fee_percent: feePercent,
@@ -239,12 +269,11 @@ export class StripePaymentProvider implements PaymentProvider {
         },
         metadata: {
           membershipId: input.membershipId,
-          creatorId: input.creatorId,
-          subscriberId: input.subscriberId,
           interval: input.interval,
+          planPriceId: input.planPriceId,
         },
       },
-    })
+    }, { idempotencyKey: input.idempotencyKey })
 
     return {
       id: session.id,
@@ -253,7 +282,25 @@ export class StripePaymentProvider implements PaymentProvider {
     }
   }
 
+  async createCustomerPortalSession(input: { customerId: string; returnUrl: string }) {
+    await this.verifySandboxConfiguration()
+    const session = await this.stripe().billingPortal.sessions.create({
+      customer: input.customerId,
+      return_url: input.returnUrl,
+    })
+    return { url: session.url }
+  }
+
+  async cancelSubscriptionAtPeriodEnd(providerSubscriptionId: string) {
+    await this.verifySandboxConfiguration()
+    const subscription = await this.stripe().subscriptions.update(providerSubscriptionId, { cancel_at_period_end: true })
+    return {
+      cancelAt: subscription.cancel_at ?? subscription.items.data[0]?.current_period_end ?? null,
+    }
+  }
+
   async retrieveBalance(providerAccountId: string): Promise<ConnectedBalance> {
+    await this.verifySandboxConfiguration()
     const balance = await this.stripe().balance.retrieve(undefined, { stripeAccount: providerAccountId })
     return {
       availableCents: firstCurrencyAmount(balance.available),
@@ -263,6 +310,7 @@ export class StripePaymentProvider implements PaymentProvider {
   }
 
   async listPayouts(providerAccountId: string): Promise<PayoutSummary[]> {
+    await this.verifySandboxConfiguration()
     const payouts = await this.stripe().payouts.list({ limit: 5 }, { stripeAccount: providerAccountId })
     return payouts.data.map((payout) => ({
       id: payout.id,

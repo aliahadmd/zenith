@@ -8,7 +8,15 @@ export function createPaymentProvider(env: Env): PaymentProvider {
   throw new PaymentConfigurationError(`Unsupported payment provider: ${provider}`)
 }
 
-export { PaymentConfigurationError, getPlatformFeeBps, getStripeWebhookSecret } from './config'
+export {
+  PaymentConfigurationError,
+  getExpectedStripeAccountId,
+  getPlatformFeeBps,
+  getStripeApiKey,
+  getStripeMode,
+  getStripeSandboxConfiguration,
+  getStripeWebhookSecret,
+} from './config'
 export type {
   ConnectedAccountSnapshot,
   ConnectedAccountStatus,

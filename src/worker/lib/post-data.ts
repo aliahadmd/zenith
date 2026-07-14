@@ -1,4 +1,4 @@
-import { and, eq, gt, inArray, isNull, or, sql } from 'drizzle-orm'
+import { and, eq, inArray, isNull, sql } from 'drizzle-orm'
 import type { Db } from '../db/client'
 import {
   pollOptions,
@@ -13,6 +13,7 @@ import {
   subscriptionMemberships,
   users,
 } from '../db/schema'
+import { membershipEntitlementCondition } from './memberships'
 
 export const IMAGE_TYPES = ['image/jpeg', 'image/png', 'image/webp'] as const
 export const AUDIO_TYPES = ['audio/mpeg', 'audio/mp4', 'audio/x-m4a', 'audio/wav', 'audio/wave', 'audio/ogg', 'audio/webm'] as const
@@ -89,10 +90,7 @@ export async function hasCreatorAccess(db: Db, viewerId: string, creatorId: stri
     .where(and(
       eq(subscriptionMemberships.subscriberId, viewerId),
       eq(subscriptionMemberships.creatorId, creatorId),
-      or(
-        eq(subscriptionMemberships.status, 'active'),
-        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, nowSeconds())),
-      ),
+      membershipEntitlementCondition(),
     ))
     .get()
 

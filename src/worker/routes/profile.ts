@@ -1,6 +1,6 @@
 import { Hono } from 'hono'
 import { zValidator } from '@hono/zod-validator'
-import { and, desc, eq, gt, isNotNull, or } from 'drizzle-orm'
+import { and, desc, eq, isNotNull } from 'drizzle-orm'
 import { createDb } from '../db/client'
 import { posts, users, subscriptionMemberships } from '../db/schema'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
@@ -12,6 +12,7 @@ import { listPublishedArticlesForCreator } from './articles'
 import { listPublishedAudioForCreator } from './audio'
 import { listPublishedPhotographyForCreator } from './photography'
 import { listPublishedCoursesForCreator } from './courses'
+import { membershipEntitlementCondition } from '../lib/memberships'
 
 export const profileRoutes = new Hono<HonoEnv>()
 
@@ -94,7 +95,6 @@ profileRoutes.get('/:username/subscriptions', zValidator('param', usernameParamS
 
   if (!user) return notFound(c)
 
-  const now = Math.floor(Date.now() / 1000)
   const subscriptions = await db
     .select({
       displayName: users.displayName,
@@ -109,10 +109,7 @@ profileRoutes.get('/:username/subscriptions', zValidator('param', usernameParamS
       eq(subscriptionMemberships.subscriberId, user.id),
       eq(users.role, 'creator'),
       eq(users.accountStatus, 'active'),
-      or(
-        eq(subscriptionMemberships.status, 'active'),
-        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
-      ),
+      membershipEntitlementCondition(),
     ))
     .all()
 
@@ -133,7 +130,6 @@ profileRoutes.get('/:username/subscribers', authMiddleware, zValidator('param', 
 
   if (!creator || creator.role !== 'creator') return notFound(c, 'Creator not found')
 
-  const now = Math.floor(Date.now() / 1000)
   const subscribers = await db
     .select({
       displayName: users.displayName,
@@ -149,10 +145,7 @@ profileRoutes.get('/:username/subscribers', authMiddleware, zValidator('param', 
     .where(and(
       eq(subscriptionMemberships.creatorId, creator.id),
       eq(users.accountStatus, 'active'),
-      or(
-        eq(subscriptionMemberships.status, 'active'),
-        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
-      ),
+      membershipEntitlementCondition(),
     ))
     .orderBy(desc(subscriptionMemberships.createdAt))
     .limit(100)

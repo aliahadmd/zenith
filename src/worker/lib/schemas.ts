@@ -65,53 +65,45 @@ export const pollVoteSchema = z.object({
   optionId: z.string().min(1, 'optionId is required'),
 })
 
-export const subscribeSchema = z.object({
-  creatorId: z.string().min(1, 'creatorId is required'),
-})
-
 const moneyCentsSchema = z
   .number()
   .int('Amount must be a whole number of cents')
   .min(100, 'Amount must be at least $1.00')
   .max(100_000_000, 'Amount is too large')
 
-export const creatorPlanUpdateSchema = z.object({
+const creatorPlanBase = {
   name: z.string().trim().min(1, 'Plan name is required').max(80, 'Plan name must be 80 characters or fewer').default('Membership'),
   description: z.string().trim().max(500, 'Description must be 500 characters or fewer').optional(),
-  paidEnabled: z.boolean().default(false),
-  monthlyAmountCents: moneyCentsSchema.optional(),
-  yearlyAmountCents: moneyCentsSchema.optional(),
-  freePermanentEnabled: z.boolean().default(false),
-  freeTrialEnabled: z.boolean().default(false),
-  freeTrialDays: z.number().int().min(1).max(365).optional(),
-}).superRefine((value, ctx) => {
-  if (value.paidEnabled) {
-    if (value.monthlyAmountCents === undefined) {
-      ctx.addIssue({ code: 'custom', path: ['monthlyAmountCents'], message: 'Monthly price is required' })
-    }
-    if (value.yearlyAmountCents === undefined) {
-      ctx.addIssue({ code: 'custom', path: ['yearlyAmountCents'], message: 'Yearly price is required' })
-    }
-  }
+}
 
-  if (value.freeTrialEnabled && value.freeTrialDays === undefined) {
-    ctx.addIssue({ code: 'custom', path: ['freeTrialDays'], message: 'Free trial length is required' })
-  }
-})
+export const creatorPlanUpdateSchema = z.discriminatedUnion('mode', [
+  z.object({ ...creatorPlanBase, mode: z.literal('disabled') }).strict(),
+  z.object({ ...creatorPlanBase, mode: z.literal('free_permanent') }).strict(),
+  z.object({
+    ...creatorPlanBase,
+    mode: z.literal('free_trial'),
+    freeTrialDays: z.number().int().min(1).max(90),
+  }).strict(),
+  z.object({
+    ...creatorPlanBase,
+    mode: z.literal('paid'),
+    monthlyAmountCents: moneyCentsSchema,
+    yearlyAmountCents: moneyCentsSchema.optional(),
+  }).strict(),
+])
 
 export const subscriptionOptionsParamSchema = z.object({
   username: z.string().min(1, 'username is required'),
 })
 
-export const freeSubscribeSchema = z.object({
+export const membershipSubscribeSchema = z.object({
   creatorId: z.string().min(1, 'creatorId is required'),
-  kind: z.enum(['free', 'trial']),
-})
+  interval: z.enum(['monthly', 'yearly']).optional(),
+}).strict()
 
-export const checkoutSubscribeSchema = z.object({
+export const customerPortalSchema = z.object({
   creatorId: z.string().min(1, 'creatorId is required'),
-  interval: z.enum(['monthly', 'yearly']),
-})
+}).strict()
 
 export const usernameParamSchema = z.object({
   username: z.string().min(1, 'username is required'),

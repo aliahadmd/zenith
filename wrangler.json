@@ -34,10 +34,12 @@
 	"vars": {
 		"PAYMENT_PROVIDER": "stripe",
 		"PLATFORM_FEE_BPS": "1000",
+		"STRIPE_MODE": "test",
+		"STRIPE_ACCOUNT_ID": "acct_1TsnT6JWAFPzjuaC",
 		"NOTIFICATION_EMAIL_FROM": "hi@noreply.aliahad.com",
 		"NOTIFICATION_EMAIL_FROM_NAME": "Zenith",
-		"NOTIFICATION_EMAIL_BASE_URL": ""
-		,"ADMIN_CLOUDFLARE_DASHBOARD_URL": "https://dash.cloudflare.com/"
+		"NOTIFICATION_EMAIL_BASE_URL": "",
+		"ADMIN_CLOUDFLARE_DASHBOARD_URL": "https://dash.cloudflare.com/"
 	},
 	"send_email": [
 		{
@@ -72,6 +74,8 @@
 			"vars": {
 				"PAYMENT_PROVIDER": "stripe",
 				"PLATFORM_FEE_BPS": "1000",
+				"STRIPE_MODE": "test",
+				"STRIPE_ACCOUNT_ID": "acct_1TsnT6JWAFPzjuaC",
 				"NOTIFICATION_EMAIL_FROM": "hi@noreply.aliahad.com",
 				"NOTIFICATION_EMAIL_FROM_NAME": "Zenith",
 				"NOTIFICATION_EMAIL_BASE_URL": "https://zenith.aliahad.com",
@@ -79,7 +83,9 @@
 			},
 			"secrets": {
 				"required": [
-					"BETTER_AUTH_SECRET"
+					"BETTER_AUTH_SECRET",
+					"STRIPE_API_KEY",
+					"STRIPE_WEBHOOK_SECRET"
 				]
 			},
 			"send_email": [

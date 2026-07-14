@@ -10,6 +10,7 @@ import {
   creatorApplications,
   moderationCases,
   notifications,
+  membershipPlanTransitions,
   paymentWebhookEvents,
   postReplies,
   posts,
@@ -28,6 +29,7 @@ import { createNotification } from '../lib/notifications'
 import { badRequest, conflict, forbidden, notFound, zodHook } from '../lib/http'
 import { adminMiddleware, ownerMiddleware } from '../middleware/admin'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
+import { getStripeSandboxConfiguration } from '../lib/payments'
 
 const reasonSchema = z.string().trim().min(3).max(500)
 const decisionSchema = z.object({ reason: reasonSchema, note: z.string().trim().max(1000).optional() })
@@ -101,16 +103,36 @@ adminRoutes.get('/overview', async (c) => {
 adminRoutes.get('/health', async (c) => {
   const db = createDb(c.env.DB)
   const dayAgo = Math.floor(Date.now() / 1000) - 86400
-  const [failedEmails, staleUploads, memberships, webhook, pendingApplications, openReports, failedSchedules, overdueSchedules] = await Promise.all([
+  const [failedEmails, staleUploads, memberships, webhook, webhookFailures, staleCheckouts, failedTransitions, pendingApplications, openReports, failedSchedules, overdueSchedules] = await Promise.all([
     db.select({ count: sql<number>`count(*)` }).from(notifications).where(and(eq(notifications.emailStatus, 'failed'), sql`${notifications.createdAt} >= ${dayAgo}`)).get(),
     db.select({ count: sql<number>`count(*)` }).from(courseAttachments).where(and(eq(courseAttachments.status, 'pending'), sql`${courseAttachments.createdAt} < ${dayAgo}`)).get(),
     db.select({ count: sql<number>`count(*)` }).from(subscriptionMemberships).where(sql`${subscriptionMemberships.status} in ('past_due', 'incomplete')`).get(),
     db.select({ processedAt: paymentWebhookEvents.processedAt }).from(paymentWebhookEvents).orderBy(sql`${paymentWebhookEvents.processedAt} desc`).limit(1).get(),
+    db.select({ count: sql<number>`count(*)` }).from(paymentWebhookEvents).where(and(eq(paymentWebhookEvents.status, 'failed'), sql`${paymentWebhookEvents.processedAt} >= ${dayAgo}`)).get(),
+    db.select({ count: sql<number>`count(*)` }).from(subscriptionMemberships).where(and(
+      eq(subscriptionMemberships.status, 'pending'),
+      sql`${subscriptionMemberships.providerCheckoutSessionId} is not null`,
+      sql`${subscriptionMemberships.createdAt} < ${dayAgo}`,
+    )).get(),
+    db.select({ count: sql<number>`count(*)` }).from(membershipPlanTransitions).where(eq(membershipPlanTransitions.status, 'failed')).get(),
     db.select({ count: sql<number>`count(*)` }).from(creatorApplications).where(eq(creatorApplications.status, 'pending')).get(),
     db.select({ count: sql<number>`count(*)` }).from(moderationCases).where(sql`${moderationCases.status} in ('open', 'reviewing')`).get(),
     db.select({ count: sql<number>`count(*)` }).from(contentSchedules).where(eq(contentSchedules.status, 'failed')).get(),
     db.select({ count: sql<number>`count(*)` }).from(contentSchedules).where(and(eq(contentSchedules.status, 'pending'), sql`${contentSchedules.nextAttemptAt} < unixepoch() - 300`)).get(),
   ])
+
+  let stripeSandbox: { configured: boolean; mode: string; accountId: string | null; error?: string }
+  try {
+    const config = getStripeSandboxConfiguration(c.env)
+    stripeSandbox = { configured: true, mode: config.mode, accountId: config.accountId }
+  } catch (error) {
+    stripeSandbox = {
+      configured: false,
+      mode: 'test',
+      accountId: null,
+      error: error instanceof Error ? error.message : 'Stripe Sandbox is not configured',
+    }
+  }
 
   const signals = {
     d1: { status: 'healthy' as const, value: 'available' },
@@ -122,6 +144,22 @@ adminRoutes.get('/health', async (c) => {
       value: { failed: Number(failedSchedules?.count ?? 0), overdue: Number(overdueSchedules?.count ?? 0) },
     },
     stripeWebhooks: webhook ? { status: 'healthy' as const, value: webhook.processedAt } : { status: 'no_data' as const, value: null },
+    stripeSandbox: {
+      status: stripeSandbox.configured ? 'healthy' as const : 'attention' as const,
+      value: stripeSandbox,
+    },
+    stripeWebhookFailures: {
+      status: Number(webhookFailures?.count ?? 0) ? 'attention' as const : 'healthy' as const,
+      value: Number(webhookFailures?.count ?? 0),
+    },
+    staleStripeCheckouts: {
+      status: Number(staleCheckouts?.count ?? 0) ? 'attention' as const : 'healthy' as const,
+      value: Number(staleCheckouts?.count ?? 0),
+    },
+    membershipTransitions: {
+      status: Number(failedTransitions?.count ?? 0) ? 'attention' as const : 'healthy' as const,
+      value: { failed: Number(failedTransitions?.count ?? 0) },
+    },
     reviewWorkload: {
       status: Number(pendingApplications?.count ?? 0) + Number(openReports?.count ?? 0) > 20 ? 'attention' as const : 'healthy' as const,
       value: { applications: Number(pendingApplications?.count ?? 0), reports: Number(openReports?.count ?? 0) },

@@ -1,24 +1,27 @@
 import { queryOptions } from '@tanstack/react-query'
-import { apiGetRequired, apiPostRequired, apiPutRequired } from './api'
+import { ApiError, apiDelete, apiGetRequired, apiPostRequired, apiPutRequired } from './api'
 import type { CreatorSubscriptionPlanFormValues } from './schemas'
 
 export type ConnectedAccountStatus = 'not_connected' | 'onboarding' | 'active' | 'restricted'
 export type MembershipInterval = 'monthly' | 'yearly'
 export type MembershipStatus = 'pending' | 'active' | 'trialing' | 'past_due' | 'canceled' | 'expired' | 'incomplete'
 export type MembershipAccessType = 'free' | 'trial' | 'paid'
+export type MembershipPlanMode = 'disabled' | 'free_permanent' | 'free_trial' | 'paid'
 
 export type ConnectedAccount = {
   provider: 'stripe'
   providerAccountId: string | null
   status: ConnectedAccountStatus
-  chargesEnabled: boolean
+  transfersEnabled: boolean
   payoutsEnabled: boolean
   detailsSubmitted: boolean
   requirementsDue: string[]
   connected: boolean
+  sandbox: true
 }
 
 export type PlanPrice = {
+  id: string
   amountCents: number
   providerPriceId: string
 }
@@ -28,10 +31,10 @@ export type CreatorMembershipPlan = {
   name: string
   description: string
   currency: 'usd'
-  paidEnabled: boolean
-  freePermanentEnabled: boolean
-  freeTrialEnabled: boolean
+  mode: MembershipPlanMode
+  revision: number
   freeTrialDays: number | null
+  sandbox: true
   prices: {
     monthly: PlanPrice | null
     yearly: PlanPrice | null
@@ -41,6 +44,7 @@ export type CreatorMembershipPlan = {
 export type CreatorPlanResponse = {
   plan: CreatorMembershipPlan
   account: ConnectedAccount
+  transitions: Partial<Record<'pending' | 'processing' | 'completed' | 'failed', number>>
 }
 
 export type ViewerMembership = {
@@ -49,6 +53,8 @@ export type ViewerMembership = {
   accessType: MembershipAccessType
   interval: MembershipInterval | null
   trialEndsAt: number | null
+  currentPeriodEnd: number | null
+  cancelAt: number | null
   entitled: boolean
 }
 
@@ -61,10 +67,12 @@ export type SubscriptionOptionsResponse = {
   }
   plan: CreatorMembershipPlan
   viewerMembership: ViewerMembership | null
+  trialAvailable: boolean
 }
 
 export type CreatorAnalyticsResponse = {
   account: ConnectedAccount
+  sandbox: true
   balance: {
     availableCents: number
     pendingCents: number
@@ -141,24 +149,47 @@ export function openCreatorDashboard() {
 }
 
 export function updateCreatorPlan(values: CreatorSubscriptionPlanFormValues) {
-  return apiPutRequired<{ plan: CreatorMembershipPlan }>('/api/payments/creator/plan', {
+  const common = {
     name: values.name,
     description: values.description || undefined,
-    paidEnabled: values.paidEnabled,
-    monthlyAmountCents: values.paidEnabled ? dollarsToCents(values.monthlyAmount) : undefined,
-    yearlyAmountCents: values.paidEnabled ? dollarsToCents(values.yearlyAmount) : undefined,
-    freePermanentEnabled: values.freePermanentEnabled,
-    freeTrialEnabled: values.freeTrialEnabled,
-    freeTrialDays: values.freeTrialEnabled ? values.freeTrialDays : undefined,
+  }
+
+  if (values.mode === 'free_trial') {
+    return apiPutRequired<{ plan: CreatorMembershipPlan }>('/api/payments/creator/plan', {
+      ...common,
+      mode: values.mode,
+      freeTrialDays: values.freeTrialDays,
+    })
+  }
+  if (values.mode === 'paid') {
+    return apiPutRequired<{ plan: CreatorMembershipPlan }>('/api/payments/creator/plan', {
+      ...common,
+      mode: values.mode,
+      monthlyAmountCents: dollarsToCents(values.monthlyAmount),
+      ...(values.yearlyAmount ? { yearlyAmountCents: dollarsToCents(values.yearlyAmount) } : {}),
+    })
+  }
+  return apiPutRequired<{ plan: CreatorMembershipPlan }>('/api/payments/creator/plan', {
+    ...common,
+    mode: values.mode,
   })
 }
 
-export function subscribeFree(input: { creatorId: string; kind: 'free' | 'trial' }) {
-  return apiPostRequired<{ membership: ViewerMembership | null }>('/api/payments/subscribe/free', input)
+export type MembershipSubscribeResult =
+  | { kind: 'membership'; membership: ViewerMembership }
+  | { kind: 'checkout'; url: string; membershipId: string; sandbox: true }
+
+export function startMembership(input: { creatorId: string; interval?: MembershipInterval }) {
+  return apiPostRequired<MembershipSubscribeResult>('/api/payments/subscribe', input)
 }
 
-export function startCheckout(input: { creatorId: string; interval: MembershipInterval }) {
-  return apiPostRequired<{ url: string; membershipId: string }>('/api/payments/subscribe/checkout', input)
+export function openBillingPortal(creatorId: string) {
+  return apiPostRequired<{ url: string; sandbox: true }>('/api/payments/portal', { creatorId })
+}
+
+export async function cancelFreeMembership(creatorId: string) {
+  const response = await apiDelete<never>(`/api/payments/memberships/${creatorId}`)
+  if (response.error) throw new ApiError(response.error, response.status, response.code, response.details)
 }
 
 export function dollarsFromCents(cents: number | null | undefined) {

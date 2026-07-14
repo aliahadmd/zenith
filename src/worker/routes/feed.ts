@@ -1,12 +1,10 @@
 import { Hono } from 'hono'
-import { zValidator } from '@hono/zod-validator'
-import { and, desc, eq, gt, inArray, isNotNull, or } from 'drizzle-orm'
+import { and, desc, eq, inArray, isNotNull } from 'drizzle-orm'
 import { createDb } from '../db/client'
-import { articles, audioCollections, audioItems, courses, photographyAlbums, photographyPhotos, posts, follows, users, subscriptionMemberships, membershipPlans } from '../db/schema'
+import { articles, audioCollections, audioItems, courses, photographyAlbums, photographyPhotos, posts, users, subscriptionMemberships } from '../db/schema'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
-import { subscribeSchema } from '../lib/schemas'
-import { conflict, notFound, zodHook } from '../lib/http'
 import { articleCoverUrl, audioCollectionCoverUrl, audioItemCoverUrl, audioStreamUrl, buildPostExtras, photographyPhotoPreviewUrl, toUnixSeconds } from '../lib/post-data'
+import { membershipEntitlementCondition } from '../lib/memberships'
 
 export const feedRoutes = new Hono<HonoEnv>()
 
@@ -14,8 +12,6 @@ export const feedRoutes = new Hono<HonoEnv>()
 
 feedRoutes.get('/', authMiddleware, async (c) => {
   const db = createDb(c.env.DB)
-  const now = Math.floor(Date.now() / 1000)
-
   const rows = await db
     .select({
       id: posts.id,
@@ -38,10 +34,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       eq(posts.moderationStatus, 'active'),
       eq(users.accountStatus, 'active'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
-      or(
-        eq(subscriptionMemberships.status, 'active'),
-        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
-      ),
+      membershipEntitlementCondition(),
     ))
     .orderBy(desc(posts.publishedAt))
     .limit(50)
@@ -77,10 +70,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       eq(users.accountStatus, 'active'),
       eq(articles.status, 'published'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
-      or(
-        eq(subscriptionMemberships.status, 'active'),
-        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
-      ),
+      membershipEntitlementCondition(),
     ))
     .orderBy(desc(articles.publishedAt))
     .limit(50)
@@ -123,10 +113,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       eq(users.accountStatus, 'active'),
       eq(audioCollections.status, 'published'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
-      or(
-        eq(subscriptionMemberships.status, 'active'),
-        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
-      ),
+      membershipEntitlementCondition(),
     ))
     .orderBy(desc(audioItems.publishedAt))
     .limit(50)
@@ -161,10 +148,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       eq(posts.moderationStatus, 'active'),
       eq(users.accountStatus, 'active'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
-      or(
-        eq(subscriptionMemberships.status, 'active'),
-        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
-      ),
+      membershipEntitlementCondition(),
     ))
     .orderBy(desc(photographyAlbums.publishedAt))
     .limit(50)
@@ -196,10 +180,7 @@ feedRoutes.get('/', authMiddleware, async (c) => {
       eq(posts.moderationStatus, 'active'),
       eq(users.accountStatus, 'active'),
       eq(subscriptionMemberships.subscriberId, c.var.user.id),
-      or(
-        eq(subscriptionMemberships.status, 'active'),
-        and(eq(subscriptionMemberships.status, 'trialing'), gt(subscriptionMemberships.trialEndsAt, now)),
-      ),
+      membershipEntitlementCondition(),
     ))
     .orderBy(desc(courses.publishedAt))
     .limit(50)
@@ -410,82 +391,4 @@ feedRoutes.get('/', authMiddleware, async (c) => {
     .slice(0, 50)
 
   return c.json({ posts: mappedPosts, items })
-})
-
-// ── POST /subscribe ────────────────────────────────────────────────────────
-
-feedRoutes.post('/subscribe', authMiddleware, zValidator('json', subscribeSchema, zodHook), async (c) => {
-  const { creatorId } = c.req.valid('json')
-  const db = createDb(c.env.DB)
-
-  // Verify the target user exists and is a creator
-  const creator = await db
-    .select({ id: users.id, role: users.role })
-    .from(users)
-    .where(eq(users.id, creatorId))
-    .get()
-
-  if (!creator || creator.role !== 'creator') {
-    return notFound(c, 'Creator not found')
-  }
-
-  const subscriberId = c.var.user.id
-  if (subscriberId === creatorId) return conflict(c, 'You cannot subscribe to yourself')
-
-  try {
-    await db.insert(follows).values({ followerId: subscriberId, followeeId: creatorId }).run()
-  } catch (err) {
-    if (err instanceof Error && err.message.toLowerCase().includes('unique')) {
-      return conflict(c, 'Already subscribed to this creator')
-    }
-    throw err
-  }
-
-  let plan = await db
-    .select()
-    .from(membershipPlans)
-    .where(eq(membershipPlans.creatorId, creatorId))
-    .get()
-
-  if (!plan) {
-    const planId = crypto.randomUUID()
-    await db
-      .insert(membershipPlans)
-      .values({
-        id: planId,
-        creatorId,
-        freePermanentEnabled: true,
-      })
-      .run()
-    plan = await db.select().from(membershipPlans).where(eq(membershipPlans.id, planId)).get()
-  }
-
-  if (plan) {
-    await db
-      .insert(subscriptionMemberships)
-      .values({
-        id: crypto.randomUUID(),
-        creatorId,
-        subscriberId,
-        planId: plan.id,
-        provider: 'internal',
-        accessType: 'free',
-        status: 'active',
-      })
-      .onConflictDoUpdate({
-        target: [subscriptionMemberships.subscriberId, subscriptionMemberships.creatorId],
-        set: {
-          planId: plan.id,
-          provider: 'internal',
-          accessType: 'free',
-          interval: null,
-          status: 'active',
-          trialEndsAt: null,
-          updatedAt: new Date(),
-        },
-      })
-      .run()
-  }
-
-  return c.json({ subscriberId, creatorId }, 201)
 })

@@ -675,6 +675,7 @@ export const creatorPaymentAccounts = sqliteTable('creator_payment_accounts', {
                        .notNull()
                        .default('onboarding'),
   chargesEnabled:    integer('charges_enabled', { mode: 'boolean' }).notNull().default(false),
+  transfersEnabled:  integer('transfers_enabled', { mode: 'boolean' }).notNull().default(false),
   payoutsEnabled:    integer('payouts_enabled', { mode: 'boolean' }).notNull().default(false),
   detailsSubmitted:  integer('details_submitted', { mode: 'boolean' }).notNull().default(false),
   requirementsDue:   text('requirements_due'),
@@ -696,6 +697,12 @@ export const membershipPlans = sqliteTable('membership_plans', {
   name:                 text('name').notNull().default('Membership'),
   description:          text('description'),
   currency:             text('currency').notNull().default('usd'),
+  mode:                 text('mode', { enum: ['disabled', 'free_permanent', 'free_trial', 'paid'] })
+                          .notNull()
+                          .default('disabled'),
+  providerProductId:    text('provider_product_id'),
+  revision:             integer('revision').notNull().default(0),
+  // Kept for migration compatibility. Application code uses mode exclusively.
   paidEnabled:          integer('paid_enabled', { mode: 'boolean' }).notNull().default(false),
   freePermanentEnabled: integer('free_permanent_enabled', { mode: 'boolean' }).notNull().default(false),
   freeTrialEnabled:     integer('free_trial_enabled', { mode: 'boolean' }).notNull().default(false),
@@ -730,7 +737,10 @@ export const membershipPlanPrices = sqliteTable('membership_plan_prices', {
                        .default(sql`(cast(unixepoch('subsecond') * 1000 as integer))`)
                        .$onUpdate(() => new Date()),
 }, (t) => [
-  uniqueIndex('membership_plan_prices_plan_interval_provider_unique').on(t.planId, t.interval, t.provider),
+  uniqueIndex('membership_plan_prices_active_interval_unique')
+    .on(t.planId, t.interval, t.provider)
+    .where(sql`${t.active} = 1`),
+  uniqueIndex('membership_plan_prices_provider_price_unique').on(t.provider, t.providerPriceId),
   index('membership_plan_prices_creator_idx').on(t.creatorId),
   index('membership_plan_prices_provider_price_idx').on(t.provider, t.providerPriceId),
 ])
@@ -754,6 +764,7 @@ export const subscriptionMemberships = sqliteTable('subscription_memberships', {
   creatorId:                 text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   subscriberId:              text('subscriber_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
   planId:                    text('plan_id').references(() => membershipPlans.id, { onDelete: 'set null' }),
+  planPriceId:               text('plan_price_id').references(() => membershipPlanPrices.id, { onDelete: 'set null' }),
   provider:                  text('provider', { enum: ['internal', 'stripe'] }).notNull(),
   accessType:                text('access_type', { enum: ['free', 'trial', 'paid'] }).notNull(),
   interval:                  text('interval', { enum: ['monthly', 'yearly'] }),
@@ -765,6 +776,7 @@ export const subscriptionMemberships = sqliteTable('subscription_memberships', {
   providerSubscriptionId:    text('provider_subscription_id'),
   providerCheckoutSessionId: text('provider_checkout_session_id'),
   providerCustomerId:        text('provider_customer_id'),
+  providerEventCreatedAt:    integer('provider_event_created_at'),
   currentPeriodStart:        integer('current_period_start'),
   currentPeriodEnd:          integer('current_period_end'),
   trialEndsAt:               integer('trial_ends_at'),
@@ -783,6 +795,39 @@ export const subscriptionMemberships = sqliteTable('subscription_memberships', {
   index('subscription_memberships_subscriber_idx').on(t.subscriberId),
   index('subscription_memberships_provider_subscription_idx').on(t.provider, t.providerSubscriptionId),
   index('subscription_memberships_checkout_idx').on(t.providerCheckoutSessionId),
+  index('subscription_memberships_plan_price_idx').on(t.planPriceId),
+])
+
+// ── One-time Trial Claims ──────────────────────────────────────
+export const membershipTrialClaims = sqliteTable('membership_trial_claims', {
+  creatorId:   text('creator_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  subscriberId: text('subscriber_id').notNull().references(() => users.id, { onDelete: 'cascade' }),
+  planId:      text('plan_id').references(() => membershipPlans.id, { onDelete: 'set null' }),
+  startedAt:   integer('started_at').notNull(),
+  endsAt:      integer('ends_at').notNull(),
+}, (t) => [
+  primaryKey({ columns: [t.creatorId, t.subscriberId] }),
+  index('membership_trial_claims_ends_idx').on(t.endsAt),
+])
+
+// ── Paid-mode Transition Jobs ────────────────────────────────
+export const membershipPlanTransitions = sqliteTable('membership_plan_transitions', {
+  id:                     text('id').primaryKey().$defaultFn(() => crypto.randomUUID()),
+  planId:                 text('plan_id').notNull().references(() => membershipPlans.id, { onDelete: 'cascade' }),
+  membershipId:           text('membership_id').notNull().references(() => subscriptionMemberships.id, { onDelete: 'cascade' }),
+  providerSubscriptionId: text('provider_subscription_id').notNull(),
+  status:                 text('status', { enum: ['pending', 'processing', 'completed', 'failed'] })
+                            .notNull()
+                            .default('pending'),
+  attempts:               integer('attempts').notNull().default(0),
+  nextAttemptAt:          integer('next_attempt_at').notNull().default(sql`(unixepoch())`),
+  claimedAt:              integer('claimed_at'),
+  lastError:              text('last_error'),
+  createdAt:              integer('created_at').notNull().default(sql`(unixepoch())`),
+  updatedAt:              integer('updated_at').notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  uniqueIndex('membership_plan_transitions_membership_unique').on(t.membershipId),
+  index('membership_plan_transitions_due_idx').on(t.status, t.nextAttemptAt),
 ])
 
 // ── Revenue Events ─────────────────────────────────────────────────────────
@@ -809,13 +854,19 @@ export const revenueEvents = sqliteTable('revenue_events', {
 
 // ── Payment Webhook Events ─────────────────────────────────────────────────
 export const paymentWebhookEvents = sqliteTable('payment_webhook_events', {
-  id:          text('id').primaryKey(),
-  provider:    text('provider', { enum: ['stripe'] }).notNull(),
-  eventType:   text('event_type').notNull(),
-  processedAt: integer('processed_at')
-                 .notNull()
-                 .default(sql`(unixepoch())`),
-})
+  id:             text('id').primaryKey(),
+  provider:       text('provider', { enum: ['stripe'] }).notNull(),
+  eventType:      text('event_type').notNull(),
+  livemode:       integer('livemode', { mode: 'boolean' }).notNull().default(false),
+  status:         text('status', { enum: ['processing', 'completed', 'failed'] }).notNull().default('completed'),
+  eventCreatedAt: integer('event_created_at'),
+  attempts:       integer('attempts').notNull().default(1),
+  claimedAt:      integer('claimed_at'),
+  lastError:      text('last_error'),
+  processedAt:    integer('processed_at').notNull().default(sql`(unixepoch())`),
+}, (t) => [
+  index('payment_webhook_events_status_claimed_idx').on(t.status, t.claimedAt),
+])
 
 // ── Notifications ─────────────────────────────────────────────────────────
 export const notifications = sqliteTable('notifications', {
@@ -917,6 +968,8 @@ export type MembershipPlan        = typeof membershipPlans.$inferSelect
 export type MembershipPlanPrice   = typeof membershipPlanPrices.$inferSelect
 export type PaymentCustomer       = typeof paymentCustomers.$inferSelect
 export type SubscriptionMembership = typeof subscriptionMemberships.$inferSelect
+export type MembershipTrialClaim     = typeof membershipTrialClaims.$inferSelect
+export type MembershipPlanTransition = typeof membershipPlanTransitions.$inferSelect
 export type RevenueEvent          = typeof revenueEvents.$inferSelect
 export type PaymentWebhookEvent   = typeof paymentWebhookEvents.$inferSelect
 export type Notification          = typeof notifications.$inferSelect

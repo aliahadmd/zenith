@@ -1,3 +1,5 @@
+import { membershipEntitlementSqlText } from './memberships'
+
 export const MAX_CREATOR_CATEGORIES = 3
 export const MAX_USER_INTERESTS = 5
 export const MAX_FEATURED_CREATORS = 12
@@ -108,7 +110,7 @@ function creatorBaseSql() {
       (SELECT group_concat(DISTINCT p.kind) FROM posts p
         WHERE p.author_id = u.id AND p.published_at IS NOT NULL AND p.moderation_status = 'active') AS contentTypes,
       (SELECT count(*) FROM subscription_memberships sm
-        WHERE sm.creator_id = u.id AND (sm.status = 'active' OR (sm.status = 'trialing' AND sm.trial_ends_at > ?))) AS activeSubscriberCount,
+        WHERE sm.creator_id = u.id AND ${membershipEntitlementSqlText('sm')}) AS activeSubscriberCount,
       (SELECT count(*) FROM posts p
         WHERE p.author_id = u.id AND p.published_at >= ? AND p.moderation_status = 'active') AS recentPublicationCount,
       (SELECT max(p.published_at) FROM posts p
@@ -116,7 +118,7 @@ function creatorBaseSql() {
       fc.display_order AS featuredOrder,
       EXISTS(SELECT 1 FROM subscription_memberships vm
         WHERE vm.creator_id = u.id AND vm.subscriber_id = ?
-          AND (vm.status = 'active' OR (vm.status = 'trialing' AND vm.trial_ends_at > ?))) AS viewerSubscribed
+          AND ${membershipEntitlementSqlText('vm')}) AS viewerSubscribed
     FROM users u
     LEFT JOIN featured_creators fc ON fc.creator_id = u.id
     WHERE u.role = 'creator' AND u.account_status = 'active'
@@ -259,7 +261,7 @@ async function getRecommendationSignals(database: D1Database, viewerId: string):
       JOIN creator_categories cc ON cc.creator_id = sm.creator_id
       JOIN discovery_categories c ON c.id = cc.category_id
       WHERE sm.subscriber_id = ? AND c.active = 1
-        AND (sm.status = 'active' OR (sm.status = 'trialing' AND sm.trial_ends_at > ?))
+        AND ${membershipEntitlementSqlText('sm')}
     UNION ALL
     SELECT DISTINCT c.id, c.name, 'behavior' AS source
       FROM creator_categories cc

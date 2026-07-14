@@ -19,6 +19,7 @@ import { schedulesRoutes } from './routes/schedules'
 import { discoveryRoutes } from './routes/discovery'
 import { notFound, serverError } from './lib/http'
 import { processDueSchedules } from './lib/scheduling'
+import { processMembershipMaintenance } from './lib/memberships'
 
 export const app = new Hono<HonoEnv>()
 
@@ -61,6 +62,9 @@ app.notFound((c) => {
 export default {
   fetch: app.fetch,
   scheduled(controller, env, ctx) {
-    ctx.waitUntil(processDueSchedules(env, controller.scheduledTime))
+    ctx.waitUntil(Promise.all([
+      processDueSchedules(env, controller.scheduledTime),
+      processMembershipMaintenance(env, controller.scheduledTime),
+    ]))
   },
 } satisfies ExportedHandler<Env>

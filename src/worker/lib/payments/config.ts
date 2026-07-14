@@ -6,8 +6,10 @@ export class PaymentConfigurationError extends Error {
 }
 
 type PaymentEnv = Env & {
-  STRIPE_SECRET_KEY?: string
+  STRIPE_API_KEY?: string
   STRIPE_WEBHOOK_SECRET?: string
+  STRIPE_MODE?: string
+  STRIPE_ACCOUNT_ID?: string
   PAYMENT_PROVIDER?: string
   PLATFORM_FEE_BPS?: string
 }
@@ -23,10 +25,27 @@ export function getPlatformFeeBps(env: Env) {
   return value
 }
 
-export function getStripeSecretKey(env: Env) {
-  const key = (env as PaymentEnv).STRIPE_SECRET_KEY
-  if (!key) throw new PaymentConfigurationError('Stripe test secret key is not configured')
+export function getStripeApiKey(env: Env) {
+  const key = (env as PaymentEnv).STRIPE_API_KEY
+  if (!key) throw new PaymentConfigurationError('Stripe sandbox API key is not configured')
+  if (!key.startsWith('sk_test_') && !key.startsWith('rk_test_')) {
+    throw new PaymentConfigurationError('Zenith only accepts Stripe sandbox API keys')
+  }
   return key
+}
+
+export function getStripeMode(env: Env) {
+  const mode = ((env as PaymentEnv).STRIPE_MODE ?? '').toLowerCase()
+  if (mode !== 'test') throw new PaymentConfigurationError('STRIPE_MODE must be test')
+  return mode
+}
+
+export function getExpectedStripeAccountId(env: Env) {
+  const accountId = (env as PaymentEnv).STRIPE_ACCOUNT_ID?.trim()
+  if (!accountId?.startsWith('acct_')) {
+    throw new PaymentConfigurationError('Expected Stripe sandbox account ID is not configured')
+  }
+  return accountId
 }
 
 export function getStripeWebhookSecret(env: Env) {
@@ -35,3 +54,10 @@ export function getStripeWebhookSecret(env: Env) {
   return secret
 }
 
+export function getStripeSandboxConfiguration(env: Env) {
+  const mode = getStripeMode(env)
+  const accountId = getExpectedStripeAccountId(env)
+  getStripeApiKey(env)
+  getStripeWebhookSecret(env)
+  return { configured: true as const, mode, accountId }
+}

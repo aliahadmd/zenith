@@ -321,19 +321,17 @@ function centsFromPriceInput(value: string | undefined) {
 export const creatorSubscriptionPlanSchema = z.object({
   name: z.string().trim().min(1, 'Plan name is required').max(80, 'Plan name must be 80 characters or fewer'),
   description: z.string().trim().max(500, 'Description must be 500 characters or fewer').optional(),
-  paidEnabled: z.boolean(),
+  mode: z.enum(['disabled', 'free_permanent', 'free_trial', 'paid']),
   monthlyAmount: priceInputSchema,
   yearlyAmount: priceInputSchema,
-  freePermanentEnabled: z.boolean(),
-  freeTrialEnabled: z.boolean(),
   freeTrialDays: z
     .number({ error: 'Trial length is required.' })
     .int('Trial length must be a whole number of days.')
     .min(1, 'Trial must be at least 1 day.')
-    .max(365, 'Trial must be 365 days or fewer.')
+    .max(90, 'Trial must be 90 days or fewer.')
     .optional(),
 }).superRefine((values, ctx) => {
-  if (values.paidEnabled) {
+  if (values.mode === 'paid') {
     const monthlyCents = centsFromPriceInput(values.monthlyAmount)
     const yearlyCents = centsFromPriceInput(values.yearlyAmount)
 
@@ -343,14 +341,12 @@ export const creatorSubscriptionPlanSchema = z.object({
       ctx.addIssue({ code: 'custom', path: ['monthlyAmount'], message: 'Monthly price must be at least $1.00.' })
     }
 
-    if (yearlyCents === null) {
-      ctx.addIssue({ code: 'custom', path: ['yearlyAmount'], message: 'Yearly price is required.' })
-    } else if (yearlyCents < 100) {
+    if (yearlyCents !== null && yearlyCents < 100) {
       ctx.addIssue({ code: 'custom', path: ['yearlyAmount'], message: 'Yearly price must be at least $1.00.' })
     }
   }
 
-  if (values.freeTrialEnabled && values.freeTrialDays === undefined) {
+  if (values.mode === 'free_trial' && values.freeTrialDays === undefined) {
     ctx.addIssue({ code: 'custom', path: ['freeTrialDays'], message: 'Trial length is required.' })
   }
 })

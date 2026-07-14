@@ -1,5 +1,8 @@
 import { describe, expect, it } from 'vitest'
 import { paymentRouteInternals } from './payments'
+import { creatorPlanUpdateSchema } from '../lib/schemas'
+import { getStripeApiKey, getStripeSandboxConfiguration } from '../lib/payments'
+import { isMembershipEntitled } from '../lib/memberships'
 
 describe('payment route internals', () => {
   it('maps Stripe subscription statuses to entitlement statuses', () => {
@@ -26,5 +29,47 @@ describe('payment route internals', () => {
       netCents: 1350,
       grossCents: 1500,
     })
+  })
+
+  it('accepts exactly one membership mode and rejects irrelevant fields', () => {
+    expect(creatorPlanUpdateSchema.safeParse({
+      name: 'Members',
+      mode: 'free_trial',
+      freeTrialDays: 7,
+    }).success).toBe(true)
+    expect(creatorPlanUpdateSchema.safeParse({
+      name: 'Members',
+      mode: 'free_trial',
+      freeTrialDays: 7,
+      monthlyAmountCents: 900,
+    }).success).toBe(false)
+    expect(creatorPlanUpdateSchema.safeParse({
+      name: 'Members',
+      mode: 'paid',
+      monthlyAmountCents: 900,
+    }).success).toBe(true)
+    expect(creatorPlanUpdateSchema.safeParse({
+      name: 'Members',
+      mode: 'paid',
+      freeTrialDays: 7,
+      monthlyAmountCents: 900,
+    }).success).toBe(false)
+  })
+
+  it('grants active and unexpired trial access only', () => {
+    expect(isMembershipEntitled({ status: 'active', trialEndsAt: null }, 100)).toBe(true)
+    expect(isMembershipEntitled({ status: 'trialing', trialEndsAt: 101 }, 100)).toBe(true)
+    expect(isMembershipEntitled({ status: 'trialing', trialEndsAt: 100 }, 100)).toBe(false)
+    expect(isMembershipEntitled({ status: 'past_due', trialEndsAt: null }, 100)).toBe(false)
+  })
+
+  it('rejects live Stripe keys and incomplete sandbox configuration', () => {
+    expect(() => getStripeApiKey({ STRIPE_API_KEY: 'sk_live_secret' } as unknown as Env)).toThrow(/sandbox/i)
+    expect(() => getStripeSandboxConfiguration({
+      STRIPE_API_KEY: 'sk_test_secret',
+      STRIPE_WEBHOOK_SECRET: 'whsec_test',
+      STRIPE_MODE: 'test',
+      STRIPE_ACCOUNT_ID: 'acct_test',
+    } as unknown as Env)).not.toThrow()
   })
 })
