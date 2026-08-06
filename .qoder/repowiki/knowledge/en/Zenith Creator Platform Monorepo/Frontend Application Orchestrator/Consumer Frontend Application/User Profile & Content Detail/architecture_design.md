@@ -1,0 +1,5 @@
+- **Routing Layer**: Uses `@tanstack/react-router` file-based routing in `src/react-app/routes/_authenticated/` to map URL patterns (e.g., `u.$username.tsx`, `u.$username_.article.$slug.tsx`) to page components.
+- **Page Components**: Located in `src/react-app/pages/`, these components (e.g., `ProfilePage.tsx`, `ArticleDetailPage.tsx`) handle data fetching via `@tanstack/react-query` hooks defined in shared libraries (`lib/articles.ts`, `lib/audio.ts`, etc.).
+- **Data Fetching**: Each content type has dedicated query options (e.g., `articleDetailQueryOptions`, `audioItemDetailQueryOptions`) that standardize API calls and cache keys.
+- **UI Composition**: Pages compose reusable UI components like `PostCard`, `ArticleCard`, `AudioCard`, and `Discussion` to render content lists and detail views consistently.
+- **State Management**: Local state manages tab selection, media playback context, and modal visibility, while React Query handles server-state synchronization and caching.

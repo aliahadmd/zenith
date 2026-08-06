@@ -1,0 +1,1 @@
+Orchestrates the authenticated consumer experience by unifying routing, global state, and shared UI infrastructure across discovery, library, settings, and profile modules.

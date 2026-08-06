@@ -1,0 +1,1 @@
+Provides a comprehensive interface for creators to build, edit, and publish structured courses with modules, lessons, and media attachments.

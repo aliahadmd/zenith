@@ -1,0 +1,34 @@
+schema_version: 1
+module_path: frontend/studio
+title: Creator Studio Orchestrator
+scope:
+    - src/react-app/routes/_authenticated/studio.tsx
+    - src/react-app/routes/_authenticated/studio_.articles.$postId.edit.tsx
+    - src/react-app/routes/_authenticated/studio_.articles.new.tsx
+    - src/react-app/routes/_authenticated/studio_.audio.tsx
+    - src/react-app/routes/_authenticated/studio_.courses.$courseId.edit.tsx
+    - src/react-app/routes/_authenticated/studio_.courses.new.tsx
+    - src/react-app/routes/_authenticated/studio_.courses.tsx
+    - src/react-app/routes/_authenticated/studio_.payouts.tsx
+    - src/react-app/routes/_authenticated/studio_.photography.tsx
+    - src/react-app/routes/_authenticated/studio_.scheduled.tsx
+    - src/react-app/routes/_authenticated/studio_.subscriptions.tsx
+    - src/react-app/pages/StudioPage.tsx
+    - src/react-app/pages/StudioAudioPage.tsx
+    - src/react-app/pages/StudioPhotographyPage.tsx
+    - src/react-app/pages/StudioScheduledPage.tsx
+    - src/react-app/pages/CourseStudioPage.tsx
+    - src/react-app/pages/ArticleEditorPage.tsx
+    - src/react-app/pages/PayoutsPage.tsx
+    - src/react-app/pages/SubscriptionsPage.tsx
+    - src/react-app/pages/BecomeCreatorPage.tsx
+    - src/react-app/components/CreatorRoute.tsx
+    - src/react-app/components/ShortPostComposer.tsx
+    - src/react-app/components/StudioLayout.tsx
+    - src/react-app/components/StudioNav.tsx
+    - src/react-app/lib/admin.ts
+    - src/react-app/lib/payments.ts
+    - src/react-app/routes/_authenticated/become-creator.tsx
+source_files: []
+depends_on: []
+related_to: []

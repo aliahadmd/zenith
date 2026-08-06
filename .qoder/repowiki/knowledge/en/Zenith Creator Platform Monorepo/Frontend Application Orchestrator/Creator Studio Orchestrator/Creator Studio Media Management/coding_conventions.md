@@ -1,0 +1,4 @@
+- Route guards in TanStack Router `beforeLoad` hooks redirect non-creator users to `/become-creator` before rendering protected studio pages.
+- Master-detail UI pattern where a sidebar list of collections/albums drives the visibility of a detailed view panel on the right.
+- Optimistic UI updates for drag-and-drop reordering using local state synchronization before server mutation confirmation.
+- Form submissions use `FormData` appended with specific field keys to support mixed text and file uploads in API mutations.

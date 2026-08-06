@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: frontend/studio/studio_media
+title: Creator Studio Media Management
+scope:
+    - src/react-app/routes/_authenticated/studio_.audio.tsx
+    - src/react-app/routes/_authenticated/studio_.photography.tsx
+    - src/react-app/pages/StudioAudioPage.tsx
+    - src/react-app/pages/StudioPhotographyPage.tsx
+source_files: []
+depends_on: []
+related_to: []

@@ -1,0 +1,1 @@
+Provides a role-based interface for platform administrators to manage users, moderate content, review creator applications, and monitor system health.

@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: frontend/admin
+title: Administration & Moderation Dashboard
+scope:
+    - src/react-app/routes/_authenticated/admin.tsx
+    - src/react-app/routes/_authenticated/admin.index.tsx
+    - src/react-app/routes/_authenticated/admin.$section.tsx
+    - src/react-app/pages/AdminPage.tsx
+source_files: []
+depends_on: []
+related_to:
+    - path: backend_worker

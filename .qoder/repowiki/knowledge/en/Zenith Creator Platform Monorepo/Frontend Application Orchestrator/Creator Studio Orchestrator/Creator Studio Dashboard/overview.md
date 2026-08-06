@@ -1,0 +1,1 @@
+Provides authenticated creators with content creation, scheduling, and management capabilities across multiple content types including posts, articles, audio, photography, and courses.

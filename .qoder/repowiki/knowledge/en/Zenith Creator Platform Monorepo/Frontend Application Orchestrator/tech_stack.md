@@ -1,0 +1,1 @@
+TanStack Router (file-based routing), TanStack Query (server state management), Radix UI (accessibility primitives), Tailwind CSS (styling)

@@ -1,0 +1,3 @@
+- All studio routes enforce creator role access via `beforeLoad` redirects.
+- Studio pages consistently wrap content in the `StudioLayout` component for uniform structure.
+- Navigation items are defined in a centralized `studioNavItems` array within `StudioNav.tsx`.

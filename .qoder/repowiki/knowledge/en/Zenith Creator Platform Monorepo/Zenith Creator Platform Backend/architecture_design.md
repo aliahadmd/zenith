@@ -1,0 +1,5 @@
+- Entry point: `src/worker/index.ts` initializes a Hono app, registers modular route groups (auth, posts, payments, admin, etc.), and exports a `scheduled` handler for background maintenance tasks.
+- Routing & Middleware: Uses Hono's `app.route()` for namespace isolation. Authentication is enforced via `authMiddleware` (session validation + user lookup) and role-specific middleware (`requireRole`, `adminMiddleware`).
+- Data Layer: Drizzle ORM with a D1 adapter (`src/worker/db/client.ts`) manages a SQLite schema defined in `src/worker/db/schema.ts`. Raw SQL is used sparingly for complex discovery/analytics queries.
+- Service Logic: Business logic is encapsulated in `src/worker/lib/` modules (e.g., `payments`, `scheduling`, `notifications`). The payment system uses a provider pattern (`StripePaymentProvider`) to abstract Stripe API interactions.
+- Background Processing: The `scheduled` export in `index.ts` triggers `processDueSchedules` (content publishing) and `processMembershipMaintenance` (trial expirations, plan transitions) via Cloudflare Cron Triggers.

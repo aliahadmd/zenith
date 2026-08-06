@@ -1,0 +1,5 @@
+- Route-level access control via TanStack Router's `beforeLoad` guard enforces creator role requirement before rendering studio pages (e.g., `studio.tsx`, `studio_.scheduled.tsx`). Non-creators are redirected to `/become-creator`.
+- Shared layout pattern using `StudioLayout` component provides consistent two-column structure with responsive `StudioNav` sidebar navigation across all studio pages.
+- Page components (`StudioPage`, `StudioScheduledPage`, `BecomeCreatorPage`) encapsulate domain-specific logic while delegating layout concerns to shared components.
+- `ShortPostComposer` is a reusable dialog-based form component used both for creating new posts and editing scheduled drafts, demonstrating component composition over duplication.
+- `CreatorRoute` provides an alternative HOC-style guard for nested route protection when file-based routing guards are insufficient.

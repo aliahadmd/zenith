@@ -1,0 +1,1 @@
+TanStack Router for file-based routing with guard logic; TanStack Query for server-state management; @dnd-kit/core and @dnd-kit/sortable for drag-and-drop interactions; react-hook-form with zodResolver for form handling.

@@ -1,0 +1,11 @@
+schema_version: 1
+module_path: frontend/studio/studio_courses
+title: Course Studio Management
+scope:
+    - src/react-app/routes/_authenticated/studio_.courses.tsx
+    - src/react-app/routes/_authenticated/studio_.courses.new.tsx
+    - src/react-app/routes/_authenticated/studio_.courses.$courseId.edit.tsx
+    - src/react-app/pages/CourseStudioPage.tsx
+source_files: []
+depends_on: []
+related_to: []

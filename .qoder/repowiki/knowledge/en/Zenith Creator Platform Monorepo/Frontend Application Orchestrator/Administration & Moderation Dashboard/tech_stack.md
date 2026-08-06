@@ -1,0 +1,1 @@
+TanStack Router for file-based routing with route guards; TanStack Query for server-state management and caching.

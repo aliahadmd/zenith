@@ -1,0 +1,3 @@
+- Mutations trigger `queryClient.invalidateQueries` for the `courseKeys.mine` query key to refresh server state after successful create, update, or delete operations.
+- Inline forms for adding modules or lessons use local state for input values and submit via `onSubmit` handlers that prevent default behavior and call specific mutation functions.
+- Reordering of modules and lessons is handled by swapping array indices locally and calling dedicated `reorderCourseModules` or `reorderCourseLessons` API functions with the new ID sequence.

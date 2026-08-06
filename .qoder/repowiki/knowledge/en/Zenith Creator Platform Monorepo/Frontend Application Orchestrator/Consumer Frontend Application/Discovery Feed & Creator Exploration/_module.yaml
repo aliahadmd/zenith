@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: frontend/consumer/discovery_feed
+title: Discovery Feed & Creator Exploration
+scope:
+    - src/react-app/routes/_authenticated/feed.tsx
+    - src/react-app/routes/_authenticated/explore.tsx
+    - src/react-app/pages/FeedPage.tsx
+    - src/react-app/pages/ExplorePage.tsx
+source_files: []
+depends_on: []
+related_to:
+    - path: backend_worker

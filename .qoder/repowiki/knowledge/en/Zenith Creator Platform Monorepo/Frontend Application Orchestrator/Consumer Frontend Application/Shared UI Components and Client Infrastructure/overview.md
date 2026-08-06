@@ -1,0 +1,1 @@
+Provides reusable React UI components, domain-specific cards, global contexts for auth and audio playback, and typed API utilities for the consumer frontend.

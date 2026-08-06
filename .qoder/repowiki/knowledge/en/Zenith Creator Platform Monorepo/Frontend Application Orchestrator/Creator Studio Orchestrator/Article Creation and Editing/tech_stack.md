@@ -1,0 +1,1 @@
+TanStack Router for file-based routing with role guards; TanStack Query for data fetching/mutation; react-hook-form + Zod for form validation; @uiw/react-md-editor for Markdown editing.

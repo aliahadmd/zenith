@@ -1,0 +1,2 @@
+- Role-based route protection uses TanStack Router's `beforeLoad` hook to check `context.user.role !== 'creator'` and redirect non-creators to `/become-creator` before page render.
+- All studio pages wrap content in `StudioLayout` component with `title`, `description`, and optional `contentClassName` props for consistent header styling and responsive navigation.

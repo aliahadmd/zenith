@@ -1,0 +1,1 @@
+TanStack Router for file-based routing with Zod-validated search params; TanStack Query for data fetching and caching; Lucide React for iconography.

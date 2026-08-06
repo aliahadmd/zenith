@@ -1,0 +1,1 @@
+Provides a unified Markdown-based editor for creating new articles or updating existing drafts, with live preview and role-based access control.

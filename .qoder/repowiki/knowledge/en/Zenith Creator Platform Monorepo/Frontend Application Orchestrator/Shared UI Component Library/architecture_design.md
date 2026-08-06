@@ -1,0 +1,5 @@
+- **Component Composition**: Wraps Radix UI primitives (e.g., `Dialog`, `Tabs`, `Slot`) to provide consistent styling and behavior while maintaining accessibility.
+- **Variant Management**: Uses `class-variance-authority` (cva) in components like `Button`, `Badge`, and `Tabs` to manage complex style variants and sizes.
+- **Styling System**: Leverages Tailwind CSS with a custom `cn` utility for conditional class merging and a global `index.css` for design tokens (OKLCH colors, fonts, radii).
+- **Data Attributes**: Applies `data-slot` attributes across components to facilitate stable testing selectors and targeted styling overrides.
+- **Form Integration**: Provides a robust form layer (`form.tsx`) integrating `react-hook-form` with context-based field management and accessible error handling.

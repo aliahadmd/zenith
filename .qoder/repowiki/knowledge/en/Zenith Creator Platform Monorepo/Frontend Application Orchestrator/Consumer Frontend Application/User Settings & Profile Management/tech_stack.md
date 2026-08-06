@@ -1,0 +1,1 @@
+Uses `@dnd-kit` for drag-and-drop functionality in profile tab ordering, `react-hook-form` with `zod` for type-safe form handling, and `@tanstack/react-router` for file-based routing.

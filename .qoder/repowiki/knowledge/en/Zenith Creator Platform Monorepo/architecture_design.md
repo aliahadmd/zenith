@@ -1,0 +1,4 @@
+- The root `vite.config.ts` integrates the `@cloudflare/vite-plugin`, enabling a unified development server that serves the React frontend while proxying `/api/*` requests to the Hono worker defined in `src/worker/index.ts`.
+- Shared infrastructure is declared in `wrangler.json`, binding both the frontend and backend to common D1 databases, R2 storage, and email services, ensuring consistent environment variable and secret management across the stack.
+- Type safety is maintained end-to-end via Zod schemas in the worker and corresponding TypeScript interfaces in the frontend's `lib/api.ts`, which standardizes error handling and response normalization for all HTTP interactions.
+- Database schema evolution is centralized through `drizzle.config.ts`, which points to the worker's schema definitions, allowing the root-level `npm run build` and `deploy` scripts to manage full-stack consistency.

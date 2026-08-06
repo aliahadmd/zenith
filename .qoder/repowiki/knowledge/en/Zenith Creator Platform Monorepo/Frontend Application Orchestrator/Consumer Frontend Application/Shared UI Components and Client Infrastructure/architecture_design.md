@@ -1,0 +1,4 @@
+- **UI Layer**: Divided into atomic `ui/` primitives (e.g., `button.tsx`, `avatar.tsx`) built with Radix UI and Tailwind, and composite domain components (e.g., `PostCard.tsx`, `AppShell.tsx`) that orchestrate business logic and layout.
+- **State & Context**: Global state is managed via React Context (`AuthContext.tsx`, `AudioPlayerContext.tsx`) integrated with TanStack Query for server-state synchronization and optimistic updates.
+- **Data Access**: The `lib/` directory contains a centralized `api.ts` client handling fetch abstraction, error normalization, and credential inclusion, alongside domain-specific API modules (e.g., `auth.ts`, `posts.ts`) that export TanStack Query options.
+- **Validation**: Shared Zod schemas in `lib/schemas.ts` define strict validation rules for forms across authentication, content creation, and settings, ensuring type safety from input to API payload.

@@ -1,0 +1,2 @@
+- Frontend API clients in `src/react-app/lib` use a standardized `apiFetch` wrapper that normalizes JSON responses and dispatches custom DOM events for auth state changes.
+- Backend routes in `src/worker/routes` are modularized by domain (e.g., `posts`, `auth`, `payments`) and composed into the main Hono app via `app.route()`.

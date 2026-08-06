@@ -1,0 +1,4 @@
+- Route-to-page mapping: TanStack Router file-based routes (`feed.tsx`, `explore.tsx`) delegate rendering to page components (`FeedPage.tsx`, `ExplorePage.tsx`).
+- Data fetching layer: Centralized query options in `lib/posts.ts` (feed) and `lib/discovery.ts` (creator search/overview) encapsulate API calls and cache keys for TanStack Query.
+- State management: URL search params drive exploration state (search, category, sort, page) via Zod-validated schemas, while local component state handles form inputs and interest selection.
+- Content polymorphism: The feed renderer dynamically selects card components (`ArticleCard`, `AudioCard`, etc.) based on the `type` discriminator of unified feed items.

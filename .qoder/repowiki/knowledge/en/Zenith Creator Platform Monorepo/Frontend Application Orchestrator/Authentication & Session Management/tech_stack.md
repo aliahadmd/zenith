@@ -1,0 +1,1 @@
+Passwordless authentication via OTP using TanStack Router for route guards, TanStack Query for state management, and Zod for schema validation.

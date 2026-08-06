@@ -1,0 +1,4 @@
+- Route handlers use `zValidator` middleware for request body/param validation, passing a `zodHook` to standardize error responses.
+- Database queries consistently use Drizzle's type-safe query builder, with raw SQL reserved for complex aggregations in discovery or admin health checks.
+- Background tasks and side effects (like sending emails) are wrapped in try-catch blocks to prevent failure from disrupting the main request/response cycle, often logging errors to console.
+- Administrative actions are audited by calling `writeAdminAuditLog` immediately after successful state changes, recording actor, action, and target details.

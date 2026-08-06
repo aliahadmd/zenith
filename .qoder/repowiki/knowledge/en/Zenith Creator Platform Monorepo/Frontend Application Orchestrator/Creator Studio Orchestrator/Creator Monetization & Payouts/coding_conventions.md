@@ -1,0 +1,3 @@
+- Route files in `routes/_authenticated/` act as thin wrappers that perform role-based authorization checks before rendering the corresponding page component from `pages/`.
+- Payment-related API interactions are centralized in `lib/payments.ts`, which exports both query options for TanStack Query and mutation helpers for actions like onboarding or plan updates.
+- Conditional form fields in subscription settings are driven by the selected `mode` (e.g., showing price inputs only when 'paid' is selected), with validation schemas enforcing requirements per mode.

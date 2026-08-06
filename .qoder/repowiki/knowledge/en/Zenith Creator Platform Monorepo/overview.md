@@ -1,0 +1,1 @@
+Orchestrates a unified full-stack creator economy application by coupling a React frontend with a Cloudflare Workers backend through shared build tooling, type-safe API contracts, and integrated infrastructure bindings.

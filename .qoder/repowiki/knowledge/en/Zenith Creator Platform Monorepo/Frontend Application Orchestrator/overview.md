@@ -1,0 +1,1 @@
+Unifies consumer, creator, and admin experiences through a type-safe file-based router, shared global state providers, and a consistent UI component library.

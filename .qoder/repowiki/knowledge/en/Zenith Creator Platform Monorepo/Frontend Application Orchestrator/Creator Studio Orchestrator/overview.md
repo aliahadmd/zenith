@@ -1,0 +1,1 @@
+Orchestrates the creator workspace by enforcing role-based access, providing a unified navigation layout, and routing to specialized content and monetization modules.

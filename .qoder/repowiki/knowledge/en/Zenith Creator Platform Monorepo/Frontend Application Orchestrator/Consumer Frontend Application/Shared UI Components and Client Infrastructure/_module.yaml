@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: frontend/consumer/shared_ui_lib
+title: Shared UI Components and Client Infrastructure
+scope:
+    - src/react-app/components/
+    - src/react-app/context/
+    - src/react-app/lib/
+source_files: []
+depends_on: []
+related_to:
+    - path: backend_worker
+    - path: frontend/auth

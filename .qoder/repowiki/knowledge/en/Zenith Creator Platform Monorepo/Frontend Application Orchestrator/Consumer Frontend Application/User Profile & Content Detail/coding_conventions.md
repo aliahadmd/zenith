@@ -1,0 +1,3 @@
+- Route files in `routes/` act as thin wrappers that extract parameters and pass them to corresponding page components in `pages/`.
+- Detail pages consistently use `queryOptions` helpers from domain-specific libraries (e.g., `lib/articles.ts`) to configure `useQuery` hooks.
+- Content detail pages uniformly render a `Discussion` component at the bottom to handle comments and replies for the primary entity.

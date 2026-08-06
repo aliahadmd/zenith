@@ -1,0 +1,1 @@
+Uses `@uiw/react-md-editor` for rich text lesson content and `lucide-react` for iconography, integrated within a `@tanstack/react-router` and `@tanstack/react-query` architecture.

@@ -1,0 +1,18 @@
+schema_version: 1
+module_path: backend_worker
+title: Zenith Creator Platform Backend
+scope:
+    - src/worker/
+    - drizzle/
+source_files: []
+depends_on: []
+related_to:
+    - path: frontend/admin
+    - path: frontend/auth
+    - path: frontend/consumer/discovery_feed
+    - path: frontend/consumer/library_notifications
+    - path: frontend/consumer/settings
+    - path: frontend/consumer/shared_ui_lib
+    - path: frontend/consumer/user_profile_content
+    - path: frontend/studio/studio_dashboard
+    - path: frontend/studio/studio_monetization

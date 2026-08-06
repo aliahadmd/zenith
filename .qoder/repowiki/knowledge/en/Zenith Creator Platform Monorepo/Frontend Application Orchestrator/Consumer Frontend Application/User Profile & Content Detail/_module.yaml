@@ -1,0 +1,23 @@
+schema_version: 1
+module_path: frontend/consumer/user_profile_content
+title: User Profile & Content Detail
+scope:
+    - src/react-app/routes/_authenticated/u.$username.tsx
+    - src/react-app/routes/_authenticated/u.$username_.album.$slug.tsx
+    - src/react-app/routes/_authenticated/u.$username_.article.$slug.tsx
+    - src/react-app/routes/_authenticated/u.$username_.audio.$slug.tsx
+    - src/react-app/routes/_authenticated/u.$username_.course.$slug.tsx
+    - src/react-app/routes/_authenticated/u.$username_.photography.$slug.tsx
+    - src/react-app/routes/_authenticated/u.$username_.podcast.$slug.tsx
+    - src/react-app/routes/_authenticated/u.$username_.post.$slug.tsx
+    - src/react-app/pages/ProfilePage.tsx
+    - src/react-app/pages/ArticleDetailPage.tsx
+    - src/react-app/pages/AudioDetailPage.tsx
+    - src/react-app/pages/AudioCollectionPage.tsx
+    - src/react-app/pages/CourseDetailPage.tsx
+    - src/react-app/pages/PhotographyAlbumPage.tsx
+    - src/react-app/pages/PostDetailPage.tsx
+source_files: []
+depends_on: []
+related_to:
+    - path: backend_worker

@@ -1,0 +1,3 @@
+- Components use data-slot attributes (e.g., data-slot="button") to provide stable hooks for testing and external styling.
+- Style variants and sizes are defined using class-variance-authority (cva) to ensure consistent prop-to-class mapping.
+- Radix UI primitives are wrapped in local components that apply default Tailwind classes and merge user-provided className via the cn utility.

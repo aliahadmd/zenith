@@ -1,0 +1,3 @@
+- Route-level access control using `beforeLoad` in TanStack Router to redirect non-creators before rendering the component.
+- Unified page component (`ArticleEditorPage`) handling both create and edit flows via an optional ID prop, reducing code duplication.
+- Form submission intent (draft vs publish) captured via state and passed to a single mutation handler that constructs `FormData`.

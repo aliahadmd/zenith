@@ -1,0 +1,3 @@
+- UI components use the `cn` utility from `@/lib/utils` to merge Tailwind classes with conditional variants, ensuring consistent styling and override behavior.
+- API functions in `lib/` return standardized `ApiResponse<T>` objects or throw `ApiError` instances, centralizing error handling and status code processing.
+- Complex components like `PostCard` and `AudioPlayerProvider` integrate TanStack Query mutations directly to handle side effects and cache invalidation locally.

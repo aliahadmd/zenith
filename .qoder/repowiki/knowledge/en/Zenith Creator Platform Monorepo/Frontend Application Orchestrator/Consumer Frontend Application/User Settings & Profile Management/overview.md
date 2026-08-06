@@ -1,0 +1,1 @@
+Manages user profile details, account credentials, notification preferences, and creator-specific UI configurations through a unified settings interface.

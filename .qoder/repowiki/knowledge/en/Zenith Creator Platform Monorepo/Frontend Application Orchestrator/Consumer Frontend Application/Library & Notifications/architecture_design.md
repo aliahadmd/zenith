@@ -1,0 +1,5 @@
+- Route layer uses TanStack Router file-based routing (`createFileRoute`) under `/_authenticated/` to mount page components at `/library` and `/notifications`.
+- Page components (`LibraryPage`, `NotificationsPage`) own local state for filters/sort/pagination and drive data fetching via TanStack Query hooks (`useQuery`, `useMutation`).
+- Data access is delegated to external query-option factories in `../lib/library` and `../lib/notifications`, keeping pages free of direct API calls.
+- Library renders polymorphic content cards (Article, Audio, Photography, Course, Post) based on item type, with fallback states for membership-required or unavailable items.
+- Notifications support unread/all filtering, individual and bulk mark-as-read mutations with optimistic cache invalidation via `notificationKeys`.

@@ -1,0 +1,4 @@
+- Centralized Page Component: `SettingsPage.tsx` acts as the single source of truth for all settings sections, using a `section` prop to conditionally render specific forms (Profile, Account, Notifications, etc.).
+- File-Based Routing: Individual route files in `src/react-app/routes/_authenticated/` (e.g., `settings_.profile.tsx`) map URL paths to specific `SettingsPage` sections via `@tanstack/react-router`.
+- State Management: Uses `react-hook-form` with `zod` resolvers for form state and validation, and `@tanstack/react-query` for server-state synchronization (mutations and queries).
+- Specialized Sub-Components: Complex sections like 'Profile Tabs' (drag-and-drop ordering) and 'Notifications' (preference toggles) are implemented as internal components within `SettingsPage.tsx` or imported from specialized libraries (`lib/profile-tabs`, `lib/notifications`).

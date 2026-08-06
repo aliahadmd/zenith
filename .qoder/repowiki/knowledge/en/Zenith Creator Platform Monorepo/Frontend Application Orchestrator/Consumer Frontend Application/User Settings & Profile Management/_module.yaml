@@ -1,0 +1,16 @@
+schema_version: 1
+module_path: frontend/consumer/settings
+title: User Settings & Profile Management
+scope:
+    - src/react-app/routes/_authenticated/settings.tsx
+    - src/react-app/routes/_authenticated/settings_.account.tsx
+    - src/react-app/routes/_authenticated/settings_.discovery.tsx
+    - src/react-app/routes/_authenticated/settings_.notifications.tsx
+    - src/react-app/routes/_authenticated/settings_.profile-tabs.tsx
+    - src/react-app/routes/_authenticated/settings_.profile.tsx
+    - src/react-app/routes/_authenticated/settings_.security.tsx
+    - src/react-app/pages/SettingsPage.tsx
+source_files: []
+depends_on: []
+related_to:
+    - path: backend_worker

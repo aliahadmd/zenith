@@ -1,0 +1,1 @@
+Manages creator subscription plans, Stripe Connect onboarding, and revenue analytics within the studio dashboard.

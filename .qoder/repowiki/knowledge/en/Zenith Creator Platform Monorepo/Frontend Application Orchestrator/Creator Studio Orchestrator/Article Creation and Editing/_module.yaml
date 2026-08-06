@@ -1,0 +1,10 @@
+schema_version: 1
+module_path: frontend/studio/studio_articles
+title: Article Creation and Editing
+scope:
+    - src/react-app/routes/_authenticated/studio_.articles.new.tsx
+    - src/react-app/routes/_authenticated/studio_.articles.$postId.edit.tsx
+    - src/react-app/pages/ArticleEditorPage.tsx
+source_files: []
+depends_on: []
+related_to: []

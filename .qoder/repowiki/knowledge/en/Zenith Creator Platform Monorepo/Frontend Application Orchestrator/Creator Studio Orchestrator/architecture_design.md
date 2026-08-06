@@ -1,0 +1,4 @@
+- **Role-Based Orchestration**: Every studio route enforces a `creator` role check in its `beforeLoad` hook, redirecting unauthorized users to the onboarding flow (`/become-creator`).
+- **Unified Layout Contract**: The `StudioLayout` component provides a consistent two-column structure (sidebar navigation + content area) that all child pages adopt, ensuring visual and navigational coherence.
+- **Centralized Navigation**: The `StudioNav` component acts as the single source of truth for studio routing, dynamically highlighting active sections and adapting between vertical (desktop) and horizontal (mobile) orientations.
+- **Shared Infrastructure**: Child modules rely on shared utility libraries (`admin.ts`, `payments.ts`) for API interactions, decoupling data fetching logic from UI components while maintaining a consistent error handling and state management strategy via TanStack Query.

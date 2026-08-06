@@ -1,0 +1,317 @@
+# 知识卡导出索引文件
+schema_version: 1
+locale: en-US
+branch: main
+nodes_managed: true
+exported_at: "2026-07-29T01:34:03Z"
+modules:
+    "":
+        dir_name: Zenith Creator Platform Monorepo
+        title: Zenith Creator Platform Monorepo
+        scope:
+            - .gitignore
+            - AGENTS.md
+            - SKILL.md
+            - components.json
+            - drizzle.config.ts
+            - eslint.config.js
+            - index.html
+            - package-lock.json
+            - package.json
+            - tsconfig.app.json
+            - tsconfig.json
+            - tsconfig.node.json
+            - tsconfig.worker.json
+            - vite.config.ts
+            - vitest.config.frontend.ts
+            - vitest.config.ts
+            - worker-configuration.d.ts
+            - wrangler.json
+            - README.md
+        source_files: []
+        children:
+            - backend_worker
+            - frontend
+        depends_on: []
+        related_to: []
+    backend_worker:
+        dir_name: Zenith Creator Platform Backend
+        title: Zenith Creator Platform Backend
+        scope:
+            - src/worker/
+            - drizzle/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: frontend/admin
+            - path: frontend/auth
+            - path: frontend/consumer/discovery_feed
+            - path: frontend/consumer/library_notifications
+            - path: frontend/consumer/settings
+            - path: frontend/consumer/shared_ui_lib
+            - path: frontend/consumer/user_profile_content
+            - path: frontend/studio/studio_dashboard
+            - path: frontend/studio/studio_monetization
+    frontend:
+        dir_name: Frontend Application Orchestrator
+        title: Frontend Application Orchestrator
+        scope:
+            - src/react-app/
+        source_files: []
+        children:
+            - frontend/admin
+            - frontend/auth
+            - frontend/consumer
+            - frontend/shared_ui
+            - frontend/studio
+        depends_on: []
+        related_to: []
+    frontend/admin:
+        dir_name: Administration & Moderation Dashboard
+        title: Administration & Moderation Dashboard
+        scope:
+            - src/react-app/routes/_authenticated/admin.tsx
+            - src/react-app/routes/_authenticated/admin.index.tsx
+            - src/react-app/routes/_authenticated/admin.$section.tsx
+            - src/react-app/pages/AdminPage.tsx
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend_worker
+    frontend/auth:
+        dir_name: Authentication & Session Management
+        title: Authentication & Session Management
+        scope:
+            - src/react-app/routes/login.tsx
+            - src/react-app/routes/register.tsx
+            - src/react-app/pages/LoginPage.tsx
+            - src/react-app/pages/RegisterPage.tsx
+            - src/react-app/components/AuthPageShell.tsx
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend_worker
+            - path: frontend/consumer/shared_ui_lib
+    frontend/consumer:
+        dir_name: Consumer Frontend Application
+        title: Consumer Frontend Application
+        scope:
+            - src/react-app/routes/_authenticated/
+            - src/react-app/pages/
+            - src/react-app/components/
+            - src/react-app/context/
+            - src/react-app/lib/
+        source_files: []
+        children:
+            - frontend/consumer/discovery_feed
+            - frontend/consumer/library_notifications
+            - frontend/consumer/settings
+            - frontend/consumer/shared_ui_lib
+            - frontend/consumer/user_profile_content
+        depends_on: []
+        related_to: []
+    frontend/consumer/discovery_feed:
+        dir_name: Discovery Feed & Creator Exploration
+        title: Discovery Feed & Creator Exploration
+        scope:
+            - src/react-app/routes/_authenticated/feed.tsx
+            - src/react-app/routes/_authenticated/explore.tsx
+            - src/react-app/pages/FeedPage.tsx
+            - src/react-app/pages/ExplorePage.tsx
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend_worker
+    frontend/consumer/library_notifications:
+        dir_name: Library & Notifications
+        title: Library & Notifications
+        scope:
+            - src/react-app/routes/_authenticated/library.tsx
+            - src/react-app/routes/_authenticated/notifications.tsx
+            - src/react-app/pages/LibraryPage.tsx
+            - src/react-app/pages/NotificationsPage.tsx
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend_worker
+    frontend/consumer/settings:
+        dir_name: User Settings & Profile Management
+        title: User Settings & Profile Management
+        scope:
+            - src/react-app/routes/_authenticated/settings.tsx
+            - src/react-app/routes/_authenticated/settings_.account.tsx
+            - src/react-app/routes/_authenticated/settings_.discovery.tsx
+            - src/react-app/routes/_authenticated/settings_.notifications.tsx
+            - src/react-app/routes/_authenticated/settings_.profile-tabs.tsx
+            - src/react-app/routes/_authenticated/settings_.profile.tsx
+            - src/react-app/routes/_authenticated/settings_.security.tsx
+            - src/react-app/pages/SettingsPage.tsx
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend_worker
+    frontend/consumer/shared_ui_lib:
+        dir_name: Shared UI Components and Client Infrastructure
+        title: Shared UI Components and Client Infrastructure
+        scope:
+            - src/react-app/components/
+            - src/react-app/context/
+            - src/react-app/lib/
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend_worker
+            - path: frontend/auth
+    frontend/consumer/user_profile_content:
+        dir_name: User Profile & Content Detail
+        title: User Profile & Content Detail
+        scope:
+            - src/react-app/routes/_authenticated/u.$username.tsx
+            - src/react-app/routes/_authenticated/u.$username_.album.$slug.tsx
+            - src/react-app/routes/_authenticated/u.$username_.article.$slug.tsx
+            - src/react-app/routes/_authenticated/u.$username_.audio.$slug.tsx
+            - src/react-app/routes/_authenticated/u.$username_.course.$slug.tsx
+            - src/react-app/routes/_authenticated/u.$username_.photography.$slug.tsx
+            - src/react-app/routes/_authenticated/u.$username_.podcast.$slug.tsx
+            - src/react-app/routes/_authenticated/u.$username_.post.$slug.tsx
+            - src/react-app/pages/ProfilePage.tsx
+            - src/react-app/pages/ArticleDetailPage.tsx
+            - src/react-app/pages/AudioDetailPage.tsx
+            - src/react-app/pages/AudioCollectionPage.tsx
+            - src/react-app/pages/CourseDetailPage.tsx
+            - src/react-app/pages/PhotographyAlbumPage.tsx
+            - src/react-app/pages/PostDetailPage.tsx
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend_worker
+    frontend/shared_ui:
+        dir_name: Shared UI Component Library
+        title: Shared UI Component Library
+        scope:
+            - src/react-app/components/ui/
+            - src/react-app/index.css
+            - src/react-app/main.tsx
+            - src/react-app/routeTree.gen.ts
+            - src/react-app/vite-env.d.ts
+            - src/react-app/test-setup.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    frontend/studio:
+        dir_name: Creator Studio Orchestrator
+        title: Creator Studio Orchestrator
+        scope:
+            - src/react-app/routes/_authenticated/studio.tsx
+            - src/react-app/routes/_authenticated/studio_.articles.$postId.edit.tsx
+            - src/react-app/routes/_authenticated/studio_.articles.new.tsx
+            - src/react-app/routes/_authenticated/studio_.audio.tsx
+            - src/react-app/routes/_authenticated/studio_.courses.$courseId.edit.tsx
+            - src/react-app/routes/_authenticated/studio_.courses.new.tsx
+            - src/react-app/routes/_authenticated/studio_.courses.tsx
+            - src/react-app/routes/_authenticated/studio_.payouts.tsx
+            - src/react-app/routes/_authenticated/studio_.photography.tsx
+            - src/react-app/routes/_authenticated/studio_.scheduled.tsx
+            - src/react-app/routes/_authenticated/studio_.subscriptions.tsx
+            - src/react-app/pages/StudioPage.tsx
+            - src/react-app/pages/StudioAudioPage.tsx
+            - src/react-app/pages/StudioPhotographyPage.tsx
+            - src/react-app/pages/StudioScheduledPage.tsx
+            - src/react-app/pages/CourseStudioPage.tsx
+            - src/react-app/pages/ArticleEditorPage.tsx
+            - src/react-app/pages/PayoutsPage.tsx
+            - src/react-app/pages/SubscriptionsPage.tsx
+            - src/react-app/pages/BecomeCreatorPage.tsx
+            - src/react-app/components/CreatorRoute.tsx
+            - src/react-app/components/ShortPostComposer.tsx
+            - src/react-app/components/StudioLayout.tsx
+            - src/react-app/components/StudioNav.tsx
+            - src/react-app/lib/admin.ts
+            - src/react-app/lib/payments.ts
+            - src/react-app/routes/_authenticated/become-creator.tsx
+        source_files: []
+        children:
+            - frontend/studio/studio_articles
+            - frontend/studio/studio_courses
+            - frontend/studio/studio_dashboard
+            - frontend/studio/studio_media
+            - frontend/studio/studio_monetization
+        depends_on: []
+        related_to: []
+    frontend/studio/studio_articles:
+        dir_name: Article Creation and Editing
+        title: Article Creation and Editing
+        scope:
+            - src/react-app/routes/_authenticated/studio_.articles.new.tsx
+            - src/react-app/routes/_authenticated/studio_.articles.$postId.edit.tsx
+            - src/react-app/pages/ArticleEditorPage.tsx
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    frontend/studio/studio_courses:
+        dir_name: Course Studio Management
+        title: Course Studio Management
+        scope:
+            - src/react-app/routes/_authenticated/studio_.courses.tsx
+            - src/react-app/routes/_authenticated/studio_.courses.new.tsx
+            - src/react-app/routes/_authenticated/studio_.courses.$courseId.edit.tsx
+            - src/react-app/pages/CourseStudioPage.tsx
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    frontend/studio/studio_dashboard:
+        dir_name: Creator Studio Dashboard
+        title: Creator Studio Dashboard
+        scope:
+            - src/react-app/routes/_authenticated/studio.tsx
+            - src/react-app/routes/_authenticated/studio_.scheduled.tsx
+            - src/react-app/routes/_authenticated/become-creator.tsx
+            - src/react-app/pages/StudioPage.tsx
+            - src/react-app/pages/StudioScheduledPage.tsx
+            - src/react-app/pages/BecomeCreatorPage.tsx
+            - src/react-app/components/StudioLayout.tsx
+            - src/react-app/components/StudioNav.tsx
+            - src/react-app/components/CreatorRoute.tsx
+            - src/react-app/components/ShortPostComposer.tsx
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend_worker
+    frontend/studio/studio_media:
+        dir_name: Creator Studio Media Management
+        title: Creator Studio Media Management
+        scope:
+            - src/react-app/routes/_authenticated/studio_.audio.tsx
+            - src/react-app/routes/_authenticated/studio_.photography.tsx
+            - src/react-app/pages/StudioAudioPage.tsx
+            - src/react-app/pages/StudioPhotographyPage.tsx
+        source_files: []
+        children: []
+        depends_on: []
+        related_to: []
+    frontend/studio/studio_monetization:
+        dir_name: Creator Monetization & Payouts
+        title: Creator Monetization & Payouts
+        scope:
+            - src/react-app/routes/_authenticated/studio_.subscriptions.tsx
+            - src/react-app/routes/_authenticated/studio_.payouts.tsx
+            - src/react-app/pages/SubscriptionsPage.tsx
+            - src/react-app/pages/PayoutsPage.tsx
+            - src/react-app/lib/payments.ts
+        source_files: []
+        children: []
+        depends_on: []
+        related_to:
+            - path: backend_worker

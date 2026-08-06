@@ -1,0 +1,12 @@
+schema_version: 1
+module_path: frontend/consumer
+title: Consumer Frontend Application
+scope:
+    - src/react-app/routes/_authenticated/
+    - src/react-app/pages/
+    - src/react-app/components/
+    - src/react-app/context/
+    - src/react-app/lib/
+source_files: []
+depends_on: []
+related_to: []

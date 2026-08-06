@@ -1,0 +1,4 @@
+- **Routing Layer**: Uses `@tanstack/react-router` file-based routing (`studio_.subscriptions.tsx`, `studio_.payouts.tsx`) with a `beforeLoad` guard that restricts access to users with the 'creator' role.
+- **Page Components**: `SubscriptionsPage` handles plan configuration (mode, pricing, trials) and Stripe account status; `PayoutsPage` displays revenue metrics, subscriber lists, and payout history using `recharts` for visualization.
+- **Data Layer**: `payments.ts` provides typed API clients (`apiGetRequired`, `apiPutRequired`) and TanStack Query options for fetching plan details, analytics, and triggering Stripe onboarding flows.
+- **Validation**: Form inputs are validated against `creatorSubscriptionPlanSchema` in `schemas.ts`, ensuring conditional logic for paid vs. trial modes.

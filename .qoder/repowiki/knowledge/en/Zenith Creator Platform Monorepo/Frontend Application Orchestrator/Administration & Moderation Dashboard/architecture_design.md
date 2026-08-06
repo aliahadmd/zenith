@@ -1,0 +1,4 @@
+- **Routing Layer**: Uses TanStack Router file-based routing (`admin.tsx`, `admin.index.tsx`, `admin.$section.tsx`) to enforce authentication and role-based access control (RBAC) via `beforeLoad` guards.
+- **View Layer**: A single `AdminPage` component acts as the layout shell, rendering a dynamic sidebar and section-specific sub-components (e.g., `Applications`, `Reports`, `UsersPage`) based on the URL parameter.
+- **Data Access**: Centralized API interactions are abstracted in `src/react-app/lib/admin.ts`, providing typed helpers for paginated lists and administrative actions.
+- **Access Control**: Route-level guards restrict access to sensitive sections like 'Discovery' and 'Administrators' exclusively to users with the 'owner' role.

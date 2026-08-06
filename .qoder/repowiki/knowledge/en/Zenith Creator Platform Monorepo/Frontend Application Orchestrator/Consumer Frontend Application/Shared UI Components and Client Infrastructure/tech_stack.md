@@ -1,0 +1,1 @@
+Uses `class-variance-authority` for variant-based styling in `ui/` components, `zod` for schema validation in `lib/schemas.ts`, and `@tanstack/react-query` for data fetching and cache management in `lib/api.ts` and contexts.

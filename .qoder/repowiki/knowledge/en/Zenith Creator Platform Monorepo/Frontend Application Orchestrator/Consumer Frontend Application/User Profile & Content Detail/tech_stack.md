@@ -1,0 +1,1 @@
+Uses `@tanstack/react-router` for type-safe file-based routing and `@tanstack/react-query` for declarative data fetching and cache management.

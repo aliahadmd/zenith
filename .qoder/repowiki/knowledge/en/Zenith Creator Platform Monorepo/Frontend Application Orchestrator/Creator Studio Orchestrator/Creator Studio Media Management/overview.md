@@ -1,0 +1,1 @@
+Provides creator-facing interfaces for managing audio collections (albums, podcasts) and photography albums with drag-and-drop reordering and media uploads.

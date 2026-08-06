@@ -1,0 +1,4 @@
+- Route definitions (`routes/login.tsx`, `routes/register.tsx`) use TanStack Router's `beforeLoad` to check `authMeQueryOptions` and redirect authenticated users away from auth pages.
+- Page components (`LoginPage.tsx`, `RegisterPage.tsx`) implement a two-step OTP flow (email entry → code verification) using `react-hook-form` with Zod validation and `AuthContext` for session completion.
+- `AuthPageShell.tsx` provides a consistent layout with marketing content, background animations, and responsive design for both login and register modes.
+- `AuthContext.tsx` manages the global auth state, exposing `completeOtpSignIn` and `logout` via React Query mutations, and listens for `unauthorized`/`account-suspended` window events to clear sessions.

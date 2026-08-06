@@ -1,0 +1,6 @@
+- Runtime: Cloudflare Workers (D1 for database, R2 for storage, Email Workers for notifications).
+- Framework: Hono for HTTP routing and middleware.
+- ORM: Drizzle ORM with SQLite (D1) adapter.
+- Auth: Better-auth with custom email OTP plugin.
+- Payments: Stripe Connect (Express accounts) for creator payouts and subscription management.
+- Validation: Zod with `@hono/zod-validator`.

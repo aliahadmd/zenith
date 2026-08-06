@@ -1,0 +1,1 @@
+Handles passwordless OTP-based login and registration flows with route-level auth guards and a shared visual shell.

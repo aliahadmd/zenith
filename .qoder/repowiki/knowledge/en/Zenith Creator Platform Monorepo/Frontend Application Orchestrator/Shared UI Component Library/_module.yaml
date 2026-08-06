@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: frontend/shared_ui
+title: Shared UI Component Library
+scope:
+    - src/react-app/components/ui/
+    - src/react-app/index.css
+    - src/react-app/main.tsx
+    - src/react-app/routeTree.gen.ts
+    - src/react-app/vite-env.d.ts
+    - src/react-app/test-setup.ts
+source_files: []
+depends_on: []
+related_to: []

@@ -1,0 +1,5 @@
+- Uses TanStack Router file-based routing with a root `/_authenticated` layout that enforces session validity via `beforeLoad` guards and renders the `AppShell`.
+- Role-based access control is applied at the route level (e.g., `admin.tsx`, `studio.tsx`) using context data injected during `beforeLoad`, redirecting unauthorized users to appropriate fallbacks.
+- Global state is managed via React Context (`AuthContext`, `AudioPlayerContext`) and TanStack Query, with a shared `queryClient` instance configured for consistent caching and retry behavior.
+- A centralized `api.ts` utility handles all HTTP requests, normalizing error responses and dispatching custom DOM events (`unauthorized`, `account-suspended`) that trigger global state updates in `AuthContext`.
+- Shared UI components (`AppShell`, `Sidebar`, domain cards) and typed API clients (`lib/*.ts`) are provided as cross-cutting concerns, ensuring consistent design and data fetching patterns across all child features.

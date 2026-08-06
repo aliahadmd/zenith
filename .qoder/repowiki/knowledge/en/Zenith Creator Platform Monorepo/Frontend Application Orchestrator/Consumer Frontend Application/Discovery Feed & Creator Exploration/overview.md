@@ -1,0 +1,1 @@
+Provides authenticated users with a personalized content feed and a discovery interface for browsing, searching, and following creators.

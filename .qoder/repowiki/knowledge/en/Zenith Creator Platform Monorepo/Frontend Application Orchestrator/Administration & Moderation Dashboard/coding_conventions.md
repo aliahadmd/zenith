@@ -1,0 +1,2 @@
+- Administrative actions that modify state (e.g., approve, suspend, revoke) are wrapped in a reusable `AdminActionDialog` component that enforces a mandatory audit reason and optional private note.
+- Paginated data tables consistently use a `TablePanel` wrapper for layout and a `PageControls` component for navigation, driven by TanStack Query.

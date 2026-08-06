@@ -1,0 +1,1 @@
+A Cloudflare Workers-based backend providing creator monetization, content management, and community features with Stripe integration and scheduled task processing.

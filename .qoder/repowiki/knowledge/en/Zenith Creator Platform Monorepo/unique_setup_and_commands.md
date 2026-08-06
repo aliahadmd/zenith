@@ -1,0 +1,3 @@
+- `npm run dev`: Boots the unified Vite dev server serving both the React app and the Cloudflare Worker.
+- `npm run deploy:production`: Executes a type-checked build followed by a Wrangler deployment to the production Cloudflare environment.
+- `npm run cf-typegen`: Generates TypeScript definitions for Cloudflare bindings from `wrangler.json`.

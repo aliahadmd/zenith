@@ -1,0 +1,1 @@
+TanStack Router for file-based routing with layout guards; TanStack Query for server-state management and cache synchronization; React Context for global auth and audio player state.

@@ -1,0 +1,5 @@
+- Entry points: TanStack Router file-based routes `studio_.articles.new.tsx` (create) and `studio_.articles.$postId.edit.tsx` (update) enforce 'creator' role via `beforeLoad` guards.
+- Shared UI: Both routes render `ArticleEditorPage.tsx`, which conditionally handles create vs edit modes using an optional `postId` prop.
+- Data layer: Uses TanStack Query (`useQuery`, `useMutation`) with `articleByIdQueryOptions`, `createArticle`, and `updateArticle` from `lib/articles.ts` for API interaction.
+- Validation: Form state managed by `react-hook-form` with `zodResolver` against `articleSchema` in `lib/schemas.ts`, enforcing different rules for drafts vs published articles.
+- Preview: Real-time Markdown preview rendered via `@uiw/react-md-editor` and `MarkdownRenderer` component, split into side-by-side (desktop) or tabbed (mobile) views.

@@ -1,0 +1,26 @@
+schema_version: 1
+module_path: ""
+title: Zenith Creator Platform Monorepo
+scope:
+    - .gitignore
+    - AGENTS.md
+    - SKILL.md
+    - components.json
+    - drizzle.config.ts
+    - eslint.config.js
+    - index.html
+    - package-lock.json
+    - package.json
+    - tsconfig.app.json
+    - tsconfig.json
+    - tsconfig.node.json
+    - tsconfig.worker.json
+    - vite.config.ts
+    - vitest.config.frontend.ts
+    - vitest.config.ts
+    - worker-configuration.d.ts
+    - wrangler.json
+    - README.md
+source_files: []
+depends_on: []
+related_to: []

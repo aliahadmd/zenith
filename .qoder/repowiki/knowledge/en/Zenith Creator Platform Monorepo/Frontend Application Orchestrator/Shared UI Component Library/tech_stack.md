@@ -1,0 +1,1 @@
+Radix UI for unstyled accessible primitives, class-variance-authority (cva) for variant logic, and Tailwind CSS v4 with OKLCH color space for theming.

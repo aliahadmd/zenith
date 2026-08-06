@@ -1,0 +1,4 @@
+- Use `zodResolver` with `react-hook-form` for type-safe form validation across auth and settings forms.
+- Implement two-step OTP flows by toggling UI state based on `submittedEmail` presence rather than separate routes.
+- Handle API errors by mapping `ApiError` codes to user-friendly messages in local helper functions like `otpRequestError`.
+- Share layout logic between login and register views using a polymorphic `AuthPageShell` component with a `mode` prop.

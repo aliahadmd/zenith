@@ -1,0 +1,3 @@
+- Route-level authorization guards use `beforeLoad` in TanStack Router to inject user context and enforce role-based redirects before rendering.
+- API clients in `lib/` expose typed functions wrapping a central `apiFetch` utility that normalizes errors and dispatches custom DOM events for session lifecycle management.
+- Global state updates on auth events (logout, suspension) are synchronized by listening to custom DOM events in `AuthContext` and invalidating relevant TanStack Query keys.

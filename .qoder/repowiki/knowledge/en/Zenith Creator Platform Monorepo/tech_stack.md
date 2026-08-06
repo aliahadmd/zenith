@@ -1,0 +1,1 @@
+Vite with @cloudflare/vite-plugin for unified dev/prod builds; Hono for edge-native API routing; Drizzle ORM with D1 for serverless SQLite persistence; TanStack Router for file-based frontend routing.

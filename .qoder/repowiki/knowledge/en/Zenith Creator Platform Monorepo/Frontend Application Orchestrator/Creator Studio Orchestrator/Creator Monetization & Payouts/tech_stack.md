@@ -1,0 +1,1 @@
+Stripe Connect (Sandbox mode) for payment processing and identity verification; TanStack Router for route guards; TanStack Query for server-state management; Recharts for revenue visualization.

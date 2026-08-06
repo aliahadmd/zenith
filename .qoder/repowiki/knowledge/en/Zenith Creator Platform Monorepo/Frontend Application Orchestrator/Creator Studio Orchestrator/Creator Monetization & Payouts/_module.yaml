@@ -1,0 +1,13 @@
+schema_version: 1
+module_path: frontend/studio/studio_monetization
+title: Creator Monetization & Payouts
+scope:
+    - src/react-app/routes/_authenticated/studio_.subscriptions.tsx
+    - src/react-app/routes/_authenticated/studio_.payouts.tsx
+    - src/react-app/pages/SubscriptionsPage.tsx
+    - src/react-app/pages/PayoutsPage.tsx
+    - src/react-app/lib/payments.ts
+source_files: []
+depends_on: []
+related_to:
+    - path: backend_worker

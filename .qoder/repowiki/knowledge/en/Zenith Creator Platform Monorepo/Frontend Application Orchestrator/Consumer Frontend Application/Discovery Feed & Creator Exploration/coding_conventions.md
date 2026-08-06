@@ -1,0 +1,3 @@
+- Query options are exported as pure functions or constants from library modules (e.g., `feedQueryOptions`, `creatorSearchQueryOptions`) to decouple data fetching logic from UI components.
+- Route components act as thin adapters that extract validated search parameters and navigation helpers, passing them as props to page-level components.
+- Polymorphic content rendering uses type-guarded conditional chaining to map specific item types to their corresponding specialized card components.

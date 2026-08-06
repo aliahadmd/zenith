@@ -1,0 +1,14 @@
+schema_version: 1
+module_path: frontend/auth
+title: Authentication & Session Management
+scope:
+    - src/react-app/routes/login.tsx
+    - src/react-app/routes/register.tsx
+    - src/react-app/pages/LoginPage.tsx
+    - src/react-app/pages/RegisterPage.tsx
+    - src/react-app/components/AuthPageShell.tsx
+source_files: []
+depends_on: []
+related_to:
+    - path: backend_worker
+    - path: frontend/consumer/shared_ui_lib

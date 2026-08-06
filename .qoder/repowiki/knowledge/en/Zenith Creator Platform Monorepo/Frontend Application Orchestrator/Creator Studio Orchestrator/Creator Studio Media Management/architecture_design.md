@@ -1,0 +1,5 @@
+- Entry points: TanStack Router route files (`studio_.audio.tsx`, `studio_.photography.tsx`) enforce 'creator' role via `beforeLoad` redirects before rendering page components.
+- Page components: `StudioAudioPage` and `StudioPhotographyPage` implement master-detail layouts using `StudioLayout`, `Tabs` (for audio kinds), and local state for selection/dialogs.
+- Data layer: Dedicated API client modules (`lib/audio.ts`, `lib/photography.ts`) expose TanStack Query options and mutation helpers wrapping `api*Required` HTTP calls.
+- UI composition: Heavy use of shadcn/ui primitives (`Card`, `Dialog`, `Form`) and `@dnd-kit` for sortable lists (audio tracks) and grids (photos).
+- Shared layout: `StudioLayout` provides consistent header, navigation (`StudioNav`), and responsive grid structure for both media types.

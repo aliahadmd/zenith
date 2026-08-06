@@ -1,0 +1,3 @@
+- Route-level data loading using `beforeLoad` or loader functions to ensure data is available before component rendering.
+- Consistent use of `QueryClient` injected via router context for all server-state interactions instead of local component state.
+- Protected routes implemented via layout wrappers that redirect unauthenticated users to login pages.

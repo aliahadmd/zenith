@@ -1,0 +1,4 @@
+- Uses TanStack Router for file-based routing with a root layout (`__root.tsx`) that injects `QueryClient` into the router context for seamless data fetching across all modules.
+- Enforces authentication boundaries via a dedicated `_authenticated` route layout that guards access to consumer, studio, and admin sections by verifying user sessions before rendering.
+- Centralizes global state management in `main.tsx` by wrapping the router with `AuthProvider`, `AudioPlayerProvider`, and `ThemeProvider`, ensuring consistent context availability for all child modules.
+- Shares a common UI foundation via the `shared_ui` module, providing standardized Radix-based components that maintain visual and accessibility consistency across diverse functional areas.

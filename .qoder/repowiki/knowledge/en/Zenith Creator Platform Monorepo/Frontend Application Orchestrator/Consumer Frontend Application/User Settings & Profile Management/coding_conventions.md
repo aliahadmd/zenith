@@ -1,0 +1,3 @@
+- Forms use `react-hook-form` with `zodResolver` for schema validation and `apiPutRequired`/`apiPatchRequired` for mutations.
+- Route components are thin wrappers that pass a `section` prop to the main `SettingsPage` component.
+- Notification and profile tab preferences are managed via draft state locally before being committed via a single save mutation.
