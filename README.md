@@ -6,6 +6,10 @@
 
 Zenith is a full-stack platform where creators publish posts, articles, music & podcasts, photography, and courses behind one membership — and where subscribers follow the people they care about in a single feed. Think "Patreon meets a personal publication," built entirely on the edge.
 
+![Zenith sign-up — every account starts with email verification](docs/screenshots/sign-up.png)
+
+*Every account starts with an email + password and a verification link — no unverified members, no spam.*
+
 ---
 
 ## 🔑 Try the demo
