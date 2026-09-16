@@ -53,9 +53,19 @@ The creator Studio is one workspace for five content types — quick posts, deep
 
 ![Creator Studio](docs/screenshots/creator-studio.png)
 
+### ✅ Creators are verified, not anonymous
+
+Becoming a creator is a real application: legal identity details, a government-issued ID document, and portfolio links — reviewed by platform administrators before Studio access is granted. It keeps the network trustworthy for everyone.
+
+![Become a creator application](docs/screenshots/become-creator.png)
+
 ### ⚙️ Membership and money, handled
 
 Creators connect Stripe, pick their model — free, free trial, or paid monthly/yearly — and watch revenue, MRR, member mix, and payouts on a live dashboard. Zenith takes a configurable platform fee (10% by default) automatically through Stripe Connect. Subscribers get a self-serve billing portal.
+
+![Membership settings with Stripe Connect and access modes](docs/screenshots/studio-memberships.png)
+
+![Creator revenue dashboard with Stripe payouts](docs/screenshots/studio-money.png)
 
 ### 👤 Your profile, your rules
 
@@ -68,7 +78,7 @@ Profiles are customizable down to which tabs appear and in what order, with avat
 ## 🗺️ A 5-minute demo tour
 
 1. **Sign in as the subscriber** (`aliahadmd1@gmail.com`) → land in the **Feed**. Press play on a track and browse while the player keeps going. Like something, reply to a post, and **save** an article to your **Library**.
-2. Visit the creator's profile → check out the **Photography** tab, open an album, and try the lightbox. Peek at **Subscriptions** to see membership status.
+2. Visit the creator's profile → check out the **Photography** tab, open an album, and try the lightbox. Peek at **Subscriptions** to see membership status, and at **Become Creator** to see the verified application flow.
 3. **Log out, sign in as the creator** (`ali@aliahad.com`) → open the **Studio**. Create a quick post, start an **Article** draft, or explore **Audio** and **Courses**.
 4. Open **Studio → Money** to see the revenue dashboard, then **Studio → Subscriptions** to see Stripe Connect onboarding and plan settings.
 5. Check **Notifications** on both accounts to see how the two sides stay in sync.
