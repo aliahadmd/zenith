@@ -17,8 +17,7 @@ import migration13 from '../../../drizzle/0013_saved_library.sql?raw'
 import migration14 from '../../../drizzle/0014_content_scheduling.sql?raw'
 import migration15 from '../../../drizzle/0015_creator_discovery.sql?raw'
 import migration16 from '../../../drizzle/0016_stripe_membership_modes.sql?raw'
-import { createDb } from '../db/client'
-import { storeSignInOtp } from '../lib/auth-otp'
+import { passwordSignIn, registerVerifiedUser, TEST_PASSWORD } from '../testing/auth'
 
 async function applyMigration(source: string) {
   for (const statement of source.split('--> statement-breakpoint').map((value) => value.trim()).filter(Boolean)) {
@@ -26,25 +25,11 @@ async function applyMigration(source: string) {
   }
 }
 
-function cookieHeader(response: Response) {
-  const headers = response.headers as Headers & { getSetCookie?: () => string[] }
-  const values = headers.getSetCookie?.() ?? []
-  return (values.length ? values : response.headers.get('set-cookie')?.split(/,(?=\s*[^;,]+=[^;,]+)/) ?? [])
-    .map((cookie) => cookie.split(';')[0])
-    .join('; ')
-}
-
 async function register(prefix: string) {
   const email = `${prefix}-${crypto.randomUUID()}@example.com`
-  await storeSignInOtp(createDb(env.DB), email, '123456')
-  const response = await SELF.fetch('https://example.com/api/auth/otp/verify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, otp: '123456' }),
-  })
-  expect(response.status).toBe(200)
-  const user = await response.clone().json() as { id: string; username: string; role: string }
-  return { email, user, cookie: cookieHeader(response) }
+  await registerVerifiedUser(email)
+  const { cookie, user } = await passwordSignIn(email)
+  return { email, user, cookie }
 }
 
 async function grantAdmin(userId: string, role: 'owner' | 'moderator', grantedBy: string | null = null) {
@@ -196,7 +181,7 @@ describe('admin dashboard routes', () => {
     expect(await env.STORAGE.get(after!.key)).toBeTruthy()
   })
 
-  it('revokes suspended sessions and blocks OTP sign-in until restoration', async () => {
+  it('revokes suspended sessions and blocks password sign-in until restoration', async () => {
     const owner = await register('suspension-owner')
     const member = await register('suspended-member')
     await grantAdmin(owner.user.id, 'owner')
@@ -210,16 +195,16 @@ describe('admin dashboard routes', () => {
     const oldSession = await SELF.fetch('https://example.com/api/auth/me', { headers: { Cookie: member.cookie } })
     expect(oldSession.status).toBe(401)
 
-    const otpRequest = await SELF.fetch('https://example.com/api/auth/otp/request', jsonRequest('', { email: member.email }))
-    expect(otpRequest.status).toBe(403)
-    await expect(otpRequest.json()).resolves.toMatchObject({ error: { code: 'account_suspended' } })
+    const blockedLogin = await SELF.fetch('https://example.com/api/auth/login', jsonRequest('', { email: member.email, password: TEST_PASSWORD }))
+    expect(blockedLogin.status).toBe(403)
+    await expect(blockedLogin.json()).resolves.toMatchObject({ error: { code: 'account_suspended' } })
 
     const restore = await SELF.fetch(
       `https://example.com/api/admin/users/${member.user.id}/restore`,
       jsonRequest(owner.cookie, { reason: 'Manual review completed' }),
     )
     expect(restore.status).toBe(200)
-    const restoredOtp = await SELF.fetch('https://example.com/api/auth/otp/request', jsonRequest('', { email: member.email }))
-    expect(restoredOtp.status).not.toBe(403)
+    const restored = await passwordSignIn(member.email)
+    expect(restored.cookie).toContain('better-auth')
   })
 })

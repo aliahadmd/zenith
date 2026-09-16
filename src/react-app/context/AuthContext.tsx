@@ -3,17 +3,18 @@ import { useMutation, useQuery, useQueryClient } from '@tanstack/react-query'
 import {
   authKeys,
   authMeQueryOptions,
+  loginRequest,
   logoutRequest,
-  verifyOtp,
   type User,
 } from '../lib/auth'
+import { ApiError } from '../lib/api'
 
 export type { User } from '../lib/auth'
 
 type AuthContextValue = {
   currentUser: User | null
   isLoading: boolean
-  completeOtpSignIn: (email: string, otp: string) => Promise<{ error: string | null; user: User | null }>
+  completePasswordSignIn: (email: string, password: string) => Promise<{ error: string | null; code: string | null; user: User | null }>
   logout: () => Promise<void>
   refreshCurrentUser: () => Promise<void>
 }
@@ -23,8 +24,8 @@ const AuthContext = createContext<AuthContextValue | null>(null)
 export function AuthProvider({ children }: { children: ReactNode }) {
   const queryClient = useQueryClient()
   const currentUserQuery = useQuery(authMeQueryOptions)
-  const otpMutation = useMutation({
-    mutationFn: ({ email, otp }: { email: string; otp: string }) => verifyOtp({ email, otp }),
+  const loginMutation = useMutation({
+    mutationFn: ({ email, password }: { email: string; password: string }) => loginRequest({ email, password }),
     onSuccess: (user) => {
       queryClient.setQueryData(authKeys.me, user)
     },
@@ -48,13 +49,14 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     }
   }, [queryClient])
 
-  async function completeOtpSignIn(email: string, otp: string) {
+  async function completePasswordSignIn(email: string, password: string) {
     try {
-      const user = await otpMutation.mutateAsync({ email, otp })
-      return { error: null, user }
+      const user = await loginMutation.mutateAsync({ email, password })
+      return { error: null, code: null, user }
     } catch (error) {
       return {
-        error: error instanceof Error ? error.message : 'Invalid or expired code',
+        error: error instanceof Error ? error.message : 'Could not sign in',
+        code: error instanceof ApiError ? error.code ?? null : null,
         user: null,
       }
     }
@@ -76,7 +78,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
   const isLoading = currentUserQuery.isPending
 
   return (
-    <AuthContext.Provider value={{ currentUser, isLoading, completeOtpSignIn, logout, refreshCurrentUser }}>
+    <AuthContext.Provider value={{ currentUser, isLoading, completePasswordSignIn, logout, refreshCurrentUser }}>
       {children}
     </AuthContext.Provider>
   )

@@ -35,7 +35,7 @@ describe('AdminPage', () => {
     mockUseAuth.mockReturnValue({
       currentUser: { id: 'owner-1', email: 'owner@example.com', displayName: 'Owner', username: 'owner', role: 'subscriber', adminRole: 'owner' },
       isLoading: false,
-      completeOtpSignIn: vi.fn(),
+      completePasswordSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })

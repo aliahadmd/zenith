@@ -10,12 +10,69 @@ export const authEmailSchema = z.object({
   email: emailSchema,
 })
 
-export const authOtpSchema = z.object({
-  otp: z
-    .string()
-    .trim()
-    .regex(/^\d{6}$/, 'Enter the 6-digit code'),
+export const passwordSchema = z
+  .string()
+  .min(8, 'Password must be at least 8 characters')
+  .max(128, 'Password must be 128 characters or fewer')
+
+export const authLoginSchema = z.object({
+  email: emailSchema,
+  password: z.string().min(1, 'Enter your password'),
 })
+
+export const authRegisterSchema = z
+  .object({
+    email: emailSchema,
+    password: passwordSchema,
+    confirmPassword: z.string().min(1, 'Confirm your password'),
+  })
+  .superRefine((values, ctx) => {
+    if (values.password !== values.confirmPassword) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['confirmPassword'],
+        message: 'Passwords do not match',
+      })
+    }
+  })
+
+export const resetPasswordSchema = z
+  .object({
+    password: passwordSchema,
+    confirmPassword: z.string().min(1, 'Confirm your password'),
+  })
+  .superRefine((values, ctx) => {
+    if (values.password !== values.confirmPassword) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['confirmPassword'],
+        message: 'Passwords do not match',
+      })
+    }
+  })
+
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z.string().min(1, 'Enter your current password'),
+    newPassword: passwordSchema,
+    confirmPassword: z.string().min(1, 'Confirm your new password'),
+  })
+  .superRefine((values, ctx) => {
+    if (values.currentPassword === values.newPassword) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['newPassword'],
+        message: 'Choose a password different from your current one',
+      })
+    }
+    if (values.newPassword !== values.confirmPassword) {
+      ctx.addIssue({
+        code: 'custom',
+        path: ['confirmPassword'],
+        message: 'Passwords do not match',
+      })
+    }
+  })
 
 export const profileSettingsSchema = z.object({
   displayName: z.string().trim().min(1, 'Display name is required'),

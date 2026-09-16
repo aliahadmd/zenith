@@ -33,12 +33,28 @@ export const authMeQueryOptions = queryOptions({
   staleTime: 30_000,
 })
 
-export function requestOtp(values: { email: string }) {
-  return apiPostRequired<{ success: true }>('/api/auth/otp/request', values)
+export function loginRequest(values: { email: string; password: string }) {
+  return apiPostRequired<User>('/api/auth/login', values)
 }
 
-export function verifyOtp(values: { email: string; otp: string }) {
-  return apiPostRequired<User>('/api/auth/otp/verify', values)
+export function registerRequest(values: { email: string; password: string }) {
+  return apiPostRequired<{ success: true; email: string }>('/api/auth/register', values)
+}
+
+export function resendVerificationRequest(values: { email: string }) {
+  return apiPostRequired<{ success: true }>('/api/auth/resend-verification', values)
+}
+
+export function forgotPasswordRequest(values: { email: string }) {
+  return apiPostRequired<{ success: true }>('/api/auth/forgot-password', values)
+}
+
+export function resetPasswordRequest(values: { token: string; password: string; confirmPassword: string }) {
+  return apiPostRequired<{ success: true }>('/api/auth/reset-password', values)
+}
+
+export function changePasswordRequest(values: { currentPassword: string; newPassword: string }) {
+  return apiPostRequired<{ success: true }>('/api/auth/change-password', values)
 }
 
 export function logoutRequest() {

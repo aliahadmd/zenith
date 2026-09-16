@@ -70,7 +70,7 @@ describe('Sidebar', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('subscriber'),
       isLoading: false,
-      completeOtpSignIn: vi.fn(),
+      completePasswordSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -88,7 +88,7 @@ describe('Sidebar', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('subscriber'),
       isLoading: false,
-      completeOtpSignIn: vi.fn(),
+      completePasswordSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -103,7 +103,7 @@ describe('Sidebar', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('creator'),
       isLoading: false,
-      completeOtpSignIn: vi.fn(),
+      completePasswordSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -122,7 +122,7 @@ describe('Sidebar', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('subscriber'),
       isLoading: false,
-      completeOtpSignIn: vi.fn(),
+      completePasswordSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -139,7 +139,7 @@ describe('Sidebar', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('creator'),
       isLoading: false,
-      completeOtpSignIn: vi.fn(),
+      completePasswordSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -157,7 +157,7 @@ describe('Sidebar', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser('subscriber'),
       isLoading: false,
-      completeOtpSignIn: vi.fn(),
+      completePasswordSignIn: vi.fn(),
       logout,
       refreshCurrentUser: vi.fn(),
     })

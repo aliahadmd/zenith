@@ -17,7 +17,7 @@ describe('DiscoverySettingsPanel', () => {
     vi.clearAllMocks()
     vi.mocked(AuthContext.useAuth).mockReturnValue({
       currentUser: { id: 'creator', email: 'creator@example.com', displayName: 'Creator', username: 'creator', role: 'creator', adminRole: null },
-      isLoading: false, completeOtpSignIn: vi.fn(), logout: vi.fn(), refreshCurrentUser: vi.fn(),
+      isLoading: false, completePasswordSignIn: vi.fn(), logout: vi.fn(), refreshCurrentUser: vi.fn(),
     })
     vi.mocked(api.apiGetRequired).mockResolvedValue({
       categories: [{ id: 'cat-photo', slug: 'photo', name: 'Photography', description: null, displayOrder: 0, creatorCount: 1 }],

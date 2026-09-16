@@ -3,13 +3,15 @@ import { render, screen, waitFor } from '@testing-library/react'
 import userEvent from '@testing-library/user-event'
 import { QueryClient, QueryClientProvider } from '@tanstack/react-query'
 import type { ReactNode } from 'react'
+import { ForgotPasswordPage } from './ForgotPasswordPage'
 import { LoginPage } from './LoginPage'
 import { RegisterPage } from './RegisterPage'
 import * as AuthContext from '../context/AuthContext'
 import * as authApi from '../lib/auth'
 
 const navigateMock = vi.fn()
-const completeOtpSignInMock = vi.fn()
+const completePasswordSignInMock = vi.fn()
+const useSearchMock = vi.fn(() => ({}))
 
 vi.mock('@tanstack/react-router', () => ({
   Link: ({
@@ -22,6 +24,7 @@ vi.mock('@tanstack/react-router', () => ({
     children: ReactNode
   }) => <a href={to} className={className}>{children}</a>,
   useNavigate: () => navigateMock,
+  useSearch: () => useSearchMock(),
 }))
 
 vi.mock('../context/AuthContext', async (importOriginal) => {
@@ -36,23 +39,30 @@ vi.mock('../lib/auth', async (importOriginal) => {
   const actual = await importOriginal<typeof authApi>()
   return {
     ...actual,
-    requestOtp: vi.fn(),
+    registerRequest: vi.fn(),
+    resendVerificationRequest: vi.fn(),
+    forgotPasswordRequest: vi.fn(),
+    resetPasswordRequest: vi.fn(),
   }
 })
 
 const mockUseAuth = vi.mocked(AuthContext.useAuth)
-const mockRequestOtp = vi.mocked(authApi.requestOtp)
+const mockRegisterRequest = vi.mocked(authApi.registerRequest)
+const mockResendVerificationRequest = vi.mocked(authApi.resendVerificationRequest)
+const mockForgotPasswordRequest = vi.mocked(authApi.forgotPasswordRequest)
+const mockResetPasswordRequest = vi.mocked(authApi.resetPasswordRequest)
 
-describe('passwordless auth pages', () => {
+describe('password auth pages', () => {
   beforeEach(() => {
     vi.clearAllMocks()
-    Object.defineProperty(document, 'elementFromPoint', {
-      configurable: true,
-      value: vi.fn(() => document.activeElement ?? document.body),
-    })
-    mockRequestOtp.mockResolvedValue({ success: true })
-    completeOtpSignInMock.mockResolvedValue({
+    useSearchMock.mockReturnValue({})
+    mockRegisterRequest.mockResolvedValue({ success: true, email: 'reader@example.com' })
+    mockResendVerificationRequest.mockResolvedValue({ success: true })
+    mockForgotPasswordRequest.mockResolvedValue({ success: true })
+    mockResetPasswordRequest.mockResolvedValue({ success: true })
+    completePasswordSignInMock.mockResolvedValue({
       error: null,
+      code: null,
       user: {
         id: 'user-1',
         email: 'reader@example.com',
@@ -64,71 +74,113 @@ describe('passwordless auth pages', () => {
     mockUseAuth.mockReturnValue({
       currentUser: null,
       isLoading: false,
-      completeOtpSignIn: completeOtpSignInMock,
+      completePasswordSignIn: completePasswordSignInMock,
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
   })
 
-  it('shows login email and OTP steps without password fields', async () => {
+  it('signs in with an email and password', async () => {
     const user = userEvent.setup()
     renderWithClient(<LoginPage />)
 
-    expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument()
+    expect(screen.queryByText(/sign-in code/i)).not.toBeInTheDocument()
     await user.type(screen.getByLabelText(/email/i), 'reader@example.com')
-    await user.click(screen.getByRole('button', { name: /send sign-in code/i }))
+    await user.type(screen.getByLabelText(/^password/i), 'password-123')
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }))
 
-    await screen.findByText(/enter the code sent to reader@example.com/i)
-    expect(screen.getByText(/verification code/i)).toBeInTheDocument()
-    expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument()
-  })
-
-  it('shows register OTP step without password fields', async () => {
-    const user = userEvent.setup()
-    renderWithClient(<RegisterPage />)
-
-    await user.type(screen.getByLabelText(/email/i), 'reader@example.com')
-    await user.click(screen.getByRole('button', { name: /send verification code/i }))
-
-    await screen.findByText(/enter the code sent to reader@example.com/i)
-    expect(screen.getByText(/verification code/i)).toBeInTheDocument()
-    expect(screen.queryByLabelText(/password/i)).not.toBeInTheDocument()
-  })
-
-  it('submits the typed register OTP code', async () => {
-    const user = userEvent.setup()
-    renderWithClient(<RegisterPage />)
-
-    await user.type(screen.getByLabelText(/email/i), 'reader@example.com')
-    await user.click(screen.getByRole('button', { name: /send verification code/i }))
-
-    await screen.findByText(/enter the code sent to reader@example.com/i)
-    const slots = otpSlots()
-    expect(slots).toHaveLength(6)
-
-    await user.click(slots[0])
-    expect(slots[0]).toHaveFocus()
-    await user.keyboard('123456')
     await waitFor(() => {
-      expect(otpSlotValue()).toBe('123456')
+      expect(completePasswordSignInMock).toHaveBeenCalledWith('reader@example.com', 'password-123')
     })
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/feed' })
+    })
+  })
+
+  it('offers a verification resend after an unverified sign-in attempt', async () => {
+    const user = userEvent.setup()
+    completePasswordSignInMock.mockResolvedValue({
+      error: 'Verify your email before signing in.',
+      code: 'email_not_verified',
+      user: null,
+    })
+    renderWithClient(<LoginPage />)
+
+    await user.type(screen.getByLabelText(/email/i), 'reader@example.com')
+    await user.type(screen.getByLabelText(/^password/i), 'password-123')
+    await user.click(screen.getByRole('button', { name: /^sign in$/i }))
+
+    await screen.findByText(/verify reader@example.com before signing in/i)
+    await user.click(screen.getByRole('button', { name: /resend verification email/i }))
+
+    await screen.findByText(/verification email sent/i)
+    expect(mockResendVerificationRequest).toHaveBeenCalledWith({ email: 'reader@example.com' }, expect.anything())
+  })
+
+  it('registers with a password and shows the verification inbox step', async () => {
+    const user = userEvent.setup()
+    renderWithClient(<RegisterPage />)
+
+    await user.type(screen.getByLabelText(/email/i), 'reader@example.com')
+    await user.type(screen.getByLabelText(/^password/i), 'password-123')
+    await user.type(screen.getByLabelText(/confirm password/i), 'password-123')
     await user.click(screen.getByRole('button', { name: /create account/i }))
 
     await waitFor(() => {
-      expect(completeOtpSignInMock).toHaveBeenCalledWith('reader@example.com', '123456')
+      expect(mockRegisterRequest).toHaveBeenCalledWith({ email: 'reader@example.com', password: 'password-123' }, expect.anything())
+    })
+    await screen.findByText(/check your inbox/i)
+    expect(screen.getByText(/we sent a verification link to reader@example.com/i)).toBeInTheDocument()
+  })
+
+  it('rejects mismatched register passwords without submitting', async () => {
+    const user = userEvent.setup()
+    renderWithClient(<RegisterPage />)
+
+    await user.type(screen.getByLabelText(/email/i), 'reader@example.com')
+    await user.type(screen.getByLabelText(/^password/i), 'password-123')
+    await user.type(screen.getByLabelText(/confirm password/i), 'password-456')
+    await user.click(screen.getByRole('button', { name: /create account/i }))
+
+    await screen.findByText(/passwords do not match/i)
+    expect(mockRegisterRequest).not.toHaveBeenCalled()
+  })
+
+  it('sends a reset link from the forgot password page', async () => {
+    const user = userEvent.setup()
+    renderWithClient(<ForgotPasswordPage />)
+
+    await user.type(screen.getByLabelText(/email/i), 'reader@example.com')
+    await user.click(screen.getByRole('button', { name: /send reset link/i }))
+
+    await waitFor(() => {
+      expect(mockForgotPasswordRequest).toHaveBeenCalledWith({ email: 'reader@example.com' }, expect.anything())
+    })
+    await screen.findByText(/check your inbox/i)
+  })
+
+  it('submits a new password through the reset page', async () => {
+    const user = userEvent.setup()
+    useSearchMock.mockReturnValue({ token: 'reset-token-1' })
+    const { ResetPasswordPage } = await import('./ResetPasswordPage')
+    renderWithClient(<ResetPasswordPage />)
+
+    await user.type(screen.getByLabelText(/^new password/i), 'new-password-1')
+    await user.type(screen.getByLabelText(/confirm new password/i), 'new-password-1')
+    await user.click(screen.getByRole('button', { name: /update password/i }))
+
+    await waitFor(() => {
+      expect(mockResetPasswordRequest).toHaveBeenCalledWith({
+        token: 'reset-token-1',
+        password: 'new-password-1',
+        confirmPassword: 'new-password-1',
+      }, expect.anything())
+    })
+    await waitFor(() => {
+      expect(navigateMock).toHaveBeenCalledWith({ to: '/login', search: { reset: '1' }, replace: true })
     })
   })
 })
-
-function otpSlotValue() {
-  return otpSlots()
-    .map((input) => input.value)
-    .join('')
-}
-
-function otpSlots() {
-  return Array.from(document.querySelectorAll<HTMLInputElement>('[data-input-otp]'))
-}
 
 function renderWithClient(ui: ReactNode) {
   const queryClient = new QueryClient({

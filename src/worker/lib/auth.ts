@@ -1,10 +1,8 @@
 import { betterAuth } from 'better-auth'
 import { drizzleAdapter } from '@better-auth/drizzle-adapter'
-import { emailOTP } from 'better-auth/plugins'
 import { createDb } from '../db/client'
 import * as schema from '../db/schema'
-import { hashOtp, OTP_EXPIRES_SECONDS, OTP_LENGTH, OTP_MAX_ATTEMPTS } from './auth-otp'
-import { sendOtpEmail } from './email'
+import { sendPasswordResetEmail, sendVerificationEmail } from './email'
 
 export function createAuth(env: Env, baseURL: string) {
   const db = createDb(env.DB)
@@ -21,21 +19,34 @@ export function createAuth(env: Env, baseURL: string) {
       },
     }),
     emailAndPassword: {
-      enabled: false,
+      enabled: true,
+      requireEmailVerification: true,
+      minPasswordLength: 8,
+      maxPasswordLength: 128,
+      revokeSessionsOnPasswordReset: true,
+      sendResetPassword: async ({ user, url }) => {
+        await sendPasswordResetEmail(env, user.email, url)
+      },
     },
-    plugins: [
-      emailOTP({
-        otpLength: OTP_LENGTH,
-        expiresIn: OTP_EXPIRES_SECONDS,
-        allowedAttempts: OTP_MAX_ATTEMPTS,
-        storeOTP: {
-          hash: hashOtp,
-        },
-        sendVerificationOTP: async ({ email, otp }) => {
-          await sendOtpEmail(env, email, otp)
-        },
-      }),
-    ],
+    emailVerification: {
+      // Verification links must keep working even when the email binding
+      // hiccups — the account exists and the user can retry via resend.
+      sendVerificationEmail: async ({ user, url }) => {
+        try {
+          await sendVerificationEmail(env, user.email, url)
+        } catch (error) {
+          console.error(JSON.stringify({
+            event: 'verification_email_failed',
+            userId: user.id,
+            error: error instanceof Error ? error.message : String(error),
+          }))
+        }
+      },
+      sendOnSignUp: true,
+      sendOnSignIn: true,
+      autoSignInAfterVerification: true,
+      expiresIn: 60 * 60,
+    },
     user: {
       fields: {
         name: 'displayName',

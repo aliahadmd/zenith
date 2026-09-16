@@ -1,62 +1,87 @@
 import { useState } from 'react'
 import { zodResolver } from '@hookform/resolvers/zod'
+import { Link } from '@tanstack/react-router'
 import { useMutation } from '@tanstack/react-query'
-import { Link, useNavigate } from '@tanstack/react-router'
 import { useForm } from 'react-hook-form'
-import { z } from 'zod'
-import { useAuth } from '../context/AuthContext'
 import { AuthFooter, AuthPageShell } from '../components/AuthPageShell'
 import { Button } from '../components/ui/button'
 import { Input } from '../components/ui/input'
-import { InputOTP, InputOTPGroup, InputOTPSlot } from '../components/ui/input-otp'
 import { Form, FormControl, FormField, FormItem, FormLabel, FormMessage } from '../components/ui/form'
-import { requestOtp } from '../lib/auth'
-import { ApiError } from '../lib/api'
-import { authEmailSchema, authOtpSchema } from '../lib/schemas'
+import { registerRequest, resendVerificationRequest } from '../lib/auth'
+import { authRegisterSchema } from '../lib/schemas'
 
-type EmailFormValues = z.infer<typeof authEmailSchema>
-type OtpFormValues = z.infer<typeof authOtpSchema>
+type RegisterValues = {
+  email: string
+  password: string
+  confirmPassword: string
+}
 
 export function RegisterPage() {
-  const { completeOtpSignIn } = useAuth()
-  const navigate = useNavigate()
-  const [submittedEmail, setSubmittedEmail] = useState('')
-  const emailForm = useForm<EmailFormValues>({
-    resolver: zodResolver(authEmailSchema),
-    defaultValues: { email: '' },
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null)
+  const [resent, setResent] = useState(false)
+  const form = useForm<RegisterValues>({
+    resolver: zodResolver(authRegisterSchema),
+    defaultValues: { email: '', password: '', confirmPassword: '' },
   })
-  const otpForm = useForm<OtpFormValues>({
-    resolver: zodResolver(authOtpSchema),
-    defaultValues: { otp: '' },
-  })
-  const otpRequest = useMutation({ mutationFn: requestOtp })
+  const registerMutation = useMutation({ mutationFn: registerRequest })
+  const resendMutation = useMutation({ mutationFn: resendVerificationRequest })
 
-  async function handleEmailSubmit(values: EmailFormValues) {
+  async function handleSubmit(values: RegisterValues) {
     try {
-      await otpRequest.mutateAsync({ email: values.email })
-      setSubmittedEmail(values.email)
-      otpForm.reset({ otp: '' })
+      const result = await registerMutation.mutateAsync({ email: values.email, password: values.password })
+      setRegisteredEmail(result.email)
     } catch (error) {
-      emailForm.setError('root', { message: otpRequestError(error) })
+      form.setError('root', {
+        message: error instanceof Error ? error.message : 'Could not create the account.',
+      })
     }
   }
 
-  async function handleOtpSubmit(values: OtpFormValues) {
-    const { user, error } = await completeOtpSignIn(submittedEmail, values.otp)
-    if (error) {
-      otpForm.setError('root', { message: error })
-      return
-    }
-    await navigate({ to: user ? '/feed' : '/register' })
+  if (registeredEmail) {
+    return (
+      <AuthPageShell
+        mode="register"
+        title="Check your inbox"
+        description={`We sent a verification link to ${registeredEmail}. Click it to activate your account.`}
+        footer={
+          <AuthFooter>
+            Already verified?{' '}
+            <Link to="/login" className="font-medium text-primary underline-offset-4 hover:underline">
+              Sign in
+            </Link>
+          </AuthFooter>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <Button
+            type="button"
+            variant="outline"
+            className="tracking-normal normal-case"
+            disabled={resendMutation.isPending}
+            onClick={() => {
+              resendMutation.mutate({ email: registeredEmail }, {
+                onSuccess: () => setResent(true),
+              })
+            }}
+          >
+            {resendMutation.isPending ? 'Resending...' : 'Resend verification email'}
+          </Button>
+          {resent ? (
+            <p className="text-sm text-muted-foreground">Verification email sent. Check your inbox.</p>
+          ) : null}
+          <p className="text-xs text-muted-foreground">
+            The link expires in 1 hour. Sign-in stays locked until your email is verified.
+          </p>
+        </div>
+      </AuthPageShell>
+    )
   }
-
-  const isOtpStep = Boolean(submittedEmail)
 
   return (
     <AuthPageShell
       mode="register"
       title="Create account"
-      description={isOtpStep ? `Enter the code sent to ${submittedEmail}.` : 'Start with your email. Zenith will create your account after code verification.'}
+      description="Choose an email and password. Zenith will send a verification link before you can sign in."
       footer={
         <AuthFooter>
           Already have an account?{' '}
@@ -66,89 +91,55 @@ export function RegisterPage() {
         </AuthFooter>
       }
     >
-      {!isOtpStep ? (
-        <Form {...emailForm}>
-          <form className="flex flex-col gap-5" onSubmit={emailForm.handleSubmit(handleEmailSubmit)} noValidate>
-            <FormField
-              control={emailForm.control}
-              name="email"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Email</FormLabel>
-                  <FormControl>
-                    <Input type="email" placeholder="you@example.com" autoComplete="email" {...field} />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <RootError message={emailForm.formState.errors.root?.message} />
-            <Button type="submit" className="w-full tracking-normal normal-case" disabled={emailForm.formState.isSubmitting}>
-              {emailForm.formState.isSubmitting ? 'Sending code...' : 'Send verification code'}
-            </Button>
-          </form>
-        </Form>
-      ) : (
-        <Form {...otpForm}>
-          <form className="flex flex-col gap-5" onSubmit={otpForm.handleSubmit(handleOtpSubmit)} noValidate>
-            <FormField
-              control={otpForm.control}
-              name="otp"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Verification code</FormLabel>
-                  <FormControl>
-                    <InputOTP
-                      maxLength={6}
-                      value={field.value}
-                      onChange={(value) => otpForm.setValue('otp', value, { shouldDirty: true, shouldValidate: true })}
-                    >
-                      <InputOTPGroup>
-                        {Array.from({ length: 6 }).map((_, index) => (
-                          <InputOTPSlot key={index} index={index} />
-                        ))}
-                      </InputOTPGroup>
-                    </InputOTP>
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
-            <RootError message={otpForm.formState.errors.root?.message} />
-            <Button type="submit" className="w-full tracking-normal normal-case" disabled={otpForm.formState.isSubmitting}>
-              {otpForm.formState.isSubmitting ? 'Creating account...' : 'Create account'}
-            </Button>
-            <div className="flex items-center justify-between gap-3 text-sm">
-              <Button
-                type="button"
-                variant="ghost"
-                className="px-0 tracking-normal normal-case"
-                disabled={otpRequest.isPending}
-                onClick={() => {
-                  otpRequest.mutate({ email: submittedEmail }, {
-                    onSuccess: () => otpForm.reset({ otp: '' }),
-                    onError: (error) => otpForm.setError('root', { message: otpRequestError(error) }),
-                  })
-                }}
-              >
-                {otpRequest.isPending ? 'Resending...' : 'Resend code'}
-              </Button>
-              <Button type="button" variant="ghost" className="px-0 tracking-normal normal-case" onClick={() => setSubmittedEmail('')}>
-                Change email
-              </Button>
-            </div>
-          </form>
-        </Form>
-      )}
+      <Form {...form}>
+        <form className="flex flex-col gap-5" onSubmit={form.handleSubmit(handleSubmit)} noValidate>
+          <FormField
+            control={form.control}
+            name="email"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Email</FormLabel>
+                <FormControl>
+                  <Input type="email" placeholder="you@example.com" autoComplete="email" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="password"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Password</FormLabel>
+                <FormControl>
+                  <Input type="password" placeholder="At least 8 characters" autoComplete="new-password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <FormField
+            control={form.control}
+            name="confirmPassword"
+            render={({ field }) => (
+              <FormItem>
+                <FormLabel>Confirm password</FormLabel>
+                <FormControl>
+                  <Input type="password" placeholder="Repeat your password" autoComplete="new-password" {...field} />
+                </FormControl>
+                <FormMessage />
+              </FormItem>
+            )}
+          />
+          <RootError message={form.formState.errors.root?.message} />
+          <Button type="submit" className="w-full tracking-normal normal-case" disabled={form.formState.isSubmitting}>
+            {form.formState.isSubmitting ? 'Creating account...' : 'Create account'}
+          </Button>
+        </form>
+      </Form>
     </AuthPageShell>
   )
-}
-
-function otpRequestError(error: unknown) {
-  if (error instanceof ApiError && error.code === 'otp_email_unavailable') {
-    return 'Email delivery is unavailable for this address. Use a verified beta recipient.'
-  }
-  return error instanceof Error ? error.message : 'Could not send a verification code.'
 }
 
 function RootError({ message }: { message?: string }) {

@@ -72,7 +72,7 @@ describe('ShortPostComposer', () => {
         avatarUrl: null,
       },
       isLoading: false,
-      completeOtpSignIn: vi.fn(),
+      completePasswordSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -278,7 +278,7 @@ describe('ShortPostComposer — property tests', () => {
         avatarUrl: null,
       },
       isLoading: false,
-      completeOtpSignIn: vi.fn(),
+      completePasswordSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })

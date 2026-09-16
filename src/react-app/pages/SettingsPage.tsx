@@ -24,10 +24,11 @@ import { useForm, useWatch, type FieldValues, type Path, type UseFormReturn } fr
 import { z } from 'zod'
 import { toast } from 'sonner'
 import { apiPutRequired } from '../lib/api'
-import { authKeys, requestEmailChangeOtp, verifyEmailChangeOtp } from '../lib/auth'
+import { authKeys, changePasswordRequest, requestEmailChangeOtp, verifyEmailChangeOtp } from '../lib/auth'
 import { useAuth } from '../context/AuthContext'
 import {
   avatarSettingsSchema,
+  changePasswordSchema,
   emailOtpSettingsSchema,
   emailSettingsSchema,
   profileSettingsSchema,
@@ -62,6 +63,7 @@ type UsernameSettingsValues = z.infer<typeof usernameSettingsSchema>
 type AvatarSettingsValues = z.infer<typeof avatarSettingsSchema>
 type EmailSettingsValues = z.infer<typeof emailSettingsSchema>
 type EmailOtpSettingsValues = z.infer<typeof emailOtpSettingsSchema>
+type ChangePasswordValues = z.infer<typeof changePasswordSchema>
 
 export type SettingsSection = 'profile' | 'profile-tabs' | 'discovery' | 'account' | 'notifications' | 'security'
 
@@ -110,7 +112,7 @@ const settingsNavItems: Array<{
   {
     section: 'security',
     label: 'Security',
-    description: 'Email codes',
+    description: 'Password and email links',
     to: '/settings/security',
     icon: KeyRound,
   },
@@ -139,7 +141,7 @@ const sectionCopy: Record<SettingsSection, { title: string; description: string 
   },
   security: {
     title: 'Security',
-    description: 'Zenith uses email codes instead of account passwords.',
+    description: 'Change your password and review sign-in security.',
   },
 }
 
@@ -507,25 +509,98 @@ export function SettingsPage({ section = 'profile' }: { section?: SettingsSectio
             <NotificationSettings />
           )}
 
-          {section === 'security' && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="tracking-normal normal-case">Passwordless sign-in</CardTitle>
-                <CardDescription>Your account is protected by short-lived email codes.</CardDescription>
-              </CardHeader>
-              <CardContent className="flex flex-col gap-3">
-                <div className="rounded-md border bg-card px-3 py-3">
-                  <p className="text-sm font-medium">No password to manage</p>
-                  <p className="text-xs text-muted-foreground">
-                    Sign-in codes expire after 5 minutes and are sent only through Zenith email delivery.
-                  </p>
-                </div>
-              </CardContent>
-            </Card>
-          )}
+          {section === 'security' && <SecuritySettings />}
         </div>
       </main>
     </div>
+  )
+}
+
+function SecuritySettings() {
+  const form = useForm<ChangePasswordValues>({
+    resolver: zodResolver(changePasswordSchema),
+    defaultValues: { currentPassword: '', newPassword: '', confirmPassword: '' },
+  })
+
+  const changeMutation = useMutation({
+    mutationFn: (values: { currentPassword: string; newPassword: string }) => changePasswordRequest(values),
+    onSuccess: () => {
+      form.reset()
+      toast.success('Password updated. You have been signed out on other devices.')
+    },
+    onError: (error) => {
+      form.setError('root', {
+        message: error instanceof Error ? error.message : 'Could not change the password.',
+      })
+    },
+  })
+
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="tracking-normal normal-case">Change password</CardTitle>
+        <CardDescription>Updating your password signs you out on all other devices.</CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Form {...form}>
+          <form
+            className="flex max-w-md flex-col gap-5"
+            onSubmit={form.handleSubmit((values) => changeMutation.mutateAsync(values))}
+            noValidate
+          >
+            <FormField
+              control={form.control}
+              name="currentPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Current password</FormLabel>
+                  <FormControl>
+                    <Input type="password" autoComplete="current-password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="newPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>New password</FormLabel>
+                  <FormControl>
+                    <Input type="password" placeholder="At least 8 characters" autoComplete="new-password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            <FormField
+              control={form.control}
+              name="confirmPassword"
+              render={({ field }) => (
+                <FormItem>
+                  <FormLabel>Confirm new password</FormLabel>
+                  <FormControl>
+                    <Input type="password" placeholder="Repeat your new password" autoComplete="new-password" {...field} />
+                  </FormControl>
+                  <FormMessage />
+                </FormItem>
+              )}
+            />
+            {form.formState.errors.root ? (
+              <p className="text-sm text-destructive">{form.formState.errors.root.message}</p>
+            ) : null}
+            <Button
+              type="submit"
+              className="self-start tracking-normal normal-case"
+              disabled={changeMutation.isPending}
+            >
+              {changeMutation.isPending ? 'Updating password...' : 'Update password'}
+            </Button>
+          </form>
+        </Form>
+      </CardContent>
+    </Card>
   )
 }
 

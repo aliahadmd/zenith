@@ -54,7 +54,7 @@ describe('SettingsPage', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeCreator(),
       isLoading: false,
-      completeOtpSignIn: vi.fn(),
+      completePasswordSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })

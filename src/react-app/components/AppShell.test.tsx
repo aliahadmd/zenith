@@ -74,7 +74,7 @@ describe('AppShell', () => {
     mockUseAuth.mockReturnValue({
       currentUser: makeUser(),
       isLoading: false,
-      completeOtpSignIn: vi.fn(),
+      completePasswordSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })
@@ -96,7 +96,7 @@ describe('AppShell', () => {
     mockUseAuth.mockReturnValue({
       currentUser: null,
       isLoading: false,
-      completeOtpSignIn: vi.fn(),
+      completePasswordSignIn: vi.fn(),
       logout: vi.fn(),
       refreshCurrentUser: vi.fn(),
     })

@@ -42,10 +42,6 @@ export async function hashOtp(otp: string) {
   return base64Url(new Uint8Array(digest))
 }
 
-export function signInOtpIdentifier(email: string) {
-  return `sign-in-otp-${email}`
-}
-
 function emailChangeOtpIdentifier(userId: string, newEmail: string) {
   return `change-email-otp-${userId}-${newEmail}`
 }
@@ -62,14 +58,6 @@ async function storeOtp(db: Db, identifier: string, otp: string) {
     value: `${await hashOtp(otp)}:0`,
     expiresAt: expiresAt(),
   }).run()
-}
-
-export async function storeSignInOtp(db: Db, email: string, otp: string) {
-  await storeOtp(db, signInOtpIdentifier(email), otp)
-}
-
-export async function deleteSignInOtp(db: Db, email: string) {
-  await db.delete(verification).where(eq(verification.identifier, signInOtpIdentifier(email))).run()
 }
 
 export async function storeEmailChangeOtp(db: Db, userId: string, newEmail: string, otp: string) {

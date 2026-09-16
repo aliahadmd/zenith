@@ -42,14 +42,30 @@ export async function sendTransactionalEmail(env: Env, input: TransactionalEmail
   await binding.send(new EmailMessage(from, input.to, msg.asRaw()))
 }
 
-export async function sendOtpEmail(env: Env, email: string, otp: string) {
+export async function sendVerificationEmail(env: Env, email: string, verificationUrl: string) {
   await sendTransactionalEmail(env, {
     to: email,
-    subject: 'Your Zenith sign-in code',
+    subject: 'Verify your Zenith email',
     text: [
-      `Your Zenith sign-in code is ${otp}.`,
+      'Welcome to Zenith! Confirm your email address to activate your account.',
       '',
-      'This code expires in 5 minutes. If you did not request it, you can ignore this email.',
+      `Verify your email: ${verificationUrl}`,
+      '',
+      'This link expires in 1 hour. If you did not create a Zenith account, you can ignore this email.',
+    ].join('\n'),
+  })
+}
+
+export async function sendPasswordResetEmail(env: Env, email: string, resetUrl: string) {
+  await sendTransactionalEmail(env, {
+    to: email,
+    subject: 'Reset your Zenith password',
+    text: [
+      'We received a request to reset your Zenith password.',
+      '',
+      `Reset your password: ${resetUrl}`,
+      '',
+      'This link expires in 1 hour. If you did not request a reset, you can ignore this email and your password will stay unchanged.',
     ].join('\n'),
   })
 }

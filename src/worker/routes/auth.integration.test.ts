@@ -16,8 +16,7 @@ import migration12 from '../../../drizzle/0012_threaded_discussions.sql?raw'
 import migration13 from '../../../drizzle/0013_saved_library.sql?raw'
 import migration14 from '../../../drizzle/0014_content_scheduling.sql?raw'
 import migration15 from '../../../drizzle/0015_creator_discovery.sql?raw'
-import { createDb } from '../db/client'
-import { storeSignInOtp } from '../lib/auth-otp'
+import { passwordSignIn, registerVerifiedUser, signIn, TEST_PASSWORD, uniqueEmail } from '../testing/auth'
 
 async function applyMigration(sql: string) {
   const statements = sql
@@ -30,37 +29,9 @@ async function applyMigration(sql: string) {
   }
 }
 
-function getCookieHeader(response: Response): string {
-  const headers = response.headers as Headers & { getSetCookie?: () => string[] }
-  const setCookies = headers.getSetCookie?.() ?? []
-  const cookies = setCookies.length > 0
-    ? setCookies
-    : response.headers.get('set-cookie')?.split(/,(?=\s*[^;,]+=[^;,]+)/) ?? []
-
-  return cookies.map((cookie) => cookie.split(';')[0]).join('; ')
-}
-
-async function signInWithOtp(email = `user-${crypto.randomUUID()}@example.com`) {
-  const otp = '123456'
-  await storeSignInOtp(createDb(env.DB), email, otp)
-  const response = await SELF.fetch('https://example.com/api/auth/otp/verify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, otp }),
-  })
-  expect(response.status).toBe(200)
-  return { response, cookie: getCookieHeader(response) }
-}
-
 async function registerAndUpgradeCreator() {
-  const email = `creator-${crypto.randomUUID()}@example.com`
-  const { cookie } = await signInWithOtp(email)
-
-  const meResponse = await SELF.fetch('https://example.com/api/auth/me', {
-    headers: { Cookie: cookie },
-  })
-  expect(meResponse.status).toBe(200)
-  const user = await meResponse.json() as { id: string; email: string; role: string; username: string }
+  const email = uniqueEmail('creator')
+  const { cookie, user } = await signIn(email)
 
   const formData = new FormData()
   formData.append('fullName', 'Creator Test')
@@ -107,73 +78,228 @@ describe('Better Auth integration', () => {
     await applyMigration(migration15)
   })
 
-  it('rejects legacy password auth endpoints', async () => {
+  it('rejects the removed OTP sign-in endpoints', async () => {
+    const requestResponse = await SELF.fetch('https://example.com/api/auth/otp/request', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: uniqueEmail('otp') }),
+    })
+    expect(requestResponse.status).toBe(404)
+
+    const verifyResponse = await SELF.fetch('https://example.com/api/auth/otp/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: uniqueEmail('otp'), otp: '123456' }),
+    })
+    expect(verifyResponse.status).toBe(404)
+  })
+
+  it('registers an unverified account and blocks sign-in until the email is verified', async () => {
+    const email = uniqueEmail('pending')
+
     const registerResponse = await SELF.fetch('https://example.com/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: `legacy-${crypto.randomUUID()}@example.com`, password: 'password123' }),
+      body: JSON.stringify({ email, password: TEST_PASSWORD }),
     })
-    expect(registerResponse.status).toBe(400)
-    await expect(registerResponse.json()).resolves.toMatchObject({
-      error: { code: 'password_auth_disabled' },
-    })
+    expect(registerResponse.status).toBe(200)
+    await expect(registerResponse.json()).resolves.toMatchObject({ success: true, email })
 
-    const loginResponse = await SELF.fetch('https://example.com/api/auth/login', {
+    const row = await env.DB.prepare('SELECT email_verified, role, username FROM users WHERE email = ?')
+      .bind(email)
+      .first<{ email_verified: number; role: string; username: string }>()
+    expect(row).toMatchObject({ email_verified: 0, role: 'subscriber' })
+    expect(row?.username).toBeTruthy()
+
+    const unverifiedLogin = await SELF.fetch('https://example.com/api/auth/login', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email: 'nobody@example.com', password: 'password123' }),
+      body: JSON.stringify({ email, password: TEST_PASSWORD }),
     })
-    expect(loginResponse.status).toBe(400)
-    await expect(loginResponse.json()).resolves.toMatchObject({
-      error: { code: 'password_auth_disabled' },
+    expect(unverifiedLogin.status).toBe(403)
+    await expect(unverifiedLogin.json()).resolves.toMatchObject({
+      error: { code: 'email_not_verified' },
     })
+
+    const resendResponse = await SELF.fetch('https://example.com/api/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+    expect(resendResponse.status).toBe(200)
+    await expect(resendResponse.json()).resolves.toMatchObject({ success: true })
+
+    // Resending for an unknown address still succeeds so accounts can't be enumerated.
+    const unknownResend = await SELF.fetch('https://example.com/api/auth/resend-verification', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: uniqueEmail('unknown') }),
+    })
+    expect(unknownResend.status).toBe(200)
   })
 
-  it('creates a subscriber session with OTP', async () => {
-    const email = `otp-${crypto.randomUUID()}@example.com`
-    const { response, cookie } = await signInWithOtp(email)
+  it('signs in with a password after verification and keeps native sign-up blocked', async () => {
+    const email = uniqueEmail('password')
+    await registerVerifiedUser(email)
+
+    const wrongPassword = await SELF.fetch('https://example.com/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: 'wrong-password' }),
+    })
+    expect(wrongPassword.status).toBe(401)
+    await expect(wrongPassword.json()).resolves.toMatchObject({
+      error: { code: 'invalid_credentials' },
+    })
+
+    const { response, cookie } = await passwordSignIn(email)
     expect(cookie).toContain('better-auth')
-    await expect(response.clone().json()).resolves.toMatchObject({
+    await expect(response.json()).resolves.toMatchObject({
       email,
       role: 'subscriber',
     })
-  })
 
-  it('blocks native OTP sign-in from self-assigning creator role', async () => {
-    const email = `native-${crypto.randomUUID()}@example.com`
-    const otp = '123456'
-    await storeSignInOtp(createDb(env.DB), email, otp)
-
-    const nativeResponse = await SELF.fetch('https://example.com/api/auth/sign-in/email-otp', {
+    const nativeSignUp = await SELF.fetch('https://example.com/api/auth/sign-up/email', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({
-        email,
-        otp,
+        email: uniqueEmail('native'),
+        password: TEST_PASSWORD,
         name: 'Native Bypass',
         role: 'creator',
         username: `u${crypto.randomUUID().replaceAll('-', '').slice(0, 9)}`,
       }),
     })
+    expect(nativeSignUp.status).toBe(404)
 
-    expect(nativeResponse.status).toBe(404)
-
-    const wrappedResponse = await SELF.fetch('https://example.com/api/auth/otp/verify', {
+    // Duplicate registration answers success without creating a second account.
+    const duplicateRegister = await SELF.fetch('https://example.com/api/auth/register', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ email, otp }),
+      body: JSON.stringify({ email, password: TEST_PASSWORD }),
     })
-    expect(wrappedResponse.status).toBe(200)
-    await expect(wrappedResponse.json()).resolves.toMatchObject({
-      email,
-      role: 'subscriber',
+    expect(duplicateRegister.status).toBe(200)
+    const accountCount = await env.DB.prepare('SELECT COUNT(*) AS count FROM users WHERE email = ?')
+      .bind(email)
+      .first<{ count: number }>()
+    expect(accountCount?.count).toBe(1)
+  })
+
+  it('blocks password sign-in for suspended accounts', async () => {
+    const email = uniqueEmail('suspended')
+    await registerVerifiedUser(email)
+    await env.DB.prepare("UPDATE users SET account_status = 'suspended' WHERE email = ?").bind(email).run()
+
+    const loginResponse = await SELF.fetch('https://example.com/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: TEST_PASSWORD }),
+    })
+    expect(loginResponse.status).toBe(403)
+    await expect(loginResponse.json()).resolves.toMatchObject({
+      error: { code: 'account_suspended' },
     })
   })
 
-  it('keeps the session usable after an administrator approves a creator', async () => {
-    const email = `creator-${crypto.randomUUID()}@example.com`
+  it('supports forgot, reset, and change password flows', async () => {
+    const email = uniqueEmail('reset')
+    const { cookie } = await signIn(email)
 
-    const { cookie } = await signInWithOtp(email)
+    const forgotResponse = await SELF.fetch('https://example.com/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+    expect(forgotResponse.status).toBe(200)
+    await expect(forgotResponse.json()).resolves.toMatchObject({ success: true })
+
+    // Forgot-password for an unknown address still succeeds (no enumeration).
+    const unknownForgot = await SELF.fetch('https://example.com/api/auth/forgot-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: uniqueEmail('unknown') }),
+    })
+    expect(unknownForgot.status).toBe(200)
+
+    const nativeResetRequest = await SELF.fetch('https://example.com/api/auth/request-password-reset', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    })
+    expect(nativeResetRequest.status).toBe(404)
+
+    const badReset = await SELF.fetch('https://example.com/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token: 'not-a-real-token', password: 'new-password-1', confirmPassword: 'new-password-1' }),
+    })
+    expect(badReset.status).toBe(400)
+    await expect(badReset.json()).resolves.toMatchObject({
+      error: { code: 'invalid_reset_token' },
+    })
+
+    const changeResponse = await SELF.fetch('https://example.com/api/auth/change-password', {
+      method: 'POST',
+      headers: { Cookie: cookie, 'Content-Type': 'application/json', Origin: 'https://example.com' },
+      body: JSON.stringify({ currentPassword: TEST_PASSWORD, newPassword: 'rotated-password-1' }),
+    })
+    expect(changeResponse.status).toBe(200)
+
+    const oldPasswordLogin = await SELF.fetch('https://example.com/api/auth/login', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email, password: TEST_PASSWORD }),
+    })
+    expect(oldPasswordLogin.status).toBe(401)
+
+    await passwordSignIn(email, 'rotated-password-1')
+  })
+
+  it('delivers reset links through the email redirect route and completes the reset', async () => {
+    const email = uniqueEmail('resetlink')
+    const { user } = await signIn(email)
+
+    // Seed the verification value the same way request-password-reset does,
+    // since the local email binding cannot deliver the message.
+    const token = crypto.randomUUID().replaceAll('-', '')
+    await env.DB.prepare(
+      "INSERT INTO verification (id, identifier, value, expires_at) VALUES (?, ?, ?, ?)",
+    ).bind(crypto.randomUUID(), `reset-password:${token}`, user.id, Date.now() + 60 * 60 * 1000).run()
+
+    // The email link hits the native GET route, which must redirect into the
+    // SPA with the token instead of answering the blocked-paths 404.
+    const emailLink = await SELF.fetch(
+      `https://example.com/api/auth/reset-password/${token}?callbackURL=${encodeURIComponent('https://example.com/reset-password')}`,
+      { redirect: 'manual' },
+    )
+    expect(emailLink.status).toBe(302)
+    const location = emailLink.headers.get('location') ?? ''
+    expect(location.startsWith('https://example.com/reset-password?')).toBe(true)
+    expect(location).toContain(`token=${token}`)
+
+    // A bogus token still redirects, but flags the error for the SPA.
+    const bogusLink = await SELF.fetch(
+      `https://example.com/api/auth/reset-password/not-a-real-token?callbackURL=${encodeURIComponent('https://example.com/reset-password')}`,
+      { redirect: 'manual' },
+    )
+    expect(bogusLink.status).toBe(302)
+    expect(bogusLink.headers.get('location') ?? '').toContain('error=INVALID_TOKEN')
+
+    // Completing the reset through the custom endpoint yields a working password.
+    const resetResponse = await SELF.fetch('https://example.com/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ token, password: 'reset-via-email-link-1', confirmPassword: 'reset-via-email-link-1' }),
+    })
+    expect(resetResponse.status).toBe(200)
+
+    await passwordSignIn(email, 'reset-via-email-link-1')
+  })
+
+  it('keeps the session usable after an administrator approves a creator', async () => {
+    const email = uniqueEmail('creator')
+
+    const { cookie } = await signIn(email)
     expect(cookie).toContain('better-auth')
 
     const initialMeResponse = await SELF.fetch('https://example.com/api/auth/me', {

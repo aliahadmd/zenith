@@ -16,25 +16,17 @@ import migration12 from '../../../drizzle/0012_threaded_discussions.sql?raw'
 import migration13 from '../../../drizzle/0013_saved_library.sql?raw'
 import migration14 from '../../../drizzle/0014_content_scheduling.sql?raw'
 import migration15 from '../../../drizzle/0015_creator_discovery.sql?raw'
-import { createDb } from '../db/client'
-import { storeSignInOtp } from '../lib/auth-otp'
+import { passwordSignIn, registerVerifiedUser } from '../testing/auth'
 
 async function apply(source: string) {
   for (const statement of source.split('--> statement-breakpoint').map((value) => value.trim()).filter(Boolean)) await env.DB.prepare(statement).run()
 }
 
-function cookie(response: Response) {
-  const headers = response.headers as Headers & { getSetCookie?: () => string[] }
-  return (headers.getSetCookie?.() ?? [response.headers.get('set-cookie') ?? '']).map((value) => value.split(';')[0]).filter(Boolean).join('; ')
-}
-
 async function signIn(prefix: string) {
   const email = `${prefix}-${crypto.randomUUID()}@example.com`
-  await storeSignInOtp(createDb(env.DB), email, '123456')
-  const response = await SELF.fetch('https://example.com/api/auth/otp/verify', {
-    method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify({ email, otp: '123456' }),
-  })
-  return { cookie: cookie(response), user: await response.json() as { id: string; username: string } }
+  await registerVerifiedUser(email)
+  const { cookie, user } = await passwordSignIn(email)
+  return { cookie, user }
 }
 
 function json(cookieHeader: string, body: unknown, method = 'PUT') {

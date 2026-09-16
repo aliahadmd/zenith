@@ -18,7 +18,7 @@ import migration14 from '../../../drizzle/0014_content_scheduling.sql?raw'
 import migration15 from '../../../drizzle/0015_creator_discovery.sql?raw'
 import { createDb } from '../db/client'
 import { notifications, users } from '../db/schema'
-import { storeSignInOtp } from '../lib/auth-otp'
+import { passwordSignIn, registerVerifiedUser } from '../testing/auth'
 import {
   createNotification,
   updateNotificationPreferences,
@@ -35,31 +35,10 @@ async function applyMigration(sql: string) {
   }
 }
 
-function getCookieHeader(response: Response): string {
-  const headers = response.headers as Headers & { getSetCookie?: () => string[] }
-  const setCookies = headers.getSetCookie?.() ?? []
-  const cookies = setCookies.length > 0
-    ? setCookies
-    : response.headers.get('set-cookie')?.split(/,(?=\s*[^;,]+=[^;,]+)/) ?? []
-
-  return cookies.map((cookie) => cookie.split(';')[0]).join('; ')
-}
-
 async function registerUser() {
   const email = `notifications-${crypto.randomUUID()}@example.com`
-  const otp = '123456'
-  await storeSignInOtp(createDb(env.DB), email, otp)
-  const response = await SELF.fetch('https://example.com/api/auth/otp/verify', {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ email, otp }),
-  })
-  expect(response.status).toBe(200)
-  const cookie = getCookieHeader(response)
-  const meResponse = await SELF.fetch('https://example.com/api/auth/me', {
-    headers: { Cookie: cookie },
-  })
-  const user = await meResponse.json() as { id: string; username: string }
+  await registerVerifiedUser(email)
+  const { cookie, user } = await passwordSignIn(email)
   return { cookie, user }
 }
 

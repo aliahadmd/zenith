@@ -5,10 +5,14 @@ import { createDb } from '../db/client'
 import { adminMemberships, users } from '../db/schema'
 import { generateUsername } from '../lib/validators'
 import { createAuth, type AppAuth } from '../lib/auth'
-import { deleteSignInOtp, generateOtp, storeSignInOtp } from '../lib/auth-otp'
-import { sendOtpEmail } from '../lib/email'
 import { authMiddleware, type HonoEnv } from '../middleware/auth'
-import { authOtpRequestSchema, authOtpVerifySchema } from '../lib/schemas'
+import {
+  authLoginSchema,
+  authRegisterSchema,
+  changePasswordSchema,
+  forgotPasswordSchema,
+  resetPasswordSchema,
+} from '../lib/schemas'
 import { errorResponse, notFound, zodHook } from '../lib/http'
 
 export const authRoutes = new Hono<HonoEnv>()
@@ -38,6 +42,17 @@ function jsonWithAuthCookies(source: Response, body: unknown, status = source.st
   const headers = new Headers({ 'Content-Type': 'application/json' })
   copySetCookie(source.headers, headers)
   return new Response(JSON.stringify(body), { status, headers })
+}
+
+function logAuthEndpointError(operation: string, error: unknown) {
+  const statusCode = typeof error === 'object' && error !== null && 'statusCode' in error
+    ? Number((error as { statusCode?: number }).statusCode)
+    : undefined
+  const code = typeof error === 'object' && error !== null && 'body' in error
+    ? (error as { body?: { code?: string } }).body?.code
+    : undefined
+  const message = error instanceof Error ? error.message : String(error)
+  console.error(JSON.stringify({ event: 'auth_endpoint_error', operation, statusCode, code, message }))
 }
 
 async function callAuthEndpoint(
@@ -93,15 +108,6 @@ function displayNameFromEmail(email: string) {
   return email.split('@')[0].replace(/[._-]+/g, ' ').trim() || 'Zenith member'
 }
 
-function passwordAuthDisabled(c: Context<HonoEnv>) {
-  return errorResponse(
-    c,
-    400,
-    'password_auth_disabled',
-    'Password authentication has been replaced by email sign-in codes.',
-  )
-}
-
 const blockedNativeAuthPaths = new Set([
   'sign-in/email',
   'sign-up/email',
@@ -116,99 +122,210 @@ const blockedNativeAuthPaths = new Set([
   'forget-password/email-otp',
   'email-otp/request-email-change',
   'email-otp/change-email',
+  'request-password-reset',
+  'reset-password',
+  'send-verification-email',
+  'change-password',
+  'verify-password',
 ])
 
 function isBlockedNativeAuthPath(requestUrl: string) {
   const pathname = new URL(requestUrl).pathname
   const path = pathname.replace(/^\/api\/auth\/?/, '').replace(/^\/+/, '')
+  // Exact matches only: GET /reset-password/:token must stay reachable because
+  // password-reset emails link to it — it validates the token and redirects
+  // into the SPA. The native POST /reset-password (exact match in the set)
+  // stays blocked behind the custom endpoint of the same path.
   return blockedNativeAuthPaths.has(path)
 }
 
-// ── POST /register and /login disabled ─────────────────────────────────────
+// ── POST /register ─────────────────────────────────────────────────────────
+// Password sign-up with mandatory email verification. Role and username are
+// assigned server-side; the native sign-up endpoint stays blocked so a caller
+// can never self-assign a role.
 
-authRoutes.post('/register', passwordAuthDisabled)
-
-authRoutes.post('/login', passwordAuthDisabled)
-
-// ── POST /otp/request ──────────────────────────────────────────────────────
-
-authRoutes.post('/otp/request', zValidator('json', authOtpRequestSchema, zodHook), async (c) => {
-  const { email } = c.req.valid('json')
+authRoutes.post('/register', zValidator('json', authRegisterSchema, zodHook), async (c) => {
+  const { email, password } = c.req.valid('json')
   const db = createDb(c.env.DB)
-  const existingUser = await db
+  const auth = createAuth(c.env, new URL(c.req.url).origin)
+
+  let authResponse: Response
+  try {
+    authResponse = await callAuthEndpoint(c, auth, 'sign-up/email', {
+      email,
+      password,
+      name: displayNameFromEmail(email),
+      username: await generateUniqueUsername(db, email),
+    })
+  } catch (error) {
+    logAuthEndpointError('register', error)
+    return errorResponse(c, 500, 'internal_server_error', 'Could not create the account. Try again.')
+  }
+
+  if (!authResponse.ok) {
+    const native = await readJson<{ code?: string; message?: string }>(authResponse)
+    return jsonWithAuthCookies(authResponse, {
+      error: {
+        code: native?.code ?? 'registration_failed',
+        message: native?.message ?? 'Could not create the account. Try again.',
+      },
+    })
+  }
+
+  // No session cookies are forwarded: accounts stay signed out until the
+  // email address is verified.
+  return c.json({ success: true, email })
+})
+
+// ── POST /login ────────────────────────────────────────────────────────────
+
+authRoutes.post('/login', zValidator('json', authLoginSchema, zodHook), async (c) => {
+  const { email, password } = c.req.valid('json')
+  const db = createDb(c.env.DB)
+  const existing = await db
     .select({ accountStatus: users.accountStatus })
     .from(users)
     .where(eq(users.email, email))
     .get()
-  if (existingUser?.accountStatus === 'suspended') {
-    return errorResponse(c, 403, 'account_suspended', 'This account is suspended.')
-  }
-  const otp = generateOtp()
-
-  await storeSignInOtp(db, email, otp)
-
-  try {
-    await sendOtpEmail(c.env, email, otp)
-  } catch (error) {
-    await deleteSignInOtp(db, email)
-    console.error('OTP email delivery failed:', error)
-    return errorResponse(
-      c,
-      503,
-      'otp_email_unavailable',
-      'Sign-in email could not be sent. Try a verified Email Routing recipient.',
-    )
-  }
-
-  return c.json({ success: true })
-})
-
-// ── POST /otp/verify ───────────────────────────────────────────────────────
-
-authRoutes.post('/otp/verify', zValidator('json', authOtpVerifySchema, zodHook), async (c) => {
-  const { email, otp } = c.req.valid('json')
-  const db = createDb(c.env.DB)
-  const existing = await db
-    .select({ id: users.id, accountStatus: users.accountStatus })
-    .from(users)
-    .where(eq(users.email, email))
-    .get()
   if (existing?.accountStatus === 'suspended') {
-    await deleteSignInOtp(db, email)
     return errorResponse(c, 403, 'account_suspended', 'This account is suspended.')
   }
+
   const auth = createAuth(c.env, new URL(c.req.url).origin)
   let authResponse: Response
   try {
-    authResponse = await callAuthEndpoint(c, auth, 'sign-in/email-otp', {
+    authResponse = await callAuthEndpoint(c, auth, 'sign-in/email', { email, password })
+  } catch (error) {
+    logAuthEndpointError('login', error)
+    return errorResponse(c, 500, 'internal_server_error', 'Sign-in failed. Try again.')
+  }
+
+  if (!authResponse.ok) {
+    if (authResponse.status === 403) {
+      return jsonWithAuthCookies(authResponse, {
+        error: {
+          code: 'email_not_verified',
+          message: 'Verify your email before signing in. We sent a fresh verification link to your inbox.',
+        },
+      }, 403)
+    }
+    if (authResponse.status === 401) {
+      return jsonWithAuthCookies(authResponse, {
+        error: { code: 'invalid_credentials', message: 'Incorrect email or password.' },
+      }, 401)
+    }
+    return jsonWithAuthCookies(authResponse, {
+      error: { code: 'sign_in_failed', message: 'Sign-in failed. Try again.' },
+    })
+  }
+
+  const json = await readJson<{ user?: BetterAuthUser }>(authResponse)
+  if (!json?.user) {
+    return errorResponse(c, 500, 'sign_in_failed', 'Sign-in failed. Try again.')
+  }
+  return jsonWithAuthCookies(authResponse, toLegacyUser(json.user))
+})
+
+// ── POST /resend-verification ──────────────────────────────────────────────
+// Always succeeds without revealing whether the address is registered.
+
+authRoutes.post('/resend-verification', zValidator('json', forgotPasswordSchema, zodHook), async (c) => {
+  const { email } = c.req.valid('json')
+  const auth = createAuth(c.env, new URL(c.req.url).origin)
+
+  let authResponse: Response
+  try {
+    authResponse = await callAuthEndpoint(c, auth, 'send-verification-email', {
       email,
-      otp,
-      name: displayNameFromEmail(email),
-      role: 'subscriber',
-      username: existing ? undefined : await generateUniqueUsername(db, email),
+      callbackURL: '/login?verified=1',
+    })
+  } catch {
+    return errorResponse(c, 503, 'verification_email_unavailable', 'Verification email could not be sent. Try again shortly.')
+  }
+  if (!authResponse.ok) {
+    return errorResponse(c, 503, 'verification_email_unavailable', 'Verification email could not be sent. Try again shortly.')
+  }
+  return c.json({ success: true })
+})
+
+// ── POST /forgot-password ──────────────────────────────────────────────────
+// Always succeeds without revealing whether the address is registered.
+
+authRoutes.post('/forgot-password', zValidator('json', forgotPasswordSchema, zodHook), async (c) => {
+  const { email } = c.req.valid('json')
+  const origin = new URL(c.req.url).origin
+  const auth = createAuth(c.env, origin)
+
+  let authResponse: Response
+  try {
+    authResponse = await callAuthEndpoint(c, auth, 'request-password-reset', {
+      email,
+      redirectTo: `${origin}/reset-password`,
+    })
+  } catch {
+    return errorResponse(c, 503, 'reset_email_unavailable', 'Reset email could not be sent. Try again shortly.')
+  }
+  if (!authResponse.ok) {
+    return errorResponse(c, 503, 'reset_email_unavailable', 'Reset email could not be sent. Try again shortly.')
+  }
+  return c.json({ success: true })
+})
+
+// ── POST /reset-password ───────────────────────────────────────────────────
+
+authRoutes.post('/reset-password', zValidator('json', resetPasswordSchema, zodHook), async (c) => {
+  const { token, password } = c.req.valid('json')
+  const auth = createAuth(c.env, new URL(c.req.url).origin)
+
+  let authResponse: Response
+  try {
+    authResponse = await callAuthEndpoint(c, auth, 'reset-password', {
+      newPassword: password,
+      token,
     })
   } catch (error) {
-    const statusCode = typeof error === 'object' && error !== null && 'statusCode' in error
-      ? Number((error as { statusCode?: number }).statusCode)
-      : 400
-    const code = statusCode === 403 ? 'too_many_otp_attempts' : 'invalid_otp'
-    const message = code === 'too_many_otp_attempts'
-      ? 'Too many incorrect codes. Request a new sign-in code.'
-      : 'The sign-in code is invalid or expired.'
-    return errorResponse(c, statusCode === 403 ? 403 : 400, code, message)
+    logAuthEndpointError('reset-password', error)
+    return errorResponse(c, 400, 'invalid_reset_token', 'This reset link is invalid or has expired. Request a new one.')
   }
 
-  const json = await readJson<{ user?: BetterAuthUser; message?: string }>(authResponse)
+  if (!authResponse.ok) {
+    return jsonWithAuthCookies(authResponse, {
+      error: { code: 'invalid_reset_token', message: 'This reset link is invalid or has expired. Request a new one.' },
+    }, 400)
+  }
+  return jsonWithAuthCookies(authResponse, { success: true })
+})
 
-  if (!authResponse.ok || !json?.user) {
-    const code = authResponse.status === 403 ? 'too_many_otp_attempts' : 'invalid_otp'
-    const message = code === 'too_many_otp_attempts'
-      ? 'Too many incorrect codes. Request a new sign-in code.'
-      : 'The sign-in code is invalid or expired.'
-    return jsonWithAuthCookies(authResponse, { error: { code, message } }, authResponse.status === 403 ? 403 : 400)
+// ── POST /change-password ──────────────────────────────────────────────────
+
+authRoutes.post('/change-password', authMiddleware, zValidator('json', changePasswordSchema, zodHook), async (c) => {
+  const { currentPassword, newPassword } = c.req.valid('json')
+  const auth = createAuth(c.env, new URL(c.req.url).origin)
+
+  let authResponse: Response
+  try {
+    authResponse = await callAuthEndpoint(c, auth, 'change-password', {
+      currentPassword,
+      newPassword,
+      revokeOtherSessions: true,
+    })
+  } catch (error) {
+    logAuthEndpointError('change-password', error)
+    return errorResponse(c, 500, 'internal_server_error', 'Could not change the password. Try again.')
   }
 
-  return jsonWithAuthCookies(authResponse, toLegacyUser(json.user))
+  if (!authResponse.ok) {
+    const native = await readJson<{ code?: string; message?: string }>(authResponse)
+    logAuthEndpointError('change-password', { statusCode: authResponse.status, body: native })
+    const unauthorized = authResponse.status === 401
+    return jsonWithAuthCookies(authResponse, {
+      error: {
+        code: unauthorized ? 'invalid_current_password' : 'change_password_failed',
+        message: unauthorized ? 'Your current password is incorrect.' : native?.message ?? 'Could not change the password. Try again.',
+      },
+    }, unauthorized ? 401 : authResponse.status)
+  }
+  return jsonWithAuthCookies(authResponse, { success: true })
 })
 
 // ── POST /logout ───────────────────────────────────────────────────────────
@@ -249,6 +366,9 @@ authRoutes.get('/me', authMiddleware, async (c) => {
 })
 
 // ── Better Auth native endpoints ───────────────────────────────────────────
+// The email link in verification messages is the one native GET that stays
+// reachable (verify-email); everything that could mutate credentials is
+// wrapped above or blocked outright.
 
 authRoutes.on(['GET', 'POST'], '/*', (c) => {
   if (isBlockedNativeAuthPath(c.req.url)) return notFound(c)
